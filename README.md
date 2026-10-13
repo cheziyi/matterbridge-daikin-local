@@ -1,5 +1,15 @@
 # Matterbridge Daikin Local
 
+[![npm version](https://img.shields.io/npm/v/matterbridge-daikin-local.svg)](https://www.npmjs.com/package/matterbridge-daikin-local)
+[![npm downloads](https://img.shields.io/npm/dt/matterbridge-daikin-local.svg)](https://www.npmjs.com/package/matterbridge-daikin-local)
+[![Node.js CI](https://github.com/cheziyi/matterbridge-daikin-local/actions/workflows/build.yml/badge.svg)](https://github.com/cheziyi/matterbridge-daikin-local/actions/workflows/build.yml)
+[![CodeQL](https://github.com/cheziyi/matterbridge-daikin-local/actions/workflows/codeql.yml/badge.svg)](https://github.com/cheziyi/matterbridge-daikin-local/actions/workflows/codeql.yml)
+[![codecov](https://codecov.io/gh/cheziyi/matterbridge-daikin-local/branch/main/graph/badge.svg)](https://codecov.io/gh/cheziyi/matterbridge-daikin-local)
+[![license](https://img.shields.io/npm/l/matterbridge-daikin-local.svg)](./LICENSE)
+
+[![powered by](https://img.shields.io/badge/powered%20by-matterbridge-blue)](https://www.npmjs.com/package/matterbridge)
+[![powered by](https://img.shields.io/badge/powered%20by-daikin--local--control-blue)](https://www.npmjs.com/package/daikin-local-control)
+
 Control your Daikin air conditioners from Apple Home, Google Home, Alexa, Home Assistant and other Matter apps, **entirely over your local network**. No cloud, no Daikin account, and nothing that stops working when your internet does.
 
 It is a [Matterbridge](https://matterbridge.io) plugin built on [daikin-local-control](https://www.npmjs.com/package/daikin-local-control), for the units set up with the DAIKIN Mobile Controller app: BRP069, BRP072 and BRP084 adapters. See its [coverage and limitations](https://github.com/cheziyi/daikin-local-control#coverage--limitations).
