@@ -98,13 +98,19 @@ describe('setupApi', () => {
     expect(platform.saveDevice).toHaveBeenCalledTimes(1);
   });
 
-  it('should remove a device by its name', async () => {
-    expect(await handleSetupRequest(platform, 'DELETE', 'device', { name: 'Living Room' })).toEqual({ ok: true });
-    expect(platform.removeDevice).toHaveBeenCalledWith('Living Room');
+  it('should remove a device by the MAC address of its adapter', async () => {
+    expect(await handleSetupRequest(platform, 'DELETE', 'device', { macAddress: 'a408eacc91d4' })).toEqual({ ok: true });
+    expect(platform.removeDevice).toHaveBeenCalledWith('A4:08:EA:CC:91:D4');
     platform.removeDevice.mockResolvedValueOnce(false);
-    expect(await handleSetupRequest(platform, 'DELETE', 'device', { name: 'Gone' })).toEqual({ ok: false, error: 'No device is named "Gone"' });
-    expect(await handleSetupRequest(platform, 'DELETE', 'device', {})).toEqual({ ok: false, error: 'Name the device to remove' });
-    expect(await handleSetupRequest(platform, 'DELETE', 'device')).toEqual({ ok: false, error: 'Name the device to remove' });
+    expect(await handleSetupRequest(platform, 'DELETE', 'device', { macAddress: 'A4:08:EA:CC:91:D5' })).toEqual({
+      ok: false,
+      error: 'No device has the adapter A4:08:EA:CC:91:D5',
+    });
+    expect(await handleSetupRequest(platform, 'DELETE', 'device', { macAddress: 'Living Room' })).toEqual({
+      ok: false,
+      error: 'Give the MAC address of the adapter of the device to remove',
+    });
+    expect(await handleSetupRequest(platform, 'DELETE', 'device')).toEqual({ ok: false, error: 'Give the MAC address of the adapter of the device to remove' });
   });
 
   it('should answer with the reason when a request fails', async () => {

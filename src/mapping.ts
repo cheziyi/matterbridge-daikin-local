@@ -21,8 +21,6 @@
  * limitations under the License.
  */
 
-import { createHash } from 'node:crypto';
-
 import { type DaikinCapabilities, FAN_SPEEDS, type FanSpeed, type OperatingMode, type SwingMode, type TemperatureRange } from 'daikin-local-control';
 import { FanControl, Thermostat } from 'matterbridge/matter/clusters';
 
@@ -233,18 +231,6 @@ export function resolveSwingMode(current: SwingMode, change: SwingChange, suppor
     if (supported.includes(single)) return single;
   }
   return current;
-}
-
-/**
- * Derive the serial number of a device from the MAC address of its adapter
- *
- * The serial number, and with it the Matter unique id, stays the same when the address or the name of the adapter changes.
- *
- * @param {string} macAddress The MAC address of the adapter.
- * @returns {string} `DLC` followed by 12 upper case hexadecimal digits.
- */
-export function getDeviceSerial(macAddress: string): string {
-  return `DLC${createHash('sha256').update(macAddress).digest('hex').slice(0, 12).toUpperCase()}`;
 }
 
 /**

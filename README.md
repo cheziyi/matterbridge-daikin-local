@@ -201,9 +201,9 @@ The table is read from the README, the settings and the source of matterbridge-d
 
 ## How devices are stored
 
-The plugin knows each air conditioner by the **MAC address of its adapter**, so neither a new IP address nor a new name makes it lose track of one:
+The plugin knows each air conditioner by the **MAC address of its adapter**, so neither a new IP address nor a new name makes it lose track of one. The MAC address is also the serial number the air conditioner has in Matter:
 
-- **The address and the name are kept up to date.** The plugin searches the network when it starts, every 5 minutes, and at once when a device stops answering. An adapter that answers from a new address, or under a new name, has both updated. A renamed adapter stays the same device in Matter, under its new name.
+- **The address and the name are kept up to date.** The plugin searches the network when it starts, every 5 minutes, and at once when a device stops answering. An adapter that answers from a new address, or under a new name, has both updated. A renamed adapter is built again in Matter under its new name, with the same serial number. A Matter app may take it for a new device, and ask you again for its room and its automations.
 - **No two devices share a name**, because the name is what Matter shows. An adapter renamed to the name of another stored device keeps its old name in the plugin, and the setup page does not offer adapters that share a name: give each adapter its own name in the Daikin app it was set up with.
 - **An adapter added by address is followed like any other** when a search can reach it: the plugin reads its MAC address at the address you enter. An adapter on another subnet or VLAN, which no search reaches, keeps the address you entered, so give it a fixed one on your router.
 - **An adapter that has no name** is named by you in the setup page. The plugin takes the adapter's own name as soon as it has one.

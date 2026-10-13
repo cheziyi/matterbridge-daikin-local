@@ -221,7 +221,7 @@ describe('DaikinPlatform', () => {
     await held;
     await platform.pollDevices();
     expect(slow.getStateAndSensors).toHaveBeenCalledTimes(2);
-    expect(await platform.removeDevice('Lobby')).toBe(true);
+    expect(await platform.removeDevice(macOf('Lobby'))).toBe(true);
   });
 
   it('should describe the stored devices without their child lock code', async () => {
@@ -436,12 +436,12 @@ describe('DaikinPlatform', () => {
     expect(log.warn).toHaveBeenCalledWith('"Attic" could not be started at 192.168.1.91 and will be retried: aggregator is full');
     expect(platform.getDevices()).toHaveLength(5);
     registerDevice.mockRestore();
-    expect(await platform.removeDevice('Attic')).toBe(true);
+    expect(await platform.removeDevice(macOf('Attic'))).toBe(true);
   });
 
   it('should remove a device, its endpoints and what was known about its unit', async () => {
-    expect(await platform.removeDevice('Nobody')).toBe(false);
-    expect(await platform.removeDevice('Study')).toBe(true);
+    expect(await platform.removeDevice(macOf('Nobody'))).toBe(false);
+    expect(await platform.removeDevice(macOf('Study'))).toBe(true);
     expect(log.info).toHaveBeenCalledWith('"Study" stopped');
     expect(platform.getDevices()).toHaveLength(2);
     expect(await platform.context?.get(`capabilities:${macOf('Study')}`)).toBeUndefined();
@@ -492,6 +492,8 @@ describe('DaikinPlatform', () => {
     discover.mockResolvedValueOnce([found({ name: 'Scullery', host: '192.168.1.71', macAddress: 'A4:08:EA:CC:00:70' })]);
     await platform.updateAddresses();
     expect(log.notice).toHaveBeenCalledWith('"Larder" is now named "Scullery"');
+    // The serial number is the MAC address, which a new name does not change.
+    expect(platform.getDeviceBySerialNumber('A4:08:EA:CC:00:70')?.deviceName).toBe('Scullery');
     expect(log.notice).not.toHaveBeenCalledWith(expect.stringContaining('moved from'));
     discover.mockResolvedValueOnce([found({ name: 'Larder', host: '192.168.1.71', macAddress: 'A4:08:EA:CC:00:70' })]);
     await platform.updateAddresses();
@@ -519,7 +521,7 @@ describe('DaikinPlatform', () => {
     await platform.saveDevice(createDeviceConfig({ name: 'Lobby', host: '192.168.1.71', swingControl: 'hidden', macAddress: 'A4:08:EA:CC:00:70' }));
     expect(log.info).toHaveBeenCalledWith('"Larder" stopped');
     expect(log.info).toHaveBeenCalledWith('"Lobby" started at 192.168.1.71 with 1 Matter endpoint(s)');
-    expect(await platform.removeDevice('Lobby')).toBe(true);
+    expect(await platform.removeDevice('A4:08:EA:CC:00:70')).toBe(true);
     expect(platform.getDevices()).toHaveLength(2);
   });
 
@@ -571,7 +573,7 @@ describe('DaikinPlatform', () => {
     expect(setIntervalSpy).toHaveBeenCalledWith(expect.any(Function), 45_000);
 
     await saveInEditor({ pollIntervalInSeconds: 60 });
-    expect(await platform.removeDevice('Kitchen')).toBe(true);
+    expect(await platform.removeDevice(macOf('Kitchen'))).toBe(true);
     expect(platform.getDevices()).toHaveLength(2);
   });
 
@@ -585,7 +587,7 @@ describe('DaikinPlatform', () => {
     expect(log.info).not.toHaveBeenCalledWith(expect.stringContaining('started'));
     expect(log.info).not.toHaveBeenCalledWith(expect.stringContaining('stopped'));
     expect(platform.getDevices()).toHaveLength(5);
-    expect(await platform.removeDevice('Kitchen')).toBe(true);
+    expect(await platform.removeDevice(macOf('Kitchen'))).toBe(true);
   });
 
   it('should take the terminal uuid saved in the config editor, and keep its own when that one is missing or wrong', async () => {
@@ -623,7 +625,7 @@ describe('DaikinPlatform', () => {
     });
     await platform.updateAddresses();
     expect(log.error).toHaveBeenCalledWith('A change to the devices failed: bad host');
-    expect(await platform.removeDevice('Garage')).toBe(true);
+    expect(await platform.removeDevice(macOf('Garage'))).toBe(true);
   });
 
   it('should give each reading of a unit its place in Matter, from the first time the unit gives it', async () => {
@@ -678,8 +680,8 @@ describe('DaikinPlatform', () => {
     await settle();
     expect(find('Shed Outdoor Temperature')?.getAttribute(TemperatureMeasurement, 'measuredValue')).toBe(1200);
 
-    expect(await platform.removeDevice('Attic')).toBe(true);
-    expect(await platform.removeDevice('Shed')).toBe(true);
+    expect(await platform.removeDevice(macOf('Attic'))).toBe(true);
+    expect(await platform.removeDevice(macOf('Shed'))).toBe(true);
     expect(await platform.context?.get(`sensors:${macOf('Attic')}`)).toBeUndefined();
     expect(platform.getDevices()).toHaveLength(count);
   });
@@ -768,8 +770,8 @@ describe('DaikinPlatform', () => {
       expect.objectContaining({ devices: [expect.objectContaining({ name: 'Loft' }), expect.objectContaining({ name: 'Cellar', protocol: 'classic' })] }),
     );
 
-    expect(await keeper.removeDevice('Loft')).toBe(true);
-    expect(await keeper.removeDevice('Cellar')).toBe(true);
+    expect(await keeper.removeDevice(fromLater.macAddress)).toBe(true);
+    expect(await keeper.removeDevice(macOf('Cellar'))).toBe(true);
     await keeper.onShutdown();
     await keeper.unregisterAllDevices();
   });
@@ -803,7 +805,7 @@ describe('DaikinPlatform', () => {
     await restarted.saveDevice(createDeviceConfig({ name: 'Porch', host: '192.168.1.96', swingControl: 'hidden' }));
     expect(unitAt('192.168.1.96').getCapabilities).toHaveBeenCalledTimes(1);
     expect((await restarted.getSetupState()).devices[0]).toMatchObject({ name: 'Porch', capabilities: undefined });
-    expect(await restarted.removeDevice('Porch')).toBe(true);
+    expect(await restarted.removeDevice(macOf('Porch'))).toBe(true);
     await restarted.onShutdown();
     expect(log.info).toHaveBeenCalledWith(`Shutting down platform ${pluginName} with reason: no reason provided...`);
   });
