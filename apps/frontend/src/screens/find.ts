@@ -17,7 +17,7 @@ function foundRow(adapter: FoundAdapter): HTMLElement {
   const isSelectable = !adapter.isConfigured && !adapter.hasDuplicateName;
   const notes: string[] = [];
   if (adapter.isConfigured) notes.push('Already set up.');
-  if (adapter.hasDuplicateName) notes.push('Another adapter has the same name. Give each its own name in the DAIKIN Mobile Controller app, then search again.');
+  if (adapter.hasDuplicateName) notes.push('Another adapter has the same name. Give each its own name in its Daikin app, then search again.');
   if (adapter.name === undefined) notes.push('It has not told its name yet. If it has none, you will name it after connecting.');
   if (isSelectable && adapter.needsRegistration) notes.push('Asks for the KEY printed on its label.');
   else if (isSelectable && adapter.requiresRegistration) notes.push('Already registered with this plugin, so it will not ask for its KEY.');

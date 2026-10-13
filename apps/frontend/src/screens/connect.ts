@@ -34,7 +34,7 @@ function nameForm(draft: Draft): HTMLElement {
     h(
       'p',
       { class: 'help' },
-      'Its adapter has no name of its own. This is the name it gets in Matter, up to 32 characters. Name the adapter in the DAIKIN Mobile Controller app later and the plugin takes that name instead.',
+      'Its adapter has no name of its own. This is the name it gets in Matter, up to 32 characters. Name the adapter in its Daikin app later and the plugin takes that name instead.',
     ),
     h('div', { class: 'inline-form' }, name, button('Continue', submit, 'primary')),
   );
@@ -46,7 +46,7 @@ function lockCodeForm(draft: Draft, isRejected: boolean): HTMLElement {
     'div',
     { class: 'field' },
     h('label', { for: 'lock-code' }, 'Child lock code'),
-    h('p', { class: 'help' }, 'The 4-digit code set under Child lock in the DAIKIN Mobile Controller app. It is not printed on the adapter.'),
+    h('p', { class: 'help' }, 'The 4-digit code set under Child lock in the Daikin app the adapter was set up with. It is not printed on the adapter.'),
     isRejected ? h('p', { class: 'problem-text' }, 'The adapter did not accept that code.') : null,
     h(
       'div',

@@ -181,6 +181,26 @@ async function identifyClassic(host: string, usesHttps: boolean, terminalUuid: s
 }
 
 /**
+ * Ask an Airbase adapter whether it is one
+ *
+ * An Airbase adapter takes no terminal uuid, no registration and no child lock code, so any failure means it is not one.
+ *
+ * @param {string} host The address to ask.
+ * @param {string} terminalUuid The terminal uuid, which the client is built with and does not send.
+ * @returns {Promise<DaikinDevice | undefined>} The device with its name and its MAC address, or undefined when the address does not answer as an Airbase adapter.
+ */
+async function identifyAirbase(host: string, terminalUuid: string): Promise<DaikinDevice | undefined> {
+  const client = createDaikinClient({ host, protocol: 'airbase' }, { terminalUuid, timeoutInMs: probeTimeoutInMs, retry: { delaysInMs: [] } });
+  try {
+    return { host, protocol: 'airbase', ...(await client.getDeviceInfo()) };
+  } catch {
+    return undefined;
+  } finally {
+    await closeQuietly(client);
+  }
+}
+
+/**
  * Ask a DSIOT adapter whether it is one
  *
  * @param {string} host The address to ask.
@@ -201,7 +221,8 @@ async function identifyDsiot(host: string, terminalUuid: string): Promise<Daikin
 /**
  * Find out what answers at an address the user typed, for a device that discovery does not reach
  *
- * It asks as a classic adapter over HTTP, over HTTPS when nothing answered, and then as a DSIOT adapter.
+ * It asks as a classic adapter over HTTP, and over HTTPS when nothing answered. An Airbase adapter answers HTTP 404 where
+ * a classic adapter answers, so an address that did is asked as an Airbase adapter. It asks as a DSIOT adapter last.
  *
  * @param {string} host The address, with `:port` when the adapter does not use the default one.
  * @param {string} terminalUuid The terminal uuid.
@@ -213,6 +234,10 @@ export async function identifyHost(host: string, terminalUuid: string): Promise<
   if (overHttp === 503 || overHttp === 504) {
     const overHttps = await identifyClassic(host, true, terminalUuid);
     if (typeof overHttps !== 'number') return overHttps;
+  }
+  if (overHttp === 404) {
+    const airbase = await identifyAirbase(host, terminalUuid);
+    if (airbase !== undefined) return airbase;
   }
   return identifyDsiot(host, terminalUuid);
 }

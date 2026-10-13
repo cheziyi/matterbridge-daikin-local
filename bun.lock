@@ -5,7 +5,7 @@
     "": {
       "name": "matterbridge-daikin-local",
       "dependencies": {
-        "daikin-local-control": "0.4.0",
+        "daikin-local-control": "0.5.0",
         "node-ansi-logger": "3.3.1",
         "node-persist-manager": "2.1.1",
       },
@@ -223,7 +223,7 @@
 
     "chai": ["chai@6.2.2", "", {}, "sha512-NUPRluOfOiTKBKvWPtSD4PhFvWCqOi0BGStNWs57X9js7XGTprSmFoz5F0tWhR4WPjNeR9jXqdC7/UpSJTnlRg=="],
 
-    "daikin-local-control": ["daikin-local-control@0.4.0", "", { "dependencies": { "undici": "^8.11.2" } }, "sha512-Bsyv+FCOAW4Rm9BNHJF/h/HFAwsmYm8M3ZsLsz5ZPFcRiIrHpNWe6zxrL2/G8nPMaZm34P1Bxyh3kOVuCPbw6g=="],
+    "daikin-local-control": ["daikin-local-control@0.5.0", "", { "dependencies": { "undici": "^8.11.2" } }, "sha512-C3g9AG7RLjsoqZoc3eokKs/cHrIt0XLaj9NFMsSDfZyLOwwqGmKUDjnpQDqR+zfgrbv5mKNWCY+ox7E/ZeFLYg=="],
 
     "detect-libc": ["detect-libc@2.1.2", "", {}, "sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ=="],
 

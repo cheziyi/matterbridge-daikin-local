@@ -51,4 +51,19 @@ describe('discovery', () => {
     expect(getDiscoveredUpdate(livingRoom, devices, [{ ...adapter, protocol: 'dsiot', host: '192.168.1.77' }], log)).toBeUndefined();
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('now speaks dsiot instead of classic'));
   });
+
+  it('should follow an Airbase adapter the search reports as classic, and keep its stored requirements', () => {
+    const ducted = createDeviceConfig({ name: 'Ducted', host: '192.168.1.52', protocol: 'airbase' });
+    const found: DaikinDevice = { host: '192.168.1.52', protocol: 'airbase', name: 'Ducted', macAddress: ducted.macAddress };
+    expect(getDiscoveredUpdate(ducted, [ducted], [{ ...found, host: '192.168.1.78', usesHttps: true }], log)).toEqual({ ...ducted, host: '192.168.1.78', usesHttps: true });
+
+    // The search could not ask the adapter which it is, and read its reply as a classic adapter's.
+    const unconfirmed: DaikinDevice = { ...found, protocol: 'classic', host: '192.168.1.79', name: 'Upstairs', requiresRegistration: true, requiresLocalPassword: true };
+    expect(getDiscoveredUpdate(ducted, [ducted], [unconfirmed], log)).toEqual({ ...ducted, host: '192.168.1.79', name: 'Upstairs' });
+    expect(getDiscoveredUpdate(ducted, [ducted], [{ ...found, protocol: 'classic' }], log)).toBeUndefined();
+    expect(warn).not.toHaveBeenCalled();
+
+    expect(getDiscoveredUpdate(ducted, [ducted], [{ ...found, protocol: 'dsiot' }], log)).toBeUndefined();
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('now speaks dsiot instead of airbase'));
+  });
 });
