@@ -97,7 +97,8 @@ export class DaikinPlatform extends MatterbridgeDynamicPlatform implements Setup
   private maxStateAgeForCommandInSeconds: number;
   private terminalUuid: string | undefined;
   private readonly revisions: SetupRevisions;
-  private isPolling = false;
+  /** The devices whose unit is being read, so that a unit that is slow to answer holds up no other. */
+  private readonly polling = new Set<DaikinAccessory>();
   private discovery: Promise<DaikinDevice[]> | undefined;
   // Changes to the device list run one after the other.
   private changes: Promise<void> = Promise.resolve();
@@ -380,28 +381,33 @@ export class DaikinPlatform extends MatterbridgeDynamicPlatform implements Setup
   /**
    * Read the state of every running device once
    *
+   * A device whose unit has not answered the read before this one is left out, so that the others are still read on
+   * time.
+   *
    * A device that just stopped answering triggers a search, since a changed address is the likeliest cause. A unit that
    * gave a reading its device shows nowhere yet has the device built again in Matter, with a place for it.
    *
-   * @returns {Promise<void>} Resolves when every device answered or failed.
+   * @returns {Promise<void>} Resolves when every device that was read answered or failed.
    */
   async pollDevices(): Promise<void> {
-    if (this.isPolling) return;
-    this.isPolling = true;
+    const idle = [...this.accessories.values()].filter((accessory) => !this.polling.has(accessory));
     try {
       const results = await Promise.all(
-        [...this.accessories.values()].map(async (accessory) => {
-          const wasReachable = accessory.getStatus().isReachable;
-          await accessory.refresh();
-          return wasReachable && !accessory.getStatus().isReachable;
+        idle.map(async (accessory) => {
+          this.polling.add(accessory);
+          try {
+            const wasReachable = accessory.getStatus().isReachable;
+            await accessory.refresh();
+            return wasReachable && !accessory.getStatus().isReachable;
+          } finally {
+            this.polling.delete(accessory);
+          }
         }),
       );
       if (results.includes(true)) void this.updateAddresses();
       await this.enqueueChange(async () => this.exposeNewSensors());
     } catch {
       // enqueueChange logged it.
-    } finally {
-      this.isPolling = false;
     }
   }
 
@@ -561,6 +567,7 @@ export class DaikinPlatform extends MatterbridgeDynamicPlatform implements Setup
         await this.registerDevice(endpoint);
         registered.push(endpoint);
       }
+      await accessory.clearReadings();
       this.accessories.set(device.name, accessory);
       this.startErrors.delete(device.name);
       this.log.info(`"${device.name}" started at ${device.host} with ${accessory.endpoints.length} Matter endpoint(s)`);

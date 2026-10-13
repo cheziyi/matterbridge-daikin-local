@@ -198,6 +198,32 @@ describe('DaikinPlatform', () => {
     expect(unitAt('192.168.1.50').getState).toHaveBeenCalledTimes(1);
   });
 
+  it('should keep reading the other devices while one unit is slow to answer', async () => {
+    await platform.saveDevice(createDeviceConfig({ name: 'Lobby', host: '192.168.1.90', fanControl: 'hidden', swingControl: 'hidden' }));
+    await settle();
+    vi.clearAllMocks();
+    const slow = unitAt('192.168.1.50');
+    const lobby = unitAt('192.168.1.90');
+    let answer = (): void => undefined;
+    slow.getStateAndSensors.mockImplementationOnce(
+      async () =>
+        new Promise((resolve) => {
+          answer = (): void => resolve({ state: { ...slow.state }, sensors: { ...slow.sensors } });
+        }),
+    );
+    const held = platform.pollDevices();
+    await vi.waitFor(() => expect(lobby.getStateAndSensors).toHaveBeenCalledTimes(1));
+    // The living room unit has not answered yet: the next poll reads the lobby again, and leaves the living room alone.
+    await platform.pollDevices();
+    expect(lobby.getStateAndSensors).toHaveBeenCalledTimes(2);
+    expect(slow.getStateAndSensors).toHaveBeenCalledTimes(1);
+    answer();
+    await held;
+    await platform.pollDevices();
+    expect(slow.getStateAndSensors).toHaveBeenCalledTimes(2);
+    expect(await platform.removeDevice('Lobby')).toBe(true);
+  });
+
   it('should describe the stored devices without their child lock code', async () => {
     const state = await platform.getSetupState();
     expect(state.devices).toHaveLength(1);

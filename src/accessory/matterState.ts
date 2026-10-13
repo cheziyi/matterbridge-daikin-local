@@ -141,7 +141,7 @@ async function applyFanSpeed(endpoint: MatterbridgeEndpoint, layout: AccessoryLa
  * @param {DaikinSensors} sensors The readings of the unit.
  * @returns {Promise<void>} Resolves when every reading is written.
  */
-async function applySensors(endpoints: AccessoryEndpoints, layout: AccessoryLayout, sensors: DaikinSensors): Promise<void> {
+export async function applySensors(endpoints: AccessoryEndpoints, layout: AccessoryLayout, sensors: DaikinSensors): Promise<void> {
   const { endpoint } = endpoints;
   const indoor = sensors.indoorTemperatureInC === null ? null : toMatterTemperature(sensors.indoorTemperatureInC);
   await endpoint.updateAttribute('Thermostat', 'externalMeasuredIndoorTemperature', indoor);

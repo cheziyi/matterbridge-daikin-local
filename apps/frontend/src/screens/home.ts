@@ -14,13 +14,19 @@ import { render } from '../render.js';
 import { view } from '../state.js';
 
 function describeExposure(device: StoredDevice): string {
+  // What the unit cannot do is left out, whatever is stored for it. A unit the plugin has not asked yet is described as stored.
+  const hasFan = device.controls === undefined || device.controls.fanSteps.length > 0;
+  const hasSwing = device.controls === undefined || device.controls.hasSwing;
   const fanPlace = device.hasSeparateFan ? ' on a fan of its own' : '';
   const fan = device.fanControl === 'hidden' ? 'fan speed not shown' : `fan speed as ${device.fanControl === 'steps' ? 'steps' : 'a percentage'}${fanPlace}`;
   const swing = device.swingControl === 'hidden' ? 'swing not shown' : 'swing as switches';
+  const controls = [hasFan ? fan : '', hasSwing ? swing : ''].filter((text) => text !== '').join(', ');
   const switches = [device.hasDryModeSwitch ? 'dry mode' : '', device.hasFanModeSwitch ? 'fan mode' : '', device.hasFanAutoSwitch ? 'auto fan' : '', ...device.specialModeSwitches].filter(
     (name) => name !== '',
   );
-  return switches.length === 0 ? `${fan}, ${swing}` : `${fan}, ${swing}, and a switch for ${switches.join(', ')}`;
+  const extra = switches.length === 0 ? '' : `a switch for ${switches.join(', ')}`;
+  if (controls === '') return extra === '' ? 'power, mode and temperature' : extra;
+  return extra === '' ? controls : `${controls}, and ${extra}`;
 }
 
 function deviceRow(device: StoredDevice): HTMLElement {

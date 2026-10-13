@@ -737,8 +737,10 @@ describe('DaikinAccessory', () => {
       expect(accessory.endpoints).toHaveLength(1);
       expect(accessory.endpoint.hasClusterServer(RelativeHumidityMeasurement)).toBe(false);
       await addAccessory(accessory);
-      // Nothing is known before the unit is read.
+      // Nothing is known before the unit is read, and the thermostat shows no room temperature of its own making.
       expect(accessory.getNewlyReportedSensors()).toBeUndefined();
+      await accessory.clearReadings();
+      expect(accessory.endpoint.getAttribute(Thermostat, 'localTemperature')).toBeNull();
       await accessory.refresh();
       expect(accessory.getNewlyReportedSensors()).toBeUndefined();
       client.sensors.indoorHumidityInPercent = 55;

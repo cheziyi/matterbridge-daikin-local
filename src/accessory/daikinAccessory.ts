@@ -42,7 +42,7 @@ import { getErrorMessage } from '../errors.js';
 import { getDeviceSerial, toOperatingMode } from '../mapping.js';
 import { createAirConditionerEndpoint, createFanEndpoint, createOutdoorTemperatureEndpoint, createSwitchEndpoint, type EndpointIdentity } from './endpoints.js';
 import { type AccessoryLayout, getAccessoryLayout } from './layout.js';
-import { type AccessoryEndpoints, applyState, readFanSpeed } from './matterState.js';
+import { type AccessoryEndpoints, applySensors, applyState, readFanSpeed } from './matterState.js';
 import { addHiddenSettings, PendingCommand, type SetpointKind, type SwingAxis } from './pendingCommand.js';
 
 /** How long, in milliseconds, the writes of a controller are collected before they are sent as one command. */
@@ -208,6 +208,17 @@ export class DaikinAccessory implements AccessoryEndpoints {
     if (this.sensors === undefined) return undefined;
     const reported = addReportedSensors(this.reportedSensors, this.sensors);
     return reported === this.reportedSensors ? undefined : reported;
+  }
+
+  /**
+   * Show no reading until the unit is read
+   *
+   * A Matter thermostat is created with a room temperature, which is nobody's reading.
+   *
+   * @returns {Promise<void>} Resolves when the readings of the device have no value.
+   */
+  async clearReadings(): Promise<void> {
+    await applySensors(this, this.layout, { indoorTemperatureInC: null, outdoorTemperatureInC: null, indoorHumidityInPercent: null });
   }
 
   /**
