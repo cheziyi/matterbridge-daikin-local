@@ -77,7 +77,7 @@ export interface SetupPlatform {
   probe: (device: DaikinDevice, localPassword?: string) => Promise<ProbeResult>;
   register: (device: DaikinDevice, key: string, localPassword?: string) => Promise<ProbeResult>;
   saveDevice: (device: DaikinDeviceConfig) => Promise<void>;
-  removeDevice: (name: string) => Promise<boolean>;
+  removeDevice: (macAddress: string) => Promise<boolean>;
 }
 
 const maxSecretLength = 64;
@@ -170,7 +170,7 @@ async function handlePost(platform: SetupPlatform, path: string, body: Record<st
  * Serve one request of the setup page
  *
  * Paths: `GET state`, `POST discover`, `POST identify`, `POST probe`, `POST register`, `POST device` and
- * `DELETE device?name=`. A child lock code or a KEY is accepted, never returned.
+ * `DELETE device?macAddress=`. A child lock code or a KEY is accepted, never returned.
  *
  * Edge cases:
  *  - a path that is not served -> undefined, which Matterbridge answers with 404
@@ -188,9 +188,9 @@ export async function handleSetupRequest(platform: SetupPlatform, method: string
     if (method === 'GET' && path === 'state') return { ok: true, state: await platform.getSetupState() };
     if (method === 'POST' && path !== undefined) return await handlePost(platform, path, toRecord(body));
     if (method === 'DELETE' && path === 'device') {
-      const name = normalizeDeviceName(query?.name);
-      if (name === undefined) return fail('Name the device to remove');
-      return (await platform.removeDevice(name)) ? { ok: true } : fail(`No device is named "${name}"`);
+      const macAddress = normalizeMacAddress(query?.macAddress);
+      if (macAddress === undefined) return fail('Give the MAC address of the adapter of the device to remove');
+      return (await platform.removeDevice(macAddress)) ? { ok: true } : fail(`No device has the adapter ${macAddress}`);
     }
     return undefined;
   } catch (error) {

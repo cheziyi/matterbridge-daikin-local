@@ -10,7 +10,6 @@ import {
   clampTemperature,
   composeDeviceName,
   fanStepToPercent,
-  getDeviceSerial,
   getFanModeSequence,
   getFanSteps,
   getSwingAxes,
@@ -136,12 +135,6 @@ describe('mapping', () => {
     expect(resolveSwingMode('vertical', { vertical: true, horizontal: true }, ['off', 'horizontal'])).toBe('horizontal');
     expect(resolveSwingMode('vertical', { vertical: false }, ['vertical', 'both'])).toBe('vertical');
     expect(resolveSwingMode('off', { vertical: true, horizontal: true }, ['off', 'vertical'])).toBe('off');
-  });
-
-  it('should derive a stable serial number from the device name', () => {
-    expect(getDeviceSerial('Living Room')).toBe(getDeviceSerial('Living Room'));
-    expect(getDeviceSerial('Living Room')).not.toBe(getDeviceSerial('Bedroom'));
-    expect(getDeviceSerial('客厅')).toMatch(/^DLC[0-9A-F]{12}$/);
   });
 
   it('should keep the name of an extra endpoint within 32 characters by cutting the base name', () => {

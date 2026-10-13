@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - Unreleased
+
+### Changed
+
+- [devices]: Use the MAC address of the adapter as the serial number of a device in Matter, where a code made from it was used. A device set up with an earlier version is built again in Matter, and a Matter app may take it for a new device.
+- [setup]: Remove a device by the MAC address of its adapter, where its name was used.
+
+### Fixed
+
+- [readme]: Say that a renamed adapter is built again in Matter and may be taken for a new device, where the README said it stays the same device.
+
 ## [0.2.0] - 2026-10-13
 
 ### Added

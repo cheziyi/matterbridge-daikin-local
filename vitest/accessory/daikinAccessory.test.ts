@@ -98,7 +98,9 @@ describe('DaikinAccessory', () => {
       expect(accessory.endpoint.deviceName).toBe('Living Room');
       expect(accessory.verticalSwitch?.deviceName).toBe('Living Room Vertical Swing');
       expect(accessory.horizontalSwitch?.deviceName).toBe('Living Room Horizontal Swing');
-      expect(accessory.serial).toMatch(/^DLC[0-9A-F]{12}$/);
+      // The serial number is the MAC address of the adapter, with one letter more on each endpoint beside the air conditioner.
+      expect(accessory.endpoint.serialNumber).toBe(macOf('Living Room'));
+      expect(accessory.verticalSwitch?.serialNumber).toMatch(new RegExp(`^${macOf('Living Room')}[A-Z]$`));
       expect(accessory.getStatus()).toEqual({ isReachable: false, lastError: undefined, state: undefined });
       await addAccessory(accessory);
       expect(accessory.endpoint.getAttribute(FanControl, 'speedMax')).toBe(6);
@@ -569,8 +571,6 @@ describe('DaikinAccessory', () => {
       accessory = new DaikinAccessory({ config, capabilities: createCapabilities(), client, log, vendorId });
       expect(accessory.endpoints).toHaveLength(2);
       expect(accessory.fanAutoSwitch?.deviceName).toBe('Nook Auto Fan');
-      // The serial number comes from the MAC address, not from the name.
-      expect(accessory.serial).toBe(new DaikinAccessory({ config: { ...config, name: 'Other' }, capabilities: createCapabilities(), client, log, vendorId }).serial);
       await addAccessory(accessory);
       await accessory.refresh();
       expect(accessory.fanAutoSwitch?.getAttribute(OnOff, 'onOff')).toBe(true);

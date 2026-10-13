@@ -31,7 +31,7 @@ function describeExposure(device: StoredDevice): string {
 
 function deviceRow(device: StoredDevice): HTMLElement {
   const statusText = { online: 'Online', offline: 'Not answering', stopped: 'Not started' }[device.status];
-  const isConfirming = view.confirmingRemoval === device.name;
+  const isConfirming = view.confirmingRemoval === device.macAddress;
   return h(
     'li',
     { class: 'device' },
@@ -47,7 +47,7 @@ function deviceRow(device: StoredDevice): HTMLElement {
           'div',
           { class: 'actions' },
           h('span', { class: 'meta' }, 'Remove it from Matter too?'),
-          button('Remove', () => void removeDevice(device.name), 'danger'),
+          button('Remove', () => void removeDevice(device), 'danger'),
           button('Keep', () => {
             view.confirmingRemoval = '';
             render();
@@ -59,7 +59,7 @@ function deviceRow(device: StoredDevice): HTMLElement {
           // Either way the unit is asked first what it accepts now, so the options offered are the ones it has today.
           button(device.status === 'online' ? 'Options' : 'Reconnect', () => startQueue([draftFromStored(device)])),
           button('Remove', () => {
-            view.confirmingRemoval = device.name;
+            view.confirmingRemoval = device.macAddress;
             render();
           }),
         ),

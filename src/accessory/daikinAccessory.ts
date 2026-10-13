@@ -39,7 +39,7 @@ import { BridgedDeviceBasicInformation, FanControl, OnOff, Thermostat } from 'ma
 import type { DaikinDeviceConfig } from '../config.js';
 import { addReportedSensors, getSwitchableSpecialModes, hasFanAuto, noReportedSensors, type ReportedSensors } from '../controls.js';
 import { getErrorMessage } from '../errors.js';
-import { getDeviceSerial, toOperatingMode } from '../mapping.js';
+import { toOperatingMode } from '../mapping.js';
 import { createAirConditionerEndpoint, createFanEndpoint, createOutdoorTemperatureEndpoint, createSwitchEndpoint, type EndpointIdentity } from './endpoints.js';
 import { type AccessoryLayout, getAccessoryLayout } from './layout.js';
 import { type AccessoryEndpoints, applySensors, applyState, readFanSpeed } from './matterState.js';
@@ -108,7 +108,6 @@ function ignore(): void {
  */
 export class DaikinAccessory implements AccessoryEndpoints {
   readonly name: string;
-  readonly serial: string;
   readonly endpoint: MatterbridgeEndpoint;
   readonly verticalSwitch: MatterbridgeEndpoint | undefined;
   readonly horizontalSwitch: MatterbridgeEndpoint | undefined;
@@ -162,8 +161,7 @@ export class DaikinAccessory implements AccessoryEndpoints {
     this.log = options.log;
     this.commandDelayInMs = options.commandDelayInMs ?? defaultCommandDelayInMs;
     this.name = options.config.name;
-    this.serial = getDeviceSerial(options.config.macAddress);
-    this.identity = { name: this.name, serial: this.serial, vendorId: options.vendorId };
+    this.identity = { name: this.name, serial: options.config.macAddress, vendorId: options.vendorId };
     this.layout = getAccessoryLayout(this.config, this.capabilities, this.reportedSensors);
 
     this.endpoint = this.createAirConditioner();

@@ -34,7 +34,7 @@ const vendorName = 'Daikin';
 export interface EndpointIdentity {
   /** The device name. */
   name: string;
-  /** The serial number of the device: see `getDeviceSerial`. */
+  /** The serial number of the device: the MAC address of its adapter, which neither a new address nor a new name changes. */
   serial: string;
   /** The vendor id of the bridge, used for the bridged device information. */
   vendorId: number;

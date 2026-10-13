@@ -5,7 +5,7 @@
  * @license Apache-2.0
  */
 
-import { api } from './api.js';
+import { api, type StoredDevice } from './api.js';
 import { pickExposure } from './exposure.js';
 import { render } from './render.js';
 import { currentDraft, type Draft, draftLabel, isStored, view } from './state.js';
@@ -165,8 +165,8 @@ export async function saveDraft(draft: Draft): Promise<void> {
   await enterConnect();
 }
 
-export async function removeDevice(name: string): Promise<void> {
-  const reply = await busy(`Removing ${name}…`, async () => api('DELETE device', undefined, `name=${encodeURIComponent(name)}`));
+export async function removeDevice(device: StoredDevice): Promise<void> {
+  const reply = await busy(`Removing ${device.name}…`, async () => api('DELETE device', undefined, `macAddress=${encodeURIComponent(device.macAddress)}`));
   view.confirmingRemoval = '';
   if (!reply.ok) view.error = reply.error;
   await refreshState();
