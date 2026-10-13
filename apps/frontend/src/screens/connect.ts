@@ -76,7 +76,7 @@ function keyForm(draft: Draft, isRejected: boolean): HTMLElement {
       { class: 'help' },
       'This adapter only answers apps it has registered. The KEY is printed on its label, next to the SSID, and in the operation manual. It is used once and not stored.',
     ),
-    isRejected ? h('p', { class: 'problem-text' }, `The adapter did not accept that KEY. ${draft.probe?.message ?? ''}`) : null,
+    isRejected ? h('p', { class: 'problem-text' }, 'The adapter did not accept that KEY.') : null,
     h(
       'div',
       { class: 'inline-form' },
