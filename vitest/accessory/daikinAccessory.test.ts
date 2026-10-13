@@ -34,6 +34,28 @@ async function addAccessory(accessory: DaikinAccessory): Promise<void> {
 }
 
 /**
+ * Write several attributes the way a controller does in one go: every value lands, then the changes are announced with a
+ * fabric, one right after the other
+ *
+ * Nothing is awaited between the announcements, so however slow the machine is, the command delay cannot run out
+ * between two of them.
+ *
+ * @param {MatterbridgeEndpoint} endpoint The endpoint.
+ * @param {readonly (readonly [string, string, unknown])[]} writes The cluster name, the attribute name and the value of each write.
+ * @returns {Promise<void>} Resolves when the changes are announced.
+ */
+async function writeTogetherAsController(endpoint: MatterbridgeEndpoint, writes: readonly (readonly [cluster: string, attribute: string, value: unknown])[]): Promise<void> {
+  const announcements: (() => void)[] = [];
+  for (const [cluster, attribute, value] of writes) {
+    const previous: unknown = endpoint.getAttribute(cluster, attribute);
+    await endpoint.setAttribute(cluster, attribute, value as never);
+    const events = endpoint.eventsOf(cluster.charAt(0).toLowerCase() + cluster.slice(1)) as Record<string, { emit: (...parameters: unknown[]) => void } | undefined>;
+    announcements.push(() => events[`${attribute}$Changed`]?.emit(value, previous, online));
+  }
+  for (const announce of announcements) announce();
+}
+
+/**
  * Write an attribute the way a controller does: the value lands, then the change is announced with a fabric
  *
  * @param {MatterbridgeEndpoint} endpoint The endpoint.
@@ -43,10 +65,7 @@ async function addAccessory(accessory: DaikinAccessory): Promise<void> {
  * @returns {Promise<void>} Resolves when the change is announced.
  */
 async function writeAsController(endpoint: MatterbridgeEndpoint, cluster: string, attribute: string, value: unknown): Promise<void> {
-  const previous: unknown = endpoint.getAttribute(cluster, attribute);
-  await endpoint.setAttribute(cluster, attribute, value as never);
-  const events = endpoint.eventsOf(cluster.charAt(0).toLowerCase() + cluster.slice(1)) as Record<string, { emit: (...parameters: unknown[]) => void } | undefined>;
-  events[`${attribute}$Changed`]?.emit(value, previous, online);
+  await writeTogetherAsController(endpoint, [[cluster, attribute, value]]);
 }
 
 await setupTest('DaikinAccessory', false);
@@ -73,7 +92,8 @@ describe('DaikinAccessory', () => {
 
     it('should create the air conditioner and one switch for each swing axis', async () => {
       client = createFakeClient();
-      accessory = new DaikinAccessory({ config: createDeviceConfig(), capabilities: createCapabilities(), client, log, vendorId, commandDelayInMs: 100 });
+      // Longer than a slow machine takes between two writes of a test, so that a command only goes out when a test sends it.
+      accessory = new DaikinAccessory({ config: createDeviceConfig(), capabilities: createCapabilities(), client, log, vendorId, commandDelayInMs: 500 });
       expect(accessory.endpoints).toHaveLength(3);
       expect(accessory.endpoint.deviceName).toBe('Living Room');
       expect(accessory.verticalSwitch?.deviceName).toBe('Living Room Vertical Swing');
@@ -273,10 +293,13 @@ describe('DaikinAccessory', () => {
     });
 
     it('should send the writes of a controller together after the command delay', async () => {
-      await writeAsController(accessory.endpoint, 'Thermostat', 'systemMode', Thermostat.SystemMode.Cool);
-      await writeAsController(accessory.endpoint, 'Thermostat', 'occupiedCoolingSetpoint', 2100);
-      await writeAsController(accessory.endpoint, 'FanControl', 'percentSetting', 50);
-      await vi.waitFor(() => expect(client.setState).toHaveBeenCalled());
+      await writeTogetherAsController(accessory.endpoint, [
+        ['Thermostat', 'systemMode', Thermostat.SystemMode.Cool],
+        ['Thermostat', 'occupiedCoolingSetpoint', 2100],
+        ['FanControl', 'percentSetting', 50],
+      ]);
+      expect(client.setState).not.toHaveBeenCalled();
+      await vi.waitFor(() => expect(client.setState).toHaveBeenCalled(), { timeout: 5000 });
       expect(client.setState).toHaveBeenCalledTimes(1);
       expect(client.setState).toHaveBeenCalledWith({ power: true, mode: 'cool', targetTemperatureInC: 21, fanSpeed: 'level2' });
       await accessory.refresh();
