@@ -4,7 +4,7 @@
  * @author Calvin Che
  */
 
-import { ClassicDaikinClient, createDaikinClient, type DaikinDevice, DaikinError, DsiotDaikinClient } from 'daikin-local-control';
+import { AirbaseDaikinClient, ClassicDaikinClient, createDaikinClient, type DaikinDevice, DaikinError, DsiotDaikinClient } from 'daikin-local-control';
 import type { Mock } from 'vitest';
 
 import { getAvailableControls } from '../../src/controls.js';
@@ -51,6 +51,18 @@ function createDsiotClient(): DsiotDaikinClient & Record<'getCapabilities' | 'ge
   return Object.assign(Object.create(DsiotDaikinClient.prototype) as DsiotDaikinClient, {
     getCapabilities: vi.fn(async () => capabilities),
     getSensors: vi.fn(async () => sensors),
+    getDeviceInfo: vi.fn(async () => deviceInfo),
+    close: vi.fn(async () => {}),
+  });
+}
+
+/**
+ * Build an Airbase client whose calls are mocks
+ *
+ * @returns {AirbaseDaikinClient} The client, which passes `instanceof AirbaseDaikinClient`.
+ */
+function createAirbaseClient(): AirbaseDaikinClient & Record<'getDeviceInfo' | 'close', Mock> {
+  return Object.assign(Object.create(AirbaseDaikinClient.prototype) as AirbaseDaikinClient, {
     getDeviceInfo: vi.fn(async () => deviceInfo),
     close: vi.fn(async () => {}),
   });
@@ -220,13 +232,30 @@ describe('probe', () => {
       expect(createClient).toHaveBeenLastCalledWith({ host: '192.168.1.50', protocol: 'classic', usesHttps: true }, expect.anything());
     });
 
-    it('should find a DSIOT adapter, which does not answer the classic question', async () => {
+    it('should find an Airbase adapter, which answers 404 to the classic question', async () => {
       const classicClient = createClassicClient();
       classicClient.command.mockRejectedValueOnce(new DaikinError('not found', 404));
-      const dsiotClient = createDsiotClient();
-      createClient.mockReturnValueOnce(classicClient).mockReturnValueOnce(dsiotClient);
-      expect(await identifyHost('192.168.1.51', credentials.terminalUuid)).toEqual({ host: '192.168.1.51', protocol: 'dsiot', ...deviceInfo });
+      const airbaseClient = createAirbaseClient();
+      createClient.mockReturnValueOnce(classicClient).mockReturnValueOnce(airbaseClient);
+      expect(await identifyHost('192.168.1.52', credentials.terminalUuid)).toEqual({ host: '192.168.1.52', protocol: 'airbase', ...deviceInfo });
       expect(createClient).toHaveBeenCalledTimes(2);
+      expect(createClient).toHaveBeenLastCalledWith(
+        { host: '192.168.1.52', protocol: 'airbase' },
+        { terminalUuid: credentials.terminalUuid, timeoutInMs: 5000, retry: { delaysInMs: [] } },
+      );
+      expect(airbaseClient.close).toHaveBeenCalled();
+    });
+
+    it('should find a DSIOT adapter, which answers neither the classic nor the Airbase question', async () => {
+      const classicClient = createClassicClient();
+      classicClient.command.mockRejectedValueOnce(new DaikinError('not found', 404));
+      const airbaseClient = createAirbaseClient();
+      airbaseClient.getDeviceInfo.mockRejectedValueOnce(new DaikinError('not found', 404));
+      const dsiotClient = createDsiotClient();
+      createClient.mockReturnValueOnce(classicClient).mockReturnValueOnce(airbaseClient).mockReturnValueOnce(dsiotClient);
+      expect(await identifyHost('192.168.1.51', credentials.terminalUuid)).toEqual({ host: '192.168.1.51', protocol: 'dsiot', ...deviceInfo });
+      expect(createClient).toHaveBeenCalledTimes(3);
+      expect(airbaseClient.close).toHaveBeenCalled();
       expect(dsiotClient.close).toHaveBeenCalled();
     });
 

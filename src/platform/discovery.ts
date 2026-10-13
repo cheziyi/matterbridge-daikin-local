@@ -34,6 +34,8 @@ import { type DaikinDeviceConfig, hasSameConnection, normalizeDeviceName, normal
  *
  * Edge cases:
  *  - an adapter that speaks another protocol than the stored one -> undefined, with a warning
+ *  - an Airbase adapter the search reports as classic -> its address and its name alone: a search reports an Airbase
+ *    adapter as classic when the adapter was too slow to say which of the two it is
  *  - a name another stored device already has -> the stored name is kept
  *
  * @param {DaikinDeviceConfig} stored The stored device.
@@ -50,7 +52,8 @@ export function getDiscoveredUpdate(
 ): DaikinDeviceConfig | undefined {
   const match = found.find((device) => normalizeMacAddress(device.macAddress) === stored.macAddress);
   if (match === undefined) return undefined;
-  if (match.protocol !== stored.protocol) {
+  const isUnconfirmedAirbase = stored.protocol === 'airbase' && match.protocol === 'classic';
+  if (match.protocol !== stored.protocol && !isUnconfirmedAirbase) {
     log.warn(`The adapter of "${stored.name}" now speaks ${match.protocol} instead of ${stored.protocol}: remove the device and add it again`);
     return undefined;
   }
@@ -61,9 +64,10 @@ export function getDiscoveredUpdate(
     ...stored,
     name: isNameFree ? name : stored.name,
     host: match.host,
-    requiresRegistration: match.requiresRegistration === true,
-    usesHttps: match.usesHttps === true,
-    requiresLocalPassword: match.requiresLocalPassword === true,
+    // The requirements of an adapter read as classic are not those of an Airbase adapter, so the stored ones stay.
+    ...(isUnconfirmedAirbase
+      ? {}
+      : { requiresRegistration: match.requiresRegistration === true, usesHttps: match.usesHttps === true, requiresLocalPassword: match.requiresLocalPassword === true }),
   };
   return hasSameConnection(stored, updated) && updated.name === stored.name ? undefined : updated;
 }

@@ -6,8 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [0.1.1] - Unreleased
 
+### Added
+
+- [airbase]: Support the Airbase adapter (BRP15B61) of a ducted unit, found by a search or added by address: power, mode, target temperature, fan speed and swing. Its zones, its fan auto and its airside are not exposed.
+- [discovery]: Follow a stored Airbase device to a new address and a new name when a search reports its adapter as classic, which a search does for an Airbase adapter that was too slow to say which of the two it is.
+
 ### Changed
 
+- [package]: Use daikin-local-control 0.5.0: it adds the Airbase client, and a search tells an Airbase adapter from a classic one.
+- [setup]: Speak of the Daikin app an adapter was set up with, in the setup page and in the README, where both named the DAIKIN Mobile Controller app alone: the adapters of the Daikin Airbase and ONECTA apps are supported as well.
 - [readme]: Add the npm, build, CodeQL, coverage and license badges.
 
 ## [0.1.0] - 2026-10-13
