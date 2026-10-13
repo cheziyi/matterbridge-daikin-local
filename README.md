@@ -22,6 +22,19 @@ It is a [Matterbridge](https://matterbridge.io) plugin built on [daikin-local-co
 - Node.js 22.19 or later (22, 24 or 26). Node.js 20 is not supported, because daikin-local-control needs 22.19.
 - Matterbridge on the same network segment as the adapters, for discovery to find them. Adapters on another subnet or VLAN can be added by address.
 
+## Installation
+
+In the Matterbridge frontend, type `matterbridge-daikin-local` in the **Install plugins** field and click **Install**, then restart Matterbridge.
+
+From the command line instead:
+
+```bash
+npm install -g matterbridge-daikin-local
+matterbridge --add matterbridge-daikin-local
+```
+
+Then set up your air conditioners in the plugin's own page: see [Guided setup](#guided-setup).
+
 ## Guided setup
 
 Open the plugin frontend from the plugin's row on the Matterbridge home page. It walks through three steps:

@@ -5,7 +5,6 @@
   "author": "https://github.com/cheziyi",
   "license": "Apache-2.0",
   "homepage": "https://github.com/cheziyi/matterbridge-daikin-local#readme",
-  "private": true,
   "repository": {
     "type": "git",
     "url": "git+https://github.com/cheziyi/matterbridge-daikin-local.git"
