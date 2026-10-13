@@ -1,0 +1,56 @@
+{
+  "title": "Matterbridge Daikin Local",
+  "description": "matterbridge-daikin-local by https://github.com/cheziyi",
+  "type": "object",
+  "properties": {
+    "name": {
+      "title": "Plugin Name",
+      "description": "Plugin name",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "type": {
+      "title": "Plugin Type",
+      "description": "Plugin type",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "terminalUuid": {
+      "title": "Terminal ID",
+      "description": "The ID this plugin presents to every adapter: 32 lowercase hexadecimal digits, a UUID without its dashes, such as 0d120767302b4603b5ae916260815e4e. One is generated when this is empty. An adapter that requires registration only answers an ID it has registered, so changing this means registering again. Air conditioners are added, changed and removed in the guided setup: open the plugin frontend from the plugin's row on the home page.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{32}$",
+      "maxLength": 32
+    },
+    "pollIntervalInSeconds": {
+      "title": "Poll Interval",
+      "description": "How often, in seconds, the state of each air conditioner is read (2 to 3600).",
+      "type": "integer",
+      "minimum": 2,
+      "maximum": 3600,
+      "default": 5
+    },
+    "maxStateAgeForCommandInSeconds": {
+      "title": "Max State Age For Commands",
+      "description": "How old, in seconds, the state read by the last poll may be for a command to be built from it (0 to 3600). An adapter takes the whole state with each command, so the plugin sends back what it last read with the change in it. Past this age, and always at 0, it reads the unit again first, which makes the command slower. A higher value undoes more of what was changed on the unit's own remote since the last poll. The poll interval is used instead when it is shorter.",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 3600,
+      "default": 30
+    },
+    "debug": {
+      "title": "Enable Debug",
+      "description": "Enable debug mode for the plugin. Only for debugging purposes, not recommended for production use.",
+      "type": "boolean",
+      "default": false
+    },
+    "unregisterOnShutdown": {
+      "title": "Unregister On Shutdown",
+      "description": "Unregister all devices on shutdown. Only for debugging purposes, not recommended for production use.",
+      "type": "boolean",
+      "default": false
+    }
+  }
+}

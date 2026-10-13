@@ -1,0 +1,9 @@
+{
+  "name": "matterbridge-daikin-local",
+  "type": "DynamicPlatform",
+  "pollIntervalInSeconds": 5,
+  "maxStateAgeForCommandInSeconds": 30,
+  "devices": [],
+  "debug": false,
+  "unregisterOnShutdown": false
+}

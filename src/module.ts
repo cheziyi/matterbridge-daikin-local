@@ -1,9 +1,10 @@
 /**
  * @file src/module.ts
- * @description This file contains the plugin template.
+ * @description This file contains the Matterbridge platform for Daikin air conditioners controlled over the local network.
  * @author Luca Liguori
+ * @contributor Calvin Che
  * @created 2025-06-15
- * @version 2.0.0
+ * @version 3.0.0
  * @license Apache-2.0
  *
  * Copyright 2025, 2026, 2027 Luca Liguori.
@@ -21,16 +22,43 @@
  * limitations under the License.
  */
 
-import { type BasePlatformConfig, MatterbridgeDynamicPlatform, MatterbridgeEndpoint, onOffPlugInUnit, type PlatformMatterbridge, thermostat } from 'matterbridge';
-import type { AnsiLogger, LogLevel } from 'matterbridge/logger';
-import type { ActionContext } from 'matterbridge/matter';
-import { OnOff, Thermostat } from 'matterbridge/matter/clusters';
+import { randomUUID } from 'node:crypto';
 
-// This allows to have type checking and autocompletion for the instance config.
-export type TemplatePlatformConfig = BasePlatformConfig & {
-  whiteList: string[];
-  blackList: string[];
-};
+import { createDaikinClient, type DaikinCapabilities, type DaikinClient, type DaikinDevice, type DaikinSensors, discoverDevices } from 'daikin-local-control';
+import { MatterbridgeDynamicPlatform, type MatterbridgeEndpoint, type PlatformConfig, type PlatformMatterbridge } from 'matterbridge';
+import type { AnsiLogger, LogLevel } from 'matterbridge/logger';
+
+import { DaikinAccessory } from './accessory/daikinAccessory.js';
+import {
+  type DaikinDeviceConfig,
+  type DaikinPlatformConfig,
+  getUnreadableDevices,
+  hasSameConnection,
+  hasSameExposure,
+  normalizeMacAddress,
+  normalizeMaxStateAgeForCommand,
+  normalizePollInterval,
+  normalizeTerminalUuid,
+  parseDeviceConfigs,
+  toDaikinDevice,
+} from './config.js';
+import { addReportedSensors, fitToCapabilities, getAvailableControls, hasSameControls, noReportedSensors, type ReportedSensors } from './controls.js';
+import { getErrorMessage } from './errors.js';
+import { CapabilityStore } from './platform/capabilityStore.js';
+import { getDiscoveredUpdate } from './platform/discovery.js';
+import { parseSetupRevision, SetupRevisions } from './platform/setupRevisions.js';
+import { identifyHost, probeDevice, type ProbeResult, registerWithDevice } from './setup/probe.js';
+import { type DiscoveredDevice, handleSetupRequest, type SetupDevice, type SetupPlatform, type SetupState } from './setup/setupApi.js';
+
+/** How often, in milliseconds, the network is searched to keep the device addresses up to date. */
+export const discoveryIntervalInMs = 5 * 60 * 1000;
+
+/** How long, in milliseconds, a read or a command waits for an adapter. */
+export const deviceTimeoutInMs = 5000;
+
+const requiredMatterbridgeVersion = '3.10.10';
+
+export type { DaikinPlatformConfig } from './config.js';
 
 /**
  * This is the standard interface for Matterbridge plugins.
@@ -38,44 +66,74 @@ export type TemplatePlatformConfig = BasePlatformConfig & {
  *
  * @param {PlatformMatterbridge} matterbridge - An instance of MatterBridge.
  * @param {AnsiLogger} log - An instance of AnsiLogger. This is used for logging messages in a format that can be displayed with ANSI color codes and in the frontend.
- * @param {TemplatePlatformConfig} config - The platform configuration.
- * @returns {TemplatePlatform} - An instance of the MatterbridgeAccessory or MatterbridgeDynamicPlatform class. This is the main interface for interacting with the Matterbridge system.
+ * @param {DaikinPlatformConfig} config - The platform configuration.
+ * @returns {DaikinPlatform} - An instance of the MatterbridgeAccessory or MatterbridgeDynamicPlatform class. This is the main interface for interacting with the Matterbridge system.
  */
-export default function initializePlugin(matterbridge: PlatformMatterbridge, log: AnsiLogger, config: TemplatePlatformConfig): TemplatePlatform {
-  return new TemplatePlatform(matterbridge, log, config);
+export default function initializePlugin(matterbridge: PlatformMatterbridge, log: AnsiLogger, config: DaikinPlatformConfig): DaikinPlatform {
+  return new DaikinPlatform(matterbridge, log, config);
 }
 
-// Here we define the TemplatePlatform class, which extends the MatterbridgeDynamicPlatform.
-// If you want to create an Accessory platform plugin, you should extend the MatterbridgeAccessoryPlatform class instead.
-export class TemplatePlatform extends MatterbridgeDynamicPlatform {
-  constructor(matterbridge: PlatformMatterbridge, log: AnsiLogger, config: TemplatePlatformConfig) {
+/**
+ * The platform: it stores the devices by the MAC address of their adapter, keeps their addresses and names up to date, exposes each one to Matter and serves the
+ * guided setup.
+ */
+export class DaikinPlatform extends MatterbridgeDynamicPlatform implements SetupPlatform {
+  private devices: DaikinDeviceConfig[];
+  /** The stored devices this version cannot read, which are stored again as they are. */
+  private unreadableDevices: unknown[];
+  private readonly accessories = new Map<string, DaikinAccessory>();
+  private readonly capabilityStore = new CapabilityStore(() => this.context);
+  /** Why a stored device is not running, by device name. */
+  private readonly startErrors = new Map<string, string>();
+  /** What the last successful setup check read, by the MAC address of the adapter, until the device is stored. */
+  private readonly probedCapabilities = new Map<string, DaikinCapabilities>();
+  /** What the sensors of the unit read at that check. */
+  private readonly probedSensors = new Map<string, DaikinSensors>();
+  /** The devices whose unit was asked what it accepts since the plugin started, by device name. */
+  private readonly checkedCapabilities = new Set<string>();
+  private pollTimer: NodeJS.Timeout | undefined;
+  private discoveryTimer: NodeJS.Timeout | undefined;
+  private pollIntervalInSeconds: number;
+  private maxStateAgeForCommandInSeconds: number;
+  private terminalUuid: string | undefined;
+  private readonly revisions: SetupRevisions;
+  /** The devices whose unit is being read, so that a unit that is slow to answer holds up no other. */
+  private readonly polling = new Set<DaikinAccessory>();
+  private discovery: Promise<DaikinDevice[]> | undefined;
+  // Changes to the device list run one after the other.
+  private changes: Promise<void> = Promise.resolve();
+
+  constructor(matterbridge: PlatformMatterbridge, log: AnsiLogger, config: DaikinPlatformConfig) {
     // Always call super(matterbridge, log, config)
     super(matterbridge, log, config);
 
     // Verify that Matterbridge is the correct version
-    if (typeof this.verifyMatterbridgeVersion !== 'function' || !this.verifyMatterbridgeVersion('3.10.10')) {
+    if (typeof this.verifyMatterbridgeVersion !== 'function' || !this.verifyMatterbridgeVersion(requiredMatterbridgeVersion)) {
       throw new Error(
-        `This plugin requires Matterbridge version >= "3.10.10". Please update Matterbridge from ${this.matterbridge.matterbridgeVersion} to the latest version in the frontend.`,
+        `This plugin requires Matterbridge version >= "${requiredMatterbridgeVersion}". Please update Matterbridge from ${this.matterbridge.matterbridgeVersion} to the latest version in the frontend.`,
       );
     }
 
     this.log.info(`Initializing platform ${this.config.name}...`);
-    // You can initialize your platform here, like setting up initial state or loading configurations.
-
+    this.devices = parseDeviceConfigs(config.devices, (message) => this.log.warn(message));
+    this.unreadableDevices = getUnreadableDevices(config.devices, this.devices);
+    this.revisions = new SetupRevisions(config.setupRevision);
+    this.pollIntervalInSeconds = normalizePollInterval(config.pollIntervalInSeconds);
+    this.maxStateAgeForCommandInSeconds = normalizeMaxStateAgeForCommand(config.maxStateAgeForCommandInSeconds);
     this.log.info(`Platform ${this.config.name} initialized successfully`);
   }
 
   override async onStart(reason?: string): Promise<void> {
     this.log.info(`Starting platform ${this.config.name} with reason: ${reason ?? 'no reason provided'}...`);
 
-    // Wait for the platform to fully load the select if you use them.
+    // Wait for the platform storage, which holds what each unit accepts.
     await this.ready;
 
-    // Clean the selectDevice and selectEntity maps, if you want to reset the select. This is useful when you have an API that sends all the devices and you want to rediscover all of them.
-    await this.clearSelect();
-
-    // Implements your own logic there
-    await this.discoverDevices();
+    this.getTerminalUuid();
+    for (const device of this.devices) await this.startDevice(device);
+    this.startTimers();
+    // The stored addresses may be out of date, and the first search takes three seconds: do not hold the start for it.
+    void this.updateAddresses();
 
     this.log.info(`Platform ${this.config.name} started successfully`);
   }
@@ -85,30 +143,13 @@ export class TemplatePlatform extends MatterbridgeDynamicPlatform {
     await super.onConfigure();
 
     this.log.info(`Configuring platform ${this.config.name}...`);
-
-    // Configure all your devices. The persisted attributes need to be updated.
-    for (const device of this.getDevices()) {
-      this.log.info(`Configuring device ${device.deviceName} with id ${device.originalId}`);
-      // You can update the device state here, for example:
-      if (device.id === 'outlet1') {
-        // Set the outlet to be on by default with setCluster or setAttribute methods. Prefer setting the cluster when more attributes need to be updated.
-        // await device.setCluster(OnOff, { onOff: true }, this.log); // this.log is optional, but it is useful to log the attribute changes.
-        await device.setAttribute(OnOff, 'onOff', true, this.log); // this.log is optional, but it is useful to log the attribute changes.
-      }
-      if (device.id === 'thermo1') {
-        // Set the thermostat to heat mode by default with setCluster or setAttribute methods. Prefer setting the cluster when more attributes need to be updated.
-        await device.setCluster(Thermostat, { systemMode: Thermostat.SystemMode.Heat }, this.log); // this.log is optional, but it is useful to log the attribute changes.
-        // await device.setAttribute(Thermostat, 'systemMode', Thermostat.SystemMode.Heat, this.log); // this.log is optional, but it is useful to log the attribute changes.
-      }
-    }
-
+    await this.pollDevices();
     this.log.info(`Platform ${this.config.name} configured successfully`);
   }
 
   // oxlint-disable-next-line typescript/require-await
   override async onChangeLoggerLevel(logLevel: LogLevel): Promise<void> {
     this.log.info(`onChangeLoggerLevel called with: ${logLevel}`);
-    // Change here the logger level of the api you use or of your devices
   }
 
   override async onShutdown(reason?: string): Promise<void> {
@@ -117,87 +158,494 @@ export class TemplatePlatform extends MatterbridgeDynamicPlatform {
 
     this.log.info(`Shutting down platform ${this.config.name} with reason: ${reason ?? 'no reason provided'}...`);
 
+    this.stopTimers();
+    await this.changes;
+    for (const accessory of this.accessories.values()) await accessory.close();
+    this.accessories.clear();
     if (this.config.unregisterOnShutdown) await this.unregisterAllDevices();
 
     this.log.info(`Platform ${this.config.name} shut down successfully`);
   }
 
-  private async discoverDevices(): Promise<void> {
-    this.log.info('Discovering devices...');
-    // Implement device discovery logic here.
-    // For example, you might fetch devices from an API.
-    // and register them with the Matterbridge instance.
-
-    // Example: Create and register an outlet device (shows how to use the addCommandHandler method)
-    // If you want to create an Accessory platform plugin and your platform extends MatterbridgeAccessoryPlatform,
-    // instead of createDefaultBridgedDeviceBasicInformationClusterServer, call createDefaultBasicInformationClusterServer().
-    const outlet = new MatterbridgeEndpoint(onOffPlugInUnit, { id: 'outlet1' })
-      .createDefaultBridgedDeviceBasicInformationClusterServer('Outlet', 'SN123456', this.matterbridge.aggregatorVendorId, 'Matterbridge', 'Matterbridge Outlet', 10000, '1.0.0')
-      .createDefaultPowerSourceWiredClusterServer()
-      .addRequiredClusters() // This will add both server and client clusters that are required by the device.
-      .addCommandHandler('on', (data) => {
-        // This is called before any validation and state updates are applied. You can use this to intercept commands early.
-        outlet.log.info(`Command ${data.command} called on cluster ${data.cluster}`);
-      })
-      .addCommandHandler('off', (data) => {
-        // This is called before any validation and state updates are applied. You can use this to intercept commands early.
-        outlet.log.info(`Command ${data.command} called on cluster ${data.cluster}`);
-      })
-      .subscribeCommand(OnOff, 'on', (data) => {
-        // This is called after the command has been validated and state updates have been applied. You can use this to react to the command execution.
-        outlet.log.info(`Command ${data.command} executed on cluster ${data.cluster}`);
-      })
-      .subscribeCommand(OnOff, 'off', (data) => {
-        // This is called after the command has been validated and state updates have been applied. You can use this to react to the command execution.
-        outlet.log.info(`Command ${data.command} executed on cluster ${data.cluster}`);
-      });
-
-    // Set the selectDevice for the outlet we created. This is used to link the device with the select in the frontend.
-    this.setSelectDevice('SN123456', 'Outlet');
-
-    // Validate the device with the select before registering it.
-    if (this.validateDevice(['Outlet', 'SN123456'])) {
-      // Register the device with this Matterbridge Platform.
-      await this.registerDevice(outlet);
+  /**
+   * Apply a configuration saved in the Matterbridge config editor
+   *
+   * The editor changes the poll interval and the terminal uuid. The devices are added, changed and removed in the setup
+   * page alone, and the editor does not list them.
+   *
+   * The editor still holds the whole configuration it loaded with its page, and sends all of it back. Saved after the
+   * setup page changed the devices meanwhile, that copy holds the devices of before: it is recognized by its revision,
+   * and the devices are stored again as they are.
+   *
+   * @param {PlatformConfig} config The saved configuration.
+   * @returns {Promise<void>} Resolves when the configuration is applied.
+   */
+  override async onConfigChanged(config: PlatformConfig): Promise<void> {
+    if (this.pollTimer === undefined) return;
+    // A configuration this plugin stored itself comes back here within moments, with nothing in it to apply.
+    const revision = parseSetupRevision(config.setupRevision);
+    if (this.revisions.acknowledge(revision)) return;
+    const pollIntervalInSeconds = normalizePollInterval(config.pollIntervalInSeconds);
+    const maxStateAgeForCommandInSeconds = normalizeMaxStateAgeForCommand(config.maxStateAgeForCommandInSeconds);
+    const hasNewPollInterval = pollIntervalInSeconds !== this.pollIntervalInSeconds;
+    if (hasNewPollInterval || maxStateAgeForCommandInSeconds !== this.maxStateAgeForCommandInSeconds) {
+      this.pollIntervalInSeconds = pollIntervalInSeconds;
+      this.maxStateAgeForCommandInSeconds = maxStateAgeForCommandInSeconds;
+      if (hasNewPollInterval) this.startTimers();
+      // How old a state a command may be built from follows both settings, and is set when a client is created.
+      await this.reconnectDevices();
     }
+    const terminalUuid = normalizeTerminalUuid(config.terminalUuid);
+    if (terminalUuid !== undefined && terminalUuid !== this.terminalUuid) await this.useTerminalUuid(terminalUuid);
+    // Stored again when what was saved holds the devices of an older page, or a terminal uuid that is missing, not
+    // valid or not in the form the plugin stores.
+    if (revision !== this.revisions.current || config.terminalUuid !== this.terminalUuid) this.storeConfig();
+  }
 
-    // Example: Create and register an thermostat device (shows how to use the subscribeAttribute method to listen for attribute changes)
-    // If you want to create an Accessory platform plugin and your platform extends MatterbridgeAccessoryPlatform,
-    // instead of createDefaultBridgedDeviceBasicInformationClusterServer, call createDefaultBasicInformationClusterServer().
-    const thermo = new MatterbridgeEndpoint(thermostat, { id: 'thermo1' })
-      .createDefaultBridgedDeviceBasicInformationClusterServer(
-        'Thermostat',
-        'SN654321',
-        this.matterbridge.aggregatorVendorId,
-        'Matterbridge',
-        'Matterbridge Thermostat',
-        10000,
-        '1.0.0',
-      )
-      .createDefaultPowerSourceBatteryClusterServer()
-      // Configure realistic setpoint limits (7-30 °C heating, 16-35 °C cooling) instead of the 0-50 °C
-      // defaults, so the heating/cooling limits satisfy the Matter spec minimum of 7 °C for MinHeatSetpointLimit.
-      .createDefaultThermostatClusterServer(23, 21, 25, 2.5, 7, 30, 16, 35)
-      .addRequiredClusters() // This will add both server and client clusters that are required by the device.
-      .subscribeAttribute(Thermostat, 'systemMode', (newValue: Thermostat.SystemMode, oldValue: Thermostat.SystemMode, context: ActionContext) => {
-        thermo.log.info(`Attribute systemMode changed ${context.fabric === undefined ? 'offline' : 'online'} from ${oldValue} to ${newValue}`);
-      })
-      .subscribeAttribute(Thermostat, 'occupiedCoolingSetpoint', (newValue: number, oldValue: number, context: ActionContext) => {
-        thermo.log.info(`Attribute occupiedCoolingSetpoint changed ${context.fabric === undefined ? 'offline' : 'online'} from ${oldValue} to ${newValue}`);
-      })
-      .subscribeAttribute(Thermostat, 'occupiedHeatingSetpoint', (newValue: number, oldValue: number, context: ActionContext) => {
-        thermo.log.info(`Attribute occupiedHeatingSetpoint changed ${context.fabric === undefined ? 'offline' : 'online'} from ${oldValue} to ${newValue}`);
-      });
+  /**
+   * Serve the setup page's requests to `/plugins/<plugin name>/api/<path>`
+   *
+   * @param {string} method The HTTP method.
+   * @param {string} [path] The path after `api/`.
+   * @param {Record<string, unknown>} [query] The query string parameters.
+   * @param {unknown} [body] The parsed JSON body.
+   * @returns {Promise<unknown>} The JSON reply, or undefined for a path the plugin does not serve.
+   */
+  override async onFetch(method: string, path?: string, query?: Record<string, unknown>, body?: unknown): Promise<unknown> {
+    return handleSetupRequest(this, method, path, query, body);
+  }
 
-    // Set the selectDevice for the thermostat we created. This is used to link the device with the select in the frontend.
-    this.setSelectDevice('SN654321', 'Thermostat');
-
-    // Validate the device with the select before registering it.
-    if (this.validateDevice(['Thermostat', 'SN654321'])) {
-      // Register the device with this Matterbridge Platform.
-      await this.registerDevice(thermo);
+  /**
+   * Get the terminal uuid, generating and storing one the first time
+   *
+   * @returns {string} The uuid that identifies this plugin to every adapter.
+   */
+  getTerminalUuid(): string {
+    if (this.terminalUuid !== undefined) return this.terminalUuid;
+    this.terminalUuid = normalizeTerminalUuid(this.config.terminalUuid);
+    if (this.terminalUuid === undefined) {
+      this.terminalUuid = randomUUID().replaceAll('-', '');
+      this.log.notice(`Generated the terminal uuid ${this.terminalUuid}`);
     }
+    // Stored when it is new, and when it was stored with dashes or in upper case, which the config editor refuses.
+    if (this.terminalUuid !== this.config.terminalUuid) this.storeConfig();
+    return this.terminalUuid;
+  }
 
-    this.log.info('Devices registered successfully...');
+  /**
+   * Describe the stored devices for the setup page
+   *
+   * @returns {Promise<SetupState>} Each device without its child lock code, with how it is doing.
+   */
+  async getSetupState(): Promise<SetupState> {
+    const devices: SetupDevice[] = [];
+    for (const { localPassword, ...device } of this.devices) {
+      const status = this.accessories.get(device.name)?.getStatus();
+      const offlineOrStopped = status === undefined ? 'stopped' : 'offline';
+      const capabilities = await this.capabilityStore.read(device);
+      devices.push({
+        ...device,
+        hasLocalPassword: localPassword !== undefined,
+        status: status?.isReachable === true ? 'online' : offlineOrStopped,
+        error: status === undefined ? this.startErrors.get(device.name) : status.lastError,
+        capabilities,
+        controls: capabilities === undefined ? undefined : getAvailableControls(capabilities),
+      });
+    }
+    return { devices };
+  }
+
+  /**
+   * Search the network for adapters, for the setup page
+   *
+   * The search also brings the stored addresses up to date.
+   *
+   * @returns {Promise<DiscoveredDevice[]>} The adapters that answered, each marked when it is stored already and when it still has to register this plugin.
+   * @throws {Error} When the discovery socket fails, for example because UDP port 30000 is taken.
+   */
+  async discoverForSetup(): Promise<DiscoveredDevice[]> {
+    const found = await this.discover();
+    await this.applyDiscoveredAddresses(found);
+    return Promise.all(
+      found.map(async (device) => {
+        const isConfigured = this.devices.some((stored) => stored.macAddress === normalizeMacAddress(device.macAddress));
+        // An adapter that requires registration may know this plugin already: it is asked, so the page only announces
+        // the KEY where it is still needed.
+        const needsRegistration = device.requiresRegistration === true && !isConfigured && (await this.probe(device)).status !== 'ready';
+        return { ...device, isConfigured, needsRegistration, hasDuplicateName: device.name !== undefined && found.filter((other) => other.name === device.name).length > 1 };
+      }),
+    );
+  }
+
+  /**
+   * Find out what answers at an address the user typed
+   *
+   * @param {string} host The address.
+   * @returns {Promise<DaikinDevice | undefined>} The device, or undefined when no adapter answered.
+   */
+  async identify(host: string): Promise<DaikinDevice | undefined> {
+    return identifyHost(host, this.getTerminalUuid());
+  }
+
+  /**
+   * Check whether an adapter answers this plugin
+   *
+   * @param {DaikinDevice} device The device to check.
+   * @param {string} [localPassword] The child lock code. Left out, the code stored for a device of that name is used.
+   * @returns {Promise<ProbeResult>} `ready`, or the credential or the failure that stands in the way.
+   */
+  async probe(device: DaikinDevice, localPassword?: string): Promise<ProbeResult> {
+    return this.rememberProbe(await probeDevice(device, this.getCredentials(device, localPassword)));
+  }
+
+  /**
+   * Register this plugin's terminal uuid with a classic adapter
+   *
+   * @param {DaikinDevice} device The device to register with.
+   * @param {string} key The KEY printed on the adapter's label. It is used once and never stored.
+   * @param {string} [localPassword] The child lock code. Left out, the code stored for a device of that name is used.
+   * @returns {Promise<ProbeResult>} The result of the check that follows the registration.
+   */
+  async register(device: DaikinDevice, key: string, localPassword?: string): Promise<ProbeResult> {
+    return this.rememberProbe(await registerWithDevice(device, key, this.getCredentials(device, localPassword)));
+  }
+
+  /**
+   * Store a device, adding it or replacing the stored device of the same adapter
+   *
+   * @param {DaikinDeviceConfig} device The device. Without a child lock code, the stored one is kept.
+   * @returns {Promise<void>} Resolves when the device is stored and started, restarted or updated.
+   * @throws {Error} When another stored device already has the name.
+   */
+  async saveDevice(device: DaikinDeviceConfig): Promise<void> {
+    const stored = this.devices.find((candidate) => candidate.macAddress === device.macAddress);
+    if (this.devices.some((candidate) => candidate !== stored && candidate.name === device.name)) throw new Error(`Another air conditioner is already named "${device.name}"`);
+    const probed = this.probedCapabilities.get(device.macAddress);
+    if (probed !== undefined) {
+      await this.capabilityStore.write(device, probed);
+      this.probedCapabilities.delete(device.macAddress);
+      this.checkedCapabilities.add(device.name);
+    }
+    const sensors = this.probedSensors.get(device.macAddress);
+    if (sensors !== undefined) {
+      // A reading the unit gave before still counts, whether or not the check got it.
+      await this.capabilityStore.writeSensors(device, addReportedSensors((await this.capabilityStore.readSensors(device)) ?? noReportedSensors, sensors));
+      this.probedSensors.delete(device.macAddress);
+    }
+    const capabilities = probed ?? (await this.capabilityStore.read(device));
+    const next = capabilities === undefined ? { ...device } : fitToCapabilities(device, capabilities);
+    if (next.requiresLocalPassword && next.localPassword === undefined && stored?.localPassword !== undefined) next.localPassword = stored.localPassword;
+    if (!next.requiresLocalPassword) delete next.localPassword;
+    const devices = stored === undefined ? [...this.devices, next] : this.devices.map((candidate) => (candidate === stored ? next : candidate));
+    // The check that came before this save may have found that the unit accepts other settings than its endpoints show.
+    const running = this.accessories.get(stored?.name ?? next.name);
+    const hasNewControls = probed !== undefined && running !== undefined && !hasSameControls(running.capabilities, probed);
+    await this.applyDevices(devices, hasNewControls ? next.name : undefined);
+  }
+
+  /**
+   * Remove a stored device and its Matter endpoints
+   *
+   * @param {string} name The device name.
+   * @returns {Promise<boolean>} False when no device has that name.
+   */
+  async removeDevice(name: string): Promise<boolean> {
+    if (!this.devices.some((device) => device.name === name)) return false;
+    await this.applyDevices(this.devices.filter((device) => device.name !== name));
+    return true;
+  }
+
+  /**
+   * Search the network and store the address and the name of each stored device that answered with a new one
+   *
+   * A device is matched by the MAC address of its adapter. A failed search is logged, never thrown.
+   *
+   * @returns {Promise<void>} Resolves when the addresses are up to date, the devices that could not start were retried and the units started from stored capabilities were asked what they accept now.
+   */
+  async updateAddresses(): Promise<void> {
+    try {
+      await this.applyDiscoveredAddresses(await this.discover());
+    } catch (error) {
+      this.log.warn(`The search for Daikin adapters failed: ${getErrorMessage(error)}`);
+    }
+    try {
+      await this.enqueueChange(async () => {
+        await this.startStoppedDevices();
+        await this.checkCapabilities();
+      });
+    } catch {
+      // enqueueChange logged it.
+    }
+  }
+
+  /**
+   * Read the state of every running device once
+   *
+   * A device whose unit has not answered the read before this one is left out, so that the others are still read on
+   * time.
+   *
+   * A device that just stopped answering triggers a search, since a changed address is the likeliest cause. A unit that
+   * gave a reading its device shows nowhere yet has the device built again in Matter, with a place for it.
+   *
+   * @returns {Promise<void>} Resolves when every device that was read answered or failed.
+   */
+  async pollDevices(): Promise<void> {
+    const idle = [...this.accessories.values()].filter((accessory) => !this.polling.has(accessory));
+    try {
+      const results = await Promise.all(
+        idle.map(async (accessory) => {
+          this.polling.add(accessory);
+          try {
+            const wasReachable = accessory.getStatus().isReachable;
+            await accessory.refresh();
+            return wasReachable && !accessory.getStatus().isReachable;
+          } finally {
+            this.polling.delete(accessory);
+          }
+        }),
+      );
+      if (results.includes(true)) void this.updateAddresses();
+      await this.enqueueChange(async () => this.exposeNewSensors());
+    } catch {
+      // enqueueChange logged it.
+    }
+  }
+
+  private async useTerminalUuid(terminalUuid: string): Promise<void> {
+    this.terminalUuid = terminalUuid;
+    this.log.notice(`The terminal uuid is now ${terminalUuid}`);
+    await this.reconnectDevices();
+  }
+
+  private async reconnectDevices(): Promise<void> {
+    await this.enqueueChange(async () => {
+      for (const device of this.devices) await this.accessories.get(device.name)?.updateConnection(device, this.createClient(device));
+    });
+  }
+
+  private startTimers(): void {
+    this.stopTimers();
+    this.pollTimer = setInterval(() => void this.pollDevices(), this.pollIntervalInSeconds * 1000);
+    this.pollTimer.unref();
+    this.discoveryTimer = setInterval(() => void this.updateAddresses(), discoveryIntervalInMs);
+    this.discoveryTimer.unref();
+  }
+
+  private stopTimers(): void {
+    clearInterval(this.pollTimer);
+    clearInterval(this.discoveryTimer);
+    this.pollTimer = undefined;
+    this.discoveryTimer = undefined;
+  }
+
+  private async enqueueChange(task: () => Promise<void>): Promise<void> {
+    const result = this.changes.then(task);
+    this.changes = result.catch((error: unknown) => {
+      this.log.error(`A change to the devices failed: ${getErrorMessage(error)}`);
+    });
+    return result;
+  }
+
+  private getCredentials(device: DaikinDevice, localPassword?: string): { terminalUuid: string; localPassword?: string } {
+    const stored = this.devices.find((candidate) => candidate.macAddress === normalizeMacAddress(device.macAddress));
+    return { terminalUuid: this.getTerminalUuid(), localPassword: localPassword ?? stored?.localPassword };
+  }
+
+  private rememberProbe(result: ProbeResult): ProbeResult {
+    const macAddress = normalizeMacAddress(result.device.macAddress);
+    if (macAddress !== undefined && result.capabilities !== undefined) this.probedCapabilities.set(macAddress, result.capabilities);
+    if (macAddress !== undefined && result.sensors !== undefined) this.probedSensors.set(macAddress, result.sensors);
+    return result;
+  }
+
+  private createClient(device: DaikinDeviceConfig): DaikinClient {
+    return createDaikinClient(toDaikinDevice(device), {
+      terminalUuid: this.getTerminalUuid(),
+      localPassword: device.localPassword,
+      timeoutInMs: deviceTimeoutInMs,
+      // The state is polled anyway, so a command is built from the last poll instead of reading the unit again first.
+      maxStateAgeForSetStateInMs: Math.min(this.pollIntervalInSeconds, this.maxStateAgeForCommandInSeconds) * 1000,
+    });
+  }
+
+  private async discover(): Promise<DaikinDevice[]> {
+    // Two searches at once would share UDP port 30000 and split the replies between them.
+    this.discovery ??= discoverDevices().finally(() => {
+      this.discovery = undefined;
+    });
+    return this.discovery;
+  }
+
+  private async applyDiscoveredAddresses(found: DaikinDevice[]): Promise<void> {
+    await this.enqueueChange(async () => {
+      const devices = this.devices.map((stored) => {
+        const updated = getDiscoveredUpdate(stored, this.devices, found, this.log);
+        if (updated === undefined) return stored;
+        if (updated.host !== stored.host) this.log.notice(`"${stored.name}" moved from ${stored.host} to ${updated.host}`);
+        if (updated.name !== stored.name) this.log.notice(`"${stored.name}" is now named "${updated.name}"`);
+        return updated;
+      });
+      if (devices.some((device, index) => device !== this.devices[index])) await this.reconcile(devices);
+    });
+  }
+
+  // Stores the devices and the terminal uuid, under a new revision.
+  private storeConfig(): void {
+    this.config.setupRevision = this.revisions.advance();
+    this.config.terminalUuid = this.getTerminalUuid();
+    // A device this version cannot read stays stored, until one with its name or its MAC address takes its place.
+    this.unreadableDevices = getUnreadableDevices(this.unreadableDevices, this.devices);
+    this.config.devices = [...this.devices, ...this.unreadableDevices];
+    this.saveConfig(this.config);
+  }
+
+  /**
+   * Make the running devices match a new device list
+   *
+   * @param {DaikinDeviceConfig[]} devices The new list.
+   * @param {string} [rebuiltName] The name of a device to build again in Matter even when its configuration is the same.
+   * @returns {Promise<void>} Resolves when every device is started, stopped, restarted or updated.
+   */
+  private async applyDevices(devices: DaikinDeviceConfig[], rebuiltName?: string): Promise<void> {
+    await this.enqueueChange(async () => this.reconcile(devices, rebuiltName));
+  }
+
+  // Runs inside the queue of changes.
+  private async reconcile(devices: DaikinDeviceConfig[], rebuiltName?: string): Promise<void> {
+    const previous = this.devices;
+    this.devices = devices;
+    this.storeConfig();
+    for (const device of previous) {
+      if (!devices.some((candidate) => candidate.macAddress === device.macAddress)) await this.stopDevice(device, true);
+    }
+    for (const device of devices) {
+      const before = previous.find((candidate) => candidate.macAddress === device.macAddress);
+      const accessory = before === undefined ? undefined : this.accessories.get(before.name);
+      if (before === undefined || accessory === undefined) {
+        await this.startDevice(device);
+      } else if (!hasSameExposure(before, device) || device.name === rebuiltName) {
+        // The name and the clusters of a registered endpoint cannot change, so the endpoints are built again.
+        await this.stopDevice(before, false);
+        await this.startDevice(device);
+      } else if (hasSameConnection(before, device)) {
+        accessory.updateConfig(device);
+      } else {
+        await accessory.updateConnection(device, this.createClient(device));
+        await accessory.refresh();
+      }
+    }
+  }
+
+  private async startStoppedDevices(): Promise<void> {
+    for (const device of this.devices) {
+      if (!this.accessories.has(device.name)) await this.startDevice(device);
+    }
+  }
+
+  /**
+   * Create the Matter endpoints of a device and register them
+   *
+   * A device that cannot start is logged and retried on the next search, never thrown.
+   *
+   * @param {DaikinDeviceConfig} device The device.
+   * @param {ReportedSensors} [knownSensors] The readings its unit has given. Left out, the stored ones are used.
+   * @returns {Promise<void>} Resolves when the device runs, or could not be started.
+   */
+  private async startDevice(device: DaikinDeviceConfig, knownSensors?: ReportedSensors): Promise<void> {
+    const client = this.createClient(device);
+    const registered: MatterbridgeEndpoint[] = [];
+    try {
+      let capabilities = await this.capabilityStore.read(device);
+      if (capabilities === undefined) {
+        capabilities = await client.getCapabilities();
+        await this.capabilityStore.write(device, capabilities);
+        this.checkedCapabilities.add(device.name);
+      }
+      const reportedSensors = knownSensors ?? (await this.capabilityStore.readSensors(device)) ?? noReportedSensors;
+      const accessory = new DaikinAccessory({ config: device, capabilities, reportedSensors, client, log: this.log, vendorId: this.matterbridge.aggregatorVendorId });
+      for (const endpoint of accessory.endpoints) {
+        await this.registerDevice(endpoint);
+        registered.push(endpoint);
+      }
+      await accessory.clearReadings();
+      this.accessories.set(device.name, accessory);
+      this.startErrors.delete(device.name);
+      this.log.info(`"${device.name}" started at ${device.host} with ${accessory.endpoints.length} Matter endpoint(s)`);
+      // Not awaited: a unit that does not answer must not hold up the start of the others.
+      void accessory.refresh();
+    } catch (error) {
+      const message = getErrorMessage(error);
+      if (this.startErrors.get(device.name) !== message) this.log.warn(`"${device.name}" could not be started at ${device.host} and will be retried: ${message}`);
+      this.startErrors.set(device.name, message);
+      for (const endpoint of registered) await this.unregisterDevice(endpoint);
+      try {
+        await client.close();
+      } catch {
+        // The start already failed for another reason.
+      }
+    }
+  }
+
+  /**
+   * Build again in Matter each device whose unit gave a reading it shows nowhere yet
+   *
+   * Runs inside the queue of changes.
+   *
+   * @returns {Promise<void>} Resolves when every such device has a place for the reading.
+   */
+  private async exposeNewSensors(): Promise<void> {
+    for (const device of this.devices) {
+      const reported = this.accessories.get(device.name)?.getNewlyReportedSensors();
+      if (reported === undefined) continue;
+      this.log.notice(`"${device.name}" gave a reading it shows nowhere in Matter yet: it is built again in Matter`);
+      await this.capabilityStore.writeSensors(device, reported);
+      await this.stopDevice(device, false);
+      await this.startDevice(device, reported);
+    }
+  }
+
+  private async stopDevice(device: DaikinDeviceConfig, shouldForget: boolean): Promise<void> {
+    const { name } = device;
+    const accessory = this.accessories.get(name);
+    this.accessories.delete(name);
+    this.startErrors.delete(name);
+    if (accessory !== undefined) {
+      await accessory.close();
+      for (const endpoint of accessory.endpoints) await this.unregisterDevice(endpoint);
+      this.log.info(`"${name}" stopped`);
+    }
+    if (!shouldForget) return;
+    this.checkedCapabilities.delete(name);
+    await this.capabilityStore.remove(device);
+  }
+
+  /**
+   * Ask each unit that was started from stored capabilities what it accepts now, once after each start
+   *
+   * A unit answers differently after its firmware or this plugin's Daikin library changed. When the difference changes
+   * its controls, the device is built again in Matter and the settings the unit no longer takes are dropped.
+   *
+   * @returns {Promise<void>} Resolves when every unit that answers was asked. A unit that does not is asked on the next search.
+   */
+  private async checkCapabilities(): Promise<void> {
+    for (const device of this.devices) {
+      const accessory = this.accessories.get(device.name);
+      if (accessory === undefined || this.checkedCapabilities.has(device.name) || !accessory.getStatus().isReachable) continue;
+      let capabilities: DaikinCapabilities;
+      try {
+        capabilities = await accessory.readCapabilities();
+      } catch {
+        continue;
+      }
+      this.checkedCapabilities.add(device.name);
+      await this.capabilityStore.write(device, capabilities);
+      if (hasSameControls(accessory.capabilities, capabilities)) continue;
+      this.log.notice(`"${device.name}" accepts other settings than when it was set up: it is built again in Matter`);
+      const fitted = fitToCapabilities(device, capabilities);
+      this.devices = this.devices.map((candidate) => (candidate.name === device.name ? fitted : candidate));
+      this.storeConfig();
+      await this.stopDevice(device, false);
+      await this.startDevice(fitted);
+    }
   }
 }
