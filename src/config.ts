@@ -69,7 +69,7 @@ export const defaultMaxStateAgeForCommandInSeconds = 30;
 /** The longest device name accepted, which is also the longest Matter node label. */
 export const maxDeviceNameLength = 32;
 
-/** How a device appears in Matter: its controls and its switches. */
+/** How a device appears in Matter: its controls, its switches and its sensors. */
 export interface DaikinDeviceExposure {
   fanControl: FanControlOption;
   /** The fan speed sent with every command while the fan is hidden, or `keep`. */
@@ -87,6 +87,15 @@ export interface DaikinDeviceExposure {
   hasSeparateFan: boolean;
   /** The special modes that each get an on/off switch in Matter. */
   specialModeSwitches: SpecialMode[];
+  /** Whether Matter gets a sensor for the outdoor temperature, once the unit gives it. */
+  hasOutdoorTemperatureSensor: boolean;
+  /** Whether the indoor humidity is on a sensor of its own in Matter, instead of on the air conditioner, once the unit gives it. */
+  hasSeparateHumiditySensor: boolean;
+  /**
+   * Whether the fan of its own, the switches and the outdoor temperature sensor are parts of the air conditioner in
+   * Matter, instead of devices of their own: what Matter calls a composed device.
+   */
+  isComposed: boolean;
 }
 
 /**
@@ -270,6 +279,11 @@ export function parseDeviceConfig(value: unknown, report?: (message: string) => 
     hasFanAutoSwitch: isValidBoolean(raw.hasFanAutoSwitch) ? raw.hasFanAutoSwitch : useDefault('hasFanAutoSwitch', false),
     hasSeparateFan: isValidBoolean(raw.hasSeparateFan) ? raw.hasSeparateFan : useDefault('hasSeparateFan', false),
     specialModeSwitches: SPECIAL_MODES.filter((mode) => specialModeSwitches.includes(mode)),
+    // Off although devices stored before the setting existed had the sensor: none of them was in use.
+    hasOutdoorTemperatureSensor: isValidBoolean(raw.hasOutdoorTemperatureSensor) ? raw.hasOutdoorTemperatureSensor : useDefault('hasOutdoorTemperatureSensor', false),
+    hasSeparateHumiditySensor: isValidBoolean(raw.hasSeparateHumiditySensor) ? raw.hasSeparateHumiditySensor : useDefault('hasSeparateHumiditySensor', false),
+    // Composed although devices were stored before the setting existed: none of them was in use.
+    isComposed: isValidBoolean(raw.isComposed) ? raw.isComposed : useDefault('isComposed', true),
   };
   if (isValidString(raw.localPassword, 1)) device.localPassword = raw.localPassword;
   // The code itself stays out of the log.
@@ -374,13 +388,16 @@ export function hasSameConnection(left: DaikinDeviceConfig, right: DaikinDeviceC
  *
  * @param {DaikinDeviceConfig} left One device.
  * @param {DaikinDeviceConfig} right The other device.
- * @returns {boolean} True when both have the same name in Matter, and the same controls and switches.
+ * @returns {boolean} True when both have the same name in Matter, the same controls, switches and sensors, and the same endpoints for them.
  */
 export function hasSameExposure(left: DaikinDeviceConfig, right: DaikinDeviceConfig): boolean {
   return (
     left.name === right.name &&
     left.hasFanAutoSwitch === right.hasFanAutoSwitch &&
     left.hasSeparateFan === right.hasSeparateFan &&
+    left.hasOutdoorTemperatureSensor === right.hasOutdoorTemperatureSensor &&
+    left.hasSeparateHumiditySensor === right.hasSeparateHumiditySensor &&
+    left.isComposed === right.isComposed &&
     left.specialModeSwitches.join() === right.specialModeSwitches.join() &&
     left.fanControl === right.fanControl &&
     left.swingControl === right.swingControl &&

@@ -1,6 +1,6 @@
 /**
  * @file apps/frontend/src/screens/options.ts
- * @description The Options step: how the fan, the swing and the extra modes of a unit appear in Matter, one section each.
+ * @description The Options step: how the fan, the swing, the extra modes and the readings of a unit appear in Matter, one section each, and whether as one device.
  * @author Calvin Che
  * @license Apache-2.0
  */
@@ -219,6 +219,61 @@ function specialSection(draft: Draft, controls: AvailableControls): Child {
   );
 }
 
+function sensorSection(draft: Draft): HTMLElement {
+  return h(
+    'section',
+    {},
+    h('h2', {}, 'Humidity and outdoor temperature'),
+    h(
+      'p',
+      { class: 'help' },
+      'No adapter says which readings its unit has, so each of these takes effect once the unit gives that reading. The room temperature is always on the air conditioner.',
+    ),
+    h(
+      'div',
+      { class: 'choices' },
+      toggle(
+        'separate-humidity',
+        draft.hasSeparateHumiditySensor,
+        'Show the humidity on a sensor of its own',
+        `It appears as "${draft.name} Humidity", and the air conditioner has no humidity of its own. For apps that show no humidity on an air conditioner, which Apple Home is reported to be.`,
+        (hasSeparateHumiditySensor) => update(draft, { hasSeparateHumiditySensor }),
+      ),
+      toggle(
+        'outdoor-sensor',
+        draft.hasOutdoorTemperatureSensor,
+        'Add a sensor for the outdoor temperature',
+        `It appears as "${draft.name} Outdoor Temperature". A Matter app may take it for the temperature of the room, so it is off unless you turn it on. Some units give no outdoor temperature while they are idle: the sensor then shows no value.`,
+        (hasOutdoorTemperatureSensor) => update(draft, { hasOutdoorTemperatureSensor }),
+      ),
+    ),
+  );
+}
+
+function composedSection(draft: Draft): HTMLElement {
+  return h(
+    'section',
+    {},
+    h('h2', {}, 'One device or several'),
+    h(
+      'p',
+      { class: 'help' },
+      'The switches, a fan of its own and the sensors can be parts of the air conditioner in Matter, or devices of their own beside it.',
+    ),
+    h(
+      'div',
+      { class: 'choices' },
+      toggle(
+        'composed',
+        draft.isComposed,
+        'Make them parts of the air conditioner',
+        `Your Matter app has one device, "${draft.name}", and they move between rooms with it. A part has no name of its own in Matter, so an app may show the switches as numbered outlets, and an app that shows no parts shows the air conditioner alone. Turned off, each is a device of its own with its own name, which your app puts in a room by itself.`,
+        (isComposed) => update(draft, { isComposed }),
+      ),
+    ),
+  );
+}
+
 export function optionsScreen(): Child[] {
   const draft = currentDraft();
   if (draft === undefined) return [notice()];
@@ -226,12 +281,14 @@ export function optionsScreen(): Child[] {
   return [
     steps(),
     unitStrip(),
-    unitHeader(draft, `Options for the air conditioner at ${draft.adapter.host}. Power, mode and temperature always appear in Matter, and so do the humidity and the outdoor temperature once the unit gives them: choose how the rest appears.`),
+    unitHeader(draft, `Options for the air conditioner at ${draft.adapter.host}. Power, mode and temperature always appear in Matter: choose how the rest appears.`),
     presetSection(draft, controls),
     fanSection(draft, controls),
     swingSection(draft),
     modeSection(draft, controls),
     specialSection(draft, controls),
+    sensorSection(draft),
+    composedSection(draft),
     draft.isNew ? null : h('p', { class: 'help' }, 'Changing any of these rebuilds this air conditioner in Matter. Your Matter app may take a moment to show the change.'),
     notice(),
     h('div', { class: 'footer' }, button('Cancel', goHome), button(draft.isNew ? `Add ${draft.name}` : 'Save options', () => void saveDraft(draft), 'primary')),

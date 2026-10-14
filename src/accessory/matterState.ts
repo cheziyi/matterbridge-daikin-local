@@ -42,6 +42,8 @@ export interface AccessoryEndpoints {
   readonly fan: MatterbridgeEndpoint | undefined;
   /** The switch of each special mode that is exposed. */
   readonly specialModeSwitches: ReadonlyMap<SpecialMode, MatterbridgeEndpoint>;
+  /** The humidity sensor, when the humidity is not on the air conditioner. */
+  readonly humiditySensor: MatterbridgeEndpoint | undefined;
   readonly outdoorTemperatureSensor: MatterbridgeEndpoint | undefined;
 }
 
@@ -148,7 +150,7 @@ export async function applySensors(endpoints: AccessoryEndpoints, layout: Access
   await endpoint.updateAttribute(Thermostat, 'localTemperature', indoor);
   // Matter counts both in hundredths: of a percent, and of a degree.
   const humidity = sensors.indoorHumidityInPercent === null ? null : Math.round(sensors.indoorHumidityInPercent * 100);
-  if (layout.hasHumidity) await endpoint.updateAttribute(RelativeHumidityMeasurement, 'measuredValue', humidity);
+  if (layout.hasHumidity) await (endpoints.humiditySensor ?? endpoint).updateAttribute(RelativeHumidityMeasurement, 'measuredValue', humidity);
   const outdoor = sensors.outdoorTemperatureInC === null ? null : toMatterTemperature(sensors.outdoorTemperatureInC);
   await endpoints.outdoorTemperatureSensor?.updateAttribute(TemperatureMeasurement, 'measuredValue', outdoor);
 }

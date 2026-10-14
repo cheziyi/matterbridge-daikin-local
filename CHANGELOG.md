@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-10-14
+
+### Added
+
+- [devices]: Expose each air conditioner as one composed device in Matter: its switches, a fan of its own and its sensors are parts of the air conditioner, and move between the rooms of a Matter app with it. Each switch is tagged with a number and with what it is. The setup page can make each of them a device of its own instead, as before.
+- [sensors]: Add the option to show the humidity on a humidity sensor of its own instead of on the air conditioner, for Matter apps that show no humidity there. The Apple Home preset turns it on.
+- [sensors]: Add the option to show the outdoor temperature on a sensor. It is off unless you or the Full preset turn it on, because a Matter app may take it for the temperature of the room.
+- [readme]: Add diagrams of how an air conditioner is built in Matter, and the device types it uses.
+
+### Changed
+
+- [devices]: A device stored by an earlier version is a composed device without an outdoor temperature sensor, and is built again in Matter. A Matter app may take its switches, its fan and its sensors for new devices.
+
 ## [0.3.0] - 2026-10-13
 
 ### Changed

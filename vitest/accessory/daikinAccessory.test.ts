@@ -11,8 +11,8 @@
 
 import { DaikinError, type DaikinSensors } from 'daikin-local-control';
 import type { MatterbridgeEndpoint } from 'matterbridge';
-import type { ActionContext } from 'matterbridge/matter';
-import { BridgedDeviceBasicInformation, FanControl, OnOff, RelativeHumidityMeasurement, TemperatureMeasurement, Thermostat } from 'matterbridge/matter/clusters';
+import { type ActionContext, CommonLocationTag, CommonNumberTag } from 'matterbridge/matter';
+import { BridgedDeviceBasicInformation, Descriptor, FanControl, OnOff, RelativeHumidityMeasurement, TemperatureMeasurement, Thermostat } from 'matterbridge/matter/clusters';
 import { log, setupTest } from 'matterbridge/vitest-utils';
 import { addDevice, aggregator, createServerNode, createTestEnvironment, startServerNode, stopServerNode } from 'matterbridge/vitest-utils/matter';
 
@@ -769,6 +769,99 @@ describe('DaikinAccessory', () => {
       client.sensors.indoorHumidityInPercent = 55;
       await accessory.refresh();
       expect(accessory.getNewlyReportedSensors()).toEqual({ hasHumidity: true, hasOutdoorTemperature: false });
+      await accessory.close();
+    });
+
+    it('should show the humidity on a sensor of its own when asked to', async () => {
+      const client = createFakeClient();
+      client.sensors = { indoorTemperatureInC: 26.5, outdoorTemperatureInC: null, indoorHumidityInPercent: 60 };
+      const separate = { ...config, name: 'Pantry', macAddress: macOf('Pantry'), hasSeparateHumiditySensor: true };
+      const reportedSensors = { hasHumidity: true, hasOutdoorTemperature: false };
+      const accessory = new DaikinAccessory({ config: separate, capabilities: createCapabilities(), reportedSensors, client, log, vendorId });
+      expect(accessory.endpoints).toHaveLength(2);
+      expect(accessory.humiditySensor?.deviceName).toBe('Pantry Humidity');
+      expect(accessory.humiditySensor?.serialNumber).toBe(`${macOf('Pantry')}R`);
+      expect(accessory.endpoint.hasClusterServer(RelativeHumidityMeasurement)).toBe(false);
+      await addAccessory(accessory);
+      expect(accessory.humiditySensor?.getAttribute(RelativeHumidityMeasurement, 'measuredValue')).toBeNull();
+      await accessory.refresh();
+      expect(accessory.humiditySensor?.getAttribute(RelativeHumidityMeasurement, 'measuredValue')).toBe(6000);
+      expect(accessory.humiditySensor?.getAttribute(BridgedDeviceBasicInformation, 'reachable')).toBe(true);
+      await accessory.close();
+    });
+
+    it('should have no outdoor sensor when none is asked for, and not take the outdoor temperature for a new reading', async () => {
+      const client = createFakeClient();
+      client.sensors = { indoorTemperatureInC: 26.5, outdoorTemperatureInC: 31, indoorHumidityInPercent: null };
+      // A sensor of its own for a humidity the unit never gave is no sensor either.
+      const withoutOutdoor = { ...config, name: 'Veranda', macAddress: macOf('Veranda'), hasOutdoorTemperatureSensor: false, hasSeparateHumiditySensor: true };
+      const accessory = new DaikinAccessory({ config: withoutOutdoor, capabilities: createCapabilities(), client, log, vendorId });
+      expect(accessory.endpoints).toHaveLength(1);
+      await addAccessory(accessory);
+      await accessory.refresh();
+      expect(accessory.getNewlyReportedSensors()).toBeUndefined();
+      await accessory.close();
+
+      // Nor once the unit is known to give it.
+      const reportedSensors = { hasHumidity: false, hasOutdoorTemperature: true };
+      const known = new DaikinAccessory({ config: withoutOutdoor, capabilities: createCapabilities(), reportedSensors, client: createFakeClient(), log, vendorId });
+      expect(known.outdoorTemperatureSensor).toBeUndefined();
+      expect(known.humiditySensor).toBeUndefined();
+    });
+  });
+
+  describe('a unit whose fan, switches and sensors are parts of the air conditioner', () => {
+    const config = createDeviceConfig({ name: 'Mezzanine', hasSeparateFan: true, hasDryModeSwitch: true, hasSeparateHumiditySensor: true, isComposed: true });
+    const reportedSensors = { hasHumidity: true, hasOutdoorTemperature: true };
+
+    it('should register the air conditioner alone, and tell its parts apart by their tags', async () => {
+      const client = createFakeClient();
+      client.sensors = { indoorTemperatureInC: 26.5, outdoorTemperatureInC: 31, indoorHumidityInPercent: 60 };
+      const accessory = new DaikinAccessory({ config, capabilities: createCapabilities(), reportedSensors, client, log, vendorId });
+      const parts = [accessory.fan, accessory.verticalSwitch, accessory.horizontalSwitch, accessory.dryModeSwitch, accessory.humiditySensor, accessory.outdoorTemperatureSensor];
+      expect(accessory.endpoints).toEqual([accessory.endpoint]);
+      expect(accessory.endpoint.getChildEndpoints()).toEqual(parts);
+      // A part has no name of its own. Each switch has a number, and says what it is in the label of that number.
+      for (const part of parts) expect(part?.deviceName).toBeUndefined();
+      expect(accessory.fan?.tagList).toBeUndefined();
+      expect(accessory.humiditySensor?.tagList).toBeUndefined();
+      expect(accessory.verticalSwitch?.tagList).toEqual([{ ...CommonNumberTag.One, label: 'Vertical Swing' }]);
+      expect(accessory.horizontalSwitch?.tagList).toEqual([{ ...CommonNumberTag.Two, label: 'Horizontal Swing' }]);
+      expect(accessory.dryModeSwitch?.tagList).toEqual([{ ...CommonNumberTag.Three, label: 'Dry Mode' }]);
+      expect(accessory.outdoorTemperatureSensor?.tagList).toEqual([CommonLocationTag.Outdoor]);
+
+      await addAccessory(accessory);
+      expect(accessory.endpoint.getAttribute(Descriptor, 'partsList')).toHaveLength(6);
+      expect(accessory.dryModeSwitch?.getAttribute(Descriptor, 'tagList')).toEqual([{ ...CommonNumberTag.Three, label: 'Dry Mode' }]);
+      await accessory.refresh();
+      expect(accessory.fan?.getAttribute(FanControl, 'percentSetting')).toBe(66);
+      expect(accessory.verticalSwitch?.getAttribute(OnOff, 'onOff')).toBe(true);
+      expect(accessory.horizontalSwitch?.getAttribute(OnOff, 'onOff')).toBe(false);
+      expect(accessory.outdoorTemperatureSensor?.getAttribute(TemperatureMeasurement, 'measuredValue')).toBe(3100);
+      expect(accessory.humiditySensor?.getAttribute(RelativeHumidityMeasurement, 'measuredValue')).toBe(6000);
+      expect(accessory.endpoint.hasClusterServer(RelativeHumidityMeasurement)).toBe(false);
+      // The air conditioner alone says whether the unit is reachable.
+      expect(accessory.endpoint.getAttribute(BridgedDeviceBasicInformation, 'reachable')).toBe(true);
+      for (const part of parts) expect(part?.hasClusterServer(BridgedDeviceBasicInformation)).toBe(false);
+
+      if (accessory.dryModeSwitch === undefined || accessory.fan === undefined) throw new Error('A part is missing');
+      await writeAsController(accessory.dryModeSwitch, 'OnOff', 'onOff', true);
+      await accessory.flushCommands();
+      expect(client.setState).toHaveBeenLastCalledWith({ power: true, mode: 'dehumidify' });
+      expect(accessory.endpoint.getAttribute(Thermostat, 'systemMode')).toBe(Thermostat.SystemMode.Dry);
+      await writeAsController(accessory.fan, 'FanControl', 'percentSetting', 100);
+      await accessory.flushCommands();
+      expect(client.setState).toHaveBeenLastCalledWith({ fanSpeed: 'level5' });
+      await accessory.close();
+    });
+
+    it('should give a second device parts of its own', async () => {
+      const other = { ...config, name: 'Gallery', macAddress: macOf('Gallery') };
+      const accessory = new DaikinAccessory({ config: other, capabilities: createCapabilities(), reportedSensors, client: createFakeClient(), log, vendorId });
+      await addAccessory(accessory);
+      await accessory.refresh();
+      expect(accessory.endpoint.getAttribute(Descriptor, 'partsList')).toHaveLength(6);
+      expect(accessory.verticalSwitch?.getAttribute(OnOff, 'onOff')).toBe(true);
       await accessory.close();
     });
   });

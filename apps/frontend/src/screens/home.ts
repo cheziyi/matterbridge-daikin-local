@@ -25,8 +25,9 @@ function describeExposure(device: StoredDevice): string {
     (name) => name !== '',
   );
   const extra = switches.length === 0 ? '' : `a switch for ${switches.join(', ')}`;
-  if (controls === '') return extra === '' ? 'power, mode and temperature' : extra;
-  return extra === '' ? controls : `${controls}, and ${extra}`;
+  const place = device.isComposed ? ', all as one device' : '';
+  if (controls === '') return `${extra === '' ? 'power, mode and temperature' : extra}${place}`;
+  return `${extra === '' ? controls : `${controls}, and ${extra}`}${place}`;
 }
 
 function deviceRow(device: StoredDevice): HTMLElement {
