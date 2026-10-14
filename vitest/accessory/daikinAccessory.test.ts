@@ -803,11 +803,46 @@ describe('DaikinAccessory', () => {
       expect(client.setState).toHaveBeenCalledWith({ fanSpeed: 'level5' });
       expect(accessory.fan.getAttribute(FanControl, 'percentSetting')).toBe(100);
 
-      // It shows the speed the unit holds, also while the unit is off.
+      // It is on and off with the air conditioner, and shows the speed the unit holds, also while the unit is off.
+      expect(accessory.fan.getAttribute(OnOff, 'onOff')).toBe(true);
       client.state.power = false;
       await accessory.refresh();
       expect(accessory.endpoint.getAttribute(OnOff, 'onOff')).toBe(false);
+      expect(accessory.fan.getAttribute(OnOff, 'onOff')).toBe(false);
       expect(accessory.fan.getAttribute(FanControl, 'percentSetting')).toBe(100);
+      await accessory.close();
+    });
+
+    it('should turn the unit on and off from the fan', async () => {
+      const client = createFakeClient();
+      const config = createDeviceConfig({ name: 'Gazebo', swingControl: 'hidden', hasSeparateFan: true });
+      const accessory = new DaikinAccessory({ config, capabilities: createCapabilities(), client, log, vendorId });
+      await addAccessory(accessory);
+      await accessory.refresh();
+      if (accessory.fan === undefined) throw new Error('The fan is missing');
+      await writeAsController(accessory.fan, 'OnOff', 'onOff', false);
+      await accessory.flushCommands();
+      expect(client.setState).toHaveBeenLastCalledWith({ power: false });
+      expect(accessory.endpoint.getAttribute(OnOff, 'onOff')).toBe(false);
+
+      await writeAsController(accessory.fan, 'OnOff', 'onOff', true);
+      await accessory.flushCommands();
+      expect(client.setState).toHaveBeenLastCalledWith({ power: true });
+      expect(accessory.endpoint.getAttribute(OnOff, 'onOff')).toBe(true);
+      expect(accessory.fan.getAttribute(OnOff, 'onOff')).toBe(true);
+
+      accessory.fan.eventsOf('onOff').onOff$Changed?.emit(false, true, offline);
+      await accessory.flushCommands();
+      expect(client.setState).toHaveBeenCalledTimes(2);
+
+      // An app drags the fan to 0 to turn it off: the unit keeps its speed.
+      await writeTogetherAsController(accessory.fan, [
+        ['FanControl', 'percentSetting', 0],
+        ['OnOff', 'onOff', false],
+      ]);
+      await accessory.flushCommands();
+      expect(client.setState).toHaveBeenLastCalledWith({ power: false });
+      expect(client.state.fanSpeed).toBe('level3');
       await accessory.close();
     });
 

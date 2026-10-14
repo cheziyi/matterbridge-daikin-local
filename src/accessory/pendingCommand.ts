@@ -155,6 +155,7 @@ export class PendingCommand {
    * Edge cases:
    *  - a setpoint is clamped to the range of the mode the unit will be in
    *  - auto fan off goes back to the speed the fan last ran at, or to a middle speed when it was never seen off auto
+   *  - a fan speed asked for with the unit turned off is left out, so that the unit keeps the speed it holds
    *
    * @param {UnitSnapshot} unit The unit as it was last read.
    * @param {() => FanSpeed | undefined} readFanSpeed Reads the fan speed the fan control holds. It is only called when a fan speed was asked for.
@@ -165,7 +166,8 @@ export class PendingCommand {
     const mode = control.mode ?? unit.state?.mode;
     const target = this.resolveSetpoint(mode, unit.state);
     if (mode !== undefined && target !== undefined) control.targetTemperatureInC = clampTemperature(target, getTemperatureRange(unit.capabilities, mode));
-    if (this.isFanSpeedRequested) {
+    // An app turns a fan off by setting it to off or 0 as well: turning the unit off keeps the speed it holds.
+    if (this.isFanSpeedRequested && control.power !== false) {
       const fanSpeed = readFanSpeed();
       if (fanSpeed !== undefined) control.fanSpeed = fanSpeed;
     }

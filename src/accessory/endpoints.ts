@@ -35,7 +35,7 @@ import {
 } from 'matterbridge';
 import { MatterbridgeFanControlServer } from 'matterbridge/behaviors';
 import { CommonNumberTag } from 'matterbridge/matter';
-import { FanControl, ModeSelect, OnOff } from 'matterbridge/matter/clusters';
+import { FanControl, type ModeSelect } from 'matterbridge/matter/clusters';
 import type { Semtag } from 'matterbridge/matter/types';
 
 import { clampTemperature, composeDeviceName, getFanModeSequence } from '../mapping.js';
@@ -153,12 +153,12 @@ function createPartEndpoint(airConditioner: MatterbridgeEndpoint, deviceType: De
  * the part is as its label, for the Matter apps that show it.
  *
  * @param {MatterbridgeEndpoint} airConditioner The air conditioner the part is a part of.
- * @param {typeof OnOff | typeof ModeSelect} cluster The cluster that tells the parts of this kind: On/Off for a switch, Mode Select for a mode select.
+ * @param {DeviceTypeDefinition} deviceType The device type of the parts of this kind: an outlet for a switch, or a mode select. The fan has an on/off too, so the cluster does not tell a switch apart.
  * @param {string} label What the part is, such as `Auto Fan`.
  * @returns {Semtag} The tag.
  */
-function getNumberTag(airConditioner: MatterbridgeEndpoint, cluster: typeof OnOff | typeof ModeSelect, label: string): Semtag {
-  const count = airConditioner.getChildEndpoints().filter((part) => part.hasClusterServer(cluster)).length;
+function getNumberTag(airConditioner: MatterbridgeEndpoint, deviceType: DeviceTypeDefinition, label: string): Semtag {
+  const count = airConditioner.getChildEndpoints().filter((part) => part.deviceTypes.has(deviceType.code)).length;
   // In the namespace of the numbers, the tag of a number is the number itself.
   return { ...CommonNumberTag.One, tag: count + 1, label };
 }
@@ -179,7 +179,7 @@ export function createSwitchEndpoint(identity: EndpointIdentity, key: string, co
   const endpoint =
     airConditioner === undefined
       ? createExtraEndpoint(onOffPlugInUnit, identity, key, code, label)
-      : createPartEndpoint(airConditioner, onOffPlugInUnit, key, getNumberTag(airConditioner, OnOff, label));
+      : createPartEndpoint(airConditioner, onOffPlugInUnit, key, getNumberTag(airConditioner, onOffPlugInUnit, label));
   return endpoint.addRequiredClusters();
 }
 
@@ -205,14 +205,15 @@ export function createModeSelectEndpoint(
   const endpoint =
     airConditioner === undefined
       ? createExtraEndpoint(modeSelect, identity, key, code, label)
-      : createPartEndpoint(airConditioner, modeSelect, key, getNumberTag(airConditioner, ModeSelect, label));
+      : createPartEndpoint(airConditioner, modeSelect, key, getNumberTag(airConditioner, modeSelect, label));
   // Matter refuses a current or a start-up mode that is not one of the modes.
   const { mode } = supportedModes[0];
   return endpoint.createDefaultModeSelectClusterServer(label, supportedModes, mode, mode).addRequiredClusters();
 }
 
 /**
- * Create the fan of a device whose fan control is not a part of its air conditioner
+ * Create the fan of a device whose fan control is not a part of its air conditioner, with an on/off that follows the
+ * power of the air conditioner, so that an app does not show the fan running while the unit is off
  *
  * @param {EndpointIdentity} identity The device the endpoint belongs to.
  * @param {AccessoryLayout} layout How the controls of the device are laid out.
@@ -222,6 +223,7 @@ export function createModeSelectEndpoint(
 export function createFanEndpoint(identity: EndpointIdentity, layout: AccessoryLayout, airConditioner?: MatterbridgeEndpoint): MatterbridgeEndpoint {
   const endpoint = airConditioner === undefined ? createExtraEndpoint(fan, identity, 'fan', 'N', 'Fan') : createPartEndpoint(airConditioner, fan, 'fan');
   addFanControl(endpoint, layout);
+  endpoint.createOnOffClusterServer(false);
   return endpoint.addRequiredClusters();
 }
 
