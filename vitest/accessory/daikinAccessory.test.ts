@@ -866,22 +866,22 @@ describe('DaikinAccessory', () => {
       await accessory.close();
     });
 
-    it('should tell the selects of a composed device apart by their tags, beside the swing switches', async () => {
-      const config = createDeviceConfig({ name: 'Atrium', hasModeSelect: true, swingControl: 'switchesAndSelect', isComposed: true });
+    it('should tell the selects of a composed device apart by their tags, beside a switch', async () => {
+      const config = createDeviceConfig({ name: 'Atrium', hasModeSelect: true, swingControl: 'select', hasFanAutoSwitch: true, isComposed: true });
       const accessory = new DaikinAccessory({ config, capabilities: createCapabilities(), client: createFakeClient(), log, vendorId });
       expect(accessory.endpoints).toEqual([accessory.endpoint]);
-      expect(accessory.endpoint.getChildEndpoints()).toEqual([accessory.verticalSwitch, accessory.horizontalSwitch, accessory.modeSelect, accessory.swingSelect]);
+      expect(accessory.endpoint.getChildEndpoints()).toEqual([accessory.fanAutoSwitch, accessory.modeSelect, accessory.swingSelect]);
       // The switches and the selects are numbered each on their own.
-      expect(accessory.verticalSwitch?.tagList).toEqual([{ ...CommonNumberTag.One, label: 'Vertical Swing' }]);
+      expect(accessory.fanAutoSwitch?.tagList).toEqual([{ ...CommonNumberTag.One, label: 'Auto Fan' }]);
       expect(accessory.modeSelect?.tagList).toEqual([{ ...CommonNumberTag.One, label: 'Mode' }]);
       expect(accessory.swingSelect?.tagList).toEqual([{ ...CommonNumberTag.Two, label: 'Swing' }]);
       expect(accessory.modeSelect?.deviceName).toBeUndefined();
       await addAccessory(accessory);
-      expect(accessory.endpoint.getAttribute(Descriptor, 'partsList')).toHaveLength(4);
+      expect(accessory.endpoint.getAttribute(Descriptor, 'partsList')).toHaveLength(3);
       await accessory.refresh();
       expect(accessory.modeSelect?.getAttribute(ModeSelect, 'currentMode')).toBe(1);
       expect(accessory.swingSelect?.getAttribute(ModeSelect, 'currentMode')).toBe(1);
-      expect(accessory.verticalSwitch?.getAttribute(OnOff, 'onOff')).toBe(true);
+      expect(accessory.fanAutoSwitch?.getAttribute(OnOff, 'onOff')).toBe(false);
       await accessory.close();
     });
   });

@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
-- [devices]: Add the option of a mode select for the mode, which picks any mode of the unit and turns it on in it, on a unit with a dry or a fan mode. The swing can be a mode select too, instead of the switches or beside them. The Full preset adds both. Few Matter apps show a mode select: Home Assistant does, Apple Home does not.
+- [devices]: Add the option of a mode select for the mode instead of the dry and fan mode switches, which picks any mode of the unit and turns it on in it, on a unit with a dry or a fan mode. The swing can be a mode select instead of the switches too. No preset adds them: few Matter apps show a mode select. Home Assistant does, Apple Home does not.
 
 ### Changed
 

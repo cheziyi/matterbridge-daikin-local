@@ -19,7 +19,7 @@ function describeExposure(device: StoredDevice): string {
   const hasSwing = device.controls === undefined || device.controls.hasSwing;
   const fanPlace = device.hasSeparateFan ? ' on a fan of its own' : '';
   const fan = device.fanControl === 'hidden' ? 'fan speed not shown' : `fan speed as ${device.fanControl === 'steps' ? 'steps' : 'a percentage'}${fanPlace}`;
-  const swing = { switches: 'swing as switches', select: 'swing as a mode select', switchesAndSelect: 'swing as switches and a mode select', hidden: 'swing not shown' }[device.swingControl];
+  const swing = { switches: 'swing as switches', select: 'swing as a mode select', hidden: 'swing not shown' }[device.swingControl];
   const controls = [hasFan ? fan : '', hasSwing ? swing : ''].filter((text) => text !== '').join(', ');
   const switches = [device.hasDryModeSwitch ? 'dry mode' : '', device.hasFanModeSwitch ? 'fan mode' : '', device.hasFanAutoSwitch ? 'auto fan' : '', ...device.specialModeSwitches].filter(
     (name) => name !== '',

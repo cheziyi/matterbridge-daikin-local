@@ -97,14 +97,16 @@ export function fitToCapabilities(device: DaikinDeviceConfig, capabilities: Expo
     device.swingModeWhenHidden !== KEEP_SETTING && capabilities.swingModes.includes(device.swingModeWhenHidden) ? device.swingModeWhenHidden : KEEP_SETTING;
   // A fixed fan speed is sent with every command, so a switch for auto would not hold.
   const hasFixedFanSpeed = device.fanControl === 'hidden' && fanSpeedWhenHidden !== KEEP_SETTING;
+  // The thermostat mode already offers every mode but these two.
+  const hasModeSelect = device.hasModeSelect && (capabilities.modes.includes('dehumidify') || capabilities.modes.includes('fan'));
   return {
     ...device,
     fanSpeedWhenHidden,
     swingModeWhenHidden,
-    hasDryModeSwitch: device.hasDryModeSwitch && capabilities.modes.includes('dehumidify'),
-    hasFanModeSwitch: device.hasFanModeSwitch && capabilities.modes.includes('fan'),
-    // The thermostat mode already offers every mode but these two.
-    hasModeSelect: device.hasModeSelect && (capabilities.modes.includes('dehumidify') || capabilities.modes.includes('fan')),
+    // The mode select takes the place of the switches of the modes.
+    hasDryModeSwitch: device.hasDryModeSwitch && !hasModeSelect && capabilities.modes.includes('dehumidify'),
+    hasFanModeSwitch: device.hasFanModeSwitch && !hasModeSelect && capabilities.modes.includes('fan'),
+    hasModeSelect,
     hasFanAutoSwitch: device.hasFanAutoSwitch && hasFanAuto(capabilities) && !hasFixedFanSpeed,
     hasSeparateFan: device.hasSeparateFan && device.fanControl !== 'hidden' && getFanSteps(capabilities.fanSpeeds).length > 0,
     specialModeSwitches: getSwitchableSpecialModes(capabilities).filter((mode) => device.specialModeSwitches.includes(mode)),

@@ -46,8 +46,6 @@ const glyphs = {
   switches:
     '<svg viewBox="0 0 48 28" aria-hidden="true"><path class="stroke" d="M12 4 V24 M7 9 L12 4 L17 9 M7 19 L12 24 L17 19"/><path class="stroke" d="M26 14 H46 M31 9 L26 14 L31 19 M41 9 L46 14 L41 19"/></svg>',
   select: '<svg viewBox="0 0 48 28" aria-hidden="true"><rect class="stroke" x="3" y="5" width="42" height="18" rx="4"/><path class="stroke" d="M31 12 L35 16 L39 12"/></svg>',
-  switchesAndSelect:
-    '<svg viewBox="0 0 48 28" aria-hidden="true"><path class="stroke" d="M8 4 V24 M4 8 L8 4 L12 8 M4 20 L8 24 L12 20"/><rect class="stroke" x="18" y="7" width="27" height="14" rx="3"/><path class="stroke" d="M34 12 L37 15 L40 12"/></svg>',
 };
 
 // Home Assistant is the one app known to show a mode select.
@@ -170,15 +168,6 @@ function swingSection(draft: Draft): HTMLElement {
         glyphs.select,
         (swingControl) => update(draft, { swingControl }),
       ),
-      choice(
-        'swing',
-        'switchesAndSelect',
-        draft.swingControl,
-        'Switches and a mode select',
-        'Both of the above, each for the apps that show it.',
-        glyphs.switchesAndSelect,
-        (swingControl) => update(draft, { swingControl }),
-      ),
       choice('swing', 'hidden', draft.swingControl, 'Not shown in Matter', 'No swing control. Pick below what the plugin does with the swing instead.', glyphs.hidden, (swingControl) =>
         update(draft, { swingControl }),
       ),
@@ -209,24 +198,25 @@ function modeSection(draft: Draft, controls: AvailableControls): Child {
     h(
       'p',
       { class: 'help' },
-      `These are always among the modes of the air conditioner in Matter, but some apps, such as Apple Home, only offer cool, heat and auto. A switch makes the mode reachable there: on puts the unit in that mode, off puts it back in ${modes.includes('cool') ? 'cool' : 'heat'}. A mode select offers every mode in one control.`,
+      `These are always among the modes of the air conditioner in Matter, but some apps, such as Apple Home, only offer cool, heat and auto. A switch makes the mode reachable there: on puts the unit in that mode, off puts it back in ${modes.includes('cool') ? 'cool' : 'heat'}. A mode select instead offers every mode in one control.`,
     ),
     h(
       'div',
       { class: 'choices' },
-      controls.hasDryMode
-        ? toggle('dry-mode-switch', draft.hasDryModeSwitch, 'Add a switch for dry mode', `It appears as "${draft.name} Dry Mode".`, (hasDryModeSwitch) => update(draft, { hasDryModeSwitch }))
-        : null,
-      controls.hasFanMode
-        ? toggle('fan-mode-switch', draft.hasFanModeSwitch, 'Add a switch for fan mode', `It appears as "${draft.name} Fan Mode".`, (hasFanModeSwitch) => update(draft, { hasFanModeSwitch }))
-        : null,
       toggle(
         'mode-select',
         draft.hasModeSelect,
-        'Add a mode select',
+        'Use a mode select instead of switches',
         `It appears as "${draft.name} Mode", with every mode of the unit. Picking a mode turns the unit on in it. ${selectSupport}`,
-        (hasModeSelect) => update(draft, { hasModeSelect }),
+        // The select takes the place of the switches.
+        (hasModeSelect) => update(draft, hasModeSelect ? { hasModeSelect, hasDryModeSwitch: false, hasFanModeSwitch: false } : { hasModeSelect }),
       ),
+      controls.hasDryMode && !draft.hasModeSelect
+        ? toggle('dry-mode-switch', draft.hasDryModeSwitch, 'Add a switch for dry mode', `It appears as "${draft.name} Dry Mode".`, (hasDryModeSwitch) => update(draft, { hasDryModeSwitch }))
+        : null,
+      controls.hasFanMode && !draft.hasModeSelect
+        ? toggle('fan-mode-switch', draft.hasFanModeSwitch, 'Add a switch for fan mode', `It appears as "${draft.name} Fan Mode".`, (hasFanModeSwitch) => update(draft, { hasFanModeSwitch }))
+        : null,
     ),
   );
 }

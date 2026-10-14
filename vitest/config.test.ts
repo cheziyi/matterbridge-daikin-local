@@ -11,8 +11,6 @@ import {
   hasSameConnection,
   normalizeMacAddress,
   hasSameExposure,
-  hasSwingSelect,
-  hasSwingSwitches,
   isValidHost,
   normalizeDeviceName,
   normalizeMaxStateAgeForCommand,
@@ -60,11 +58,6 @@ describe('config', () => {
     expect(normalizeDeviceName(7)).toBeUndefined();
   });
 
-  it('should tell which swing controls have switches and which have a select', () => {
-    expect(['switches', 'select', 'switchesAndSelect', 'hidden'].map((control) => hasSwingSwitches(control as never))).toEqual([true, false, true, false]);
-    expect(['switches', 'select', 'switchesAndSelect', 'hidden'].map((control) => hasSwingSelect(control as never))).toEqual([false, true, true, false]);
-  });
-
   it('should clamp the poll interval to 2..3600 seconds and default to 5', () => {
     expect(normalizePollInterval(30)).toBe(30);
     expect(normalizePollInterval(1)).toBe(2);
@@ -102,7 +95,7 @@ describe('config', () => {
       localPassword: '1234',
       fanControl: 'hidden',
       fanSpeedWhenHidden: 'silent',
-      swingControl: 'switchesAndSelect',
+      swingControl: 'select',
       swingModeWhenHidden: 'both',
       hasDryModeSwitch: true,
       hasFanModeSwitch: true,

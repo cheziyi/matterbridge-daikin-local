@@ -26,6 +26,13 @@ describe('controls', () => {
     expect(fitToCapabilities(wanted, createCapabilities({ modes: ['auto', 'cool', 'heat'] })).hasModeSelect).toBe(false);
   });
 
+  it('should drop the switches of the modes for the mode select that takes their place', () => {
+    const both = createDeviceConfig({ hasModeSelect: true, hasDryModeSwitch: true, hasFanModeSwitch: true });
+    expect(fitToCapabilities(both, createCapabilities())).toEqual(createDeviceConfig({ hasModeSelect: true }));
+    // Without a dry or a fan mode there is no mode select, and nothing for the switches either.
+    expect(fitToCapabilities(both, createCapabilities({ modes: ['auto', 'cool', 'heat'] }))).toEqual(createDeviceConfig());
+  });
+
   it('should keep the switch for the auto fan speed only where it can hold', () => {
     const unit = createCapabilities();
     expect(hasFanAuto(unit)).toBe(true);

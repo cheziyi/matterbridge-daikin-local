@@ -36,7 +36,7 @@ import type { AnsiLogger } from 'matterbridge/logger';
 import type { ActionContext } from 'matterbridge/matter';
 import { BridgedDeviceBasicInformation, FanControl, ModeSelect, OnOff, Thermostat } from 'matterbridge/matter/clusters';
 
-import { type DaikinDeviceConfig, hasSwingSwitches } from '../config.js';
+import type { DaikinDeviceConfig } from '../config.js';
 import { addReportedSensors, getSwitchableSpecialModes, hasFanAuto, noReportedSensors, type ReportedSensors } from '../controls.js';
 import { getErrorMessage } from '../errors.js';
 import { modeSelectChoices, type SelectChoices, swingSelectChoices, toModeOptions, toOperatingMode } from '../mapping.js';
@@ -184,7 +184,7 @@ export class DaikinAccessory implements AccessoryEndpoints {
     if (this.layout.isComposed) this.parent = this.endpoint;
     if (this.layout.hasSeparateFan) this.fan = createFanEndpoint(this.identity, this.layout, this.parent);
     if (this.layout.hasFan) this.subscribeFan(this.fan ?? this.endpoint);
-    if (hasSwingSwitches(this.config.swingControl)) {
+    if (this.config.swingControl === 'switches') {
       if (this.capabilities.swingModes.includes('vertical')) this.verticalSwitch = this.createSwingSwitch('vertical');
       if (this.capabilities.swingModes.includes('horizontal')) this.horizontalSwitch = this.createSwingSwitch('horizontal');
     }

@@ -23,7 +23,7 @@
 
 import type { DaikinCapabilities, FanSpeed, OperatingMode, SwingMode, TemperatureRange } from 'daikin-local-control';
 
-import { type DaikinDeviceConfig, hasSwingSelect } from '../config.js';
+import type { DaikinDeviceConfig } from '../config.js';
 import type { ReportedSensors } from '../controls.js';
 import { getFanSteps, getTemperatureRange, getThermostatProfile, type ThermostatProfile } from '../mapping.js';
 
@@ -88,7 +88,7 @@ export function getAccessoryLayout(config: DaikinDeviceConfig, capabilities: Dai
     hasHumidity: reportedSensors.hasHumidity,
     hasSeparateHumiditySensor: reportedSensors.hasHumidity && config.hasSeparateHumiditySensor,
     modeSelectModes: config.hasModeSelect ? capabilities.modes : [],
-    swingSelectModes: hasSwingSelect(config.swingControl) ? capabilities.swingModes : [],
+    swingSelectModes: config.swingControl === 'select' ? capabilities.swingModes : [],
     hasOutdoorTemperature: reportedSensors.hasOutdoorTemperature && config.hasOutdoorTemperatureSensor,
     isComposed: config.isComposed,
   };

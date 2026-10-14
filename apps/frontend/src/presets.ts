@@ -17,7 +17,7 @@ export const presets: Record<PresetName, { title: string; text: string }> = {
     text: 'Fan speed as a percentage, the humidity on a sensor of its own, and a switch for everything Home has no control for: swing, dry mode, fan mode and auto fan.',
   },
   google: { title: 'Google Home', text: 'Fan speed as steps, swing switches and a dry mode switch.' },
-  full: { title: 'Full', text: 'Every control, switch, mode select and sensor this unit can have, special modes and the outdoor temperature included.' },
+  full: { title: 'Full', text: 'Every control, switch and sensor this unit can have, special modes and the outdoor temperature included.' },
   minimal: { title: 'Minimal', text: 'No fan control, no swing control and no switches. The fan and the swing stay as they are.' },
 };
 
@@ -30,13 +30,13 @@ export function presetExposure(name: PresetName, controls: AvailableControls): O
   return {
     fanControl: isMinimal || controls.fanSteps.length === 0 ? 'hidden' : name === 'apple' ? 'percent' : 'steps',
     fanSpeedWhenHidden: 'keep',
-    swingControl: isMinimal || !controls.hasSwing ? 'hidden' : name === 'full' ? 'switchesAndSelect' : 'switches',
+    swingControl: isMinimal || !controls.hasSwing ? 'hidden' : 'switches',
     swingModeWhenHidden: 'keep',
     hasDryModeSwitch: !isMinimal && controls.hasDryMode,
     hasFanModeSwitch: (name === 'apple' || name === 'full') && controls.hasFanMode,
     hasFanAutoSwitch: (name === 'apple' || name === 'full') && controls.hasFanAuto,
-    // Few apps show a mode select, so only Full has them.
-    hasModeSelect: name === 'full' && (controls.hasDryMode || controls.hasFanMode),
+    // Few apps show a mode select, so no preset has one: the switches take its place.
+    hasModeSelect: false,
     // No preset takes the fan off the air conditioner: that is for an app that shows no fan speed there.
     hasSeparateFan: false,
     specialModeSwitches: name === 'full' ? [...controls.specialModes] : [],
