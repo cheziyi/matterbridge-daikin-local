@@ -80,7 +80,7 @@ Afterwards the same page lists your air conditioners with their status. From the
   </tr>
   <tr>
     <td valign="top">
-      <img src="screenshots/options-presets-fan.png" alt="The Options step with the four presets and the three ways to show the fan speed">
+      <img src="screenshots/options-presets-fan.png" alt="The Options step with the presets and the three ways to show the fan speed">
       <br><b>Options.</b> Start from a preset, then choose how the fan speed appears.
     </td>
     <td valign="top">
@@ -170,11 +170,22 @@ The room temperature and the humidity are always on the air conditioner. You cho
 | Percentage | A slider from 0 to 100. The plugin rounds it to the nearest speed of the unit and shows the percentage that speed stands for |
 | Not shown  | No fan control. The fan speed either stays as it is, or is set to the speed you pick each time the plugin sends a command    |
 
-An air conditioner has no fan-off of its own, so a Matter app turning the fan to off or 0 is ignored and the fan control goes back to the speed the unit holds. To let the unit pick the speed, choose the Auto fan mode.
+Every Matter fan control has an off position below its first step: speed 0, 0 %, or the fan mode Off. An air conditioner has no fan-off of its own, so a Matter app turning the fan to off or 0 sets the first step instead: the slowest speed, or auto when auto is the first step. To let the unit pick the speed, choose auto, wherever the setup puts it: see [Auto fan speed](#auto-fan-speed).
 
-The fan speed is a control of the air conditioner itself. For Matter apps that show no fan speed on an air conditioner, or do not show it well, the setup can move it to a fan of its own instead, named `<name> Fan`, as steps or as a percentage. The air conditioner then has no fan speed, so an app does not show two. No preset does this. The fan behaves the same in either place: it shows the speed the unit holds, also while the unit is off, and it cannot be turned off.
+The fan speed is a control of the air conditioner itself. For Matter apps that show no fan speed on an air conditioner, or do not show it well, the setup can move it to a fan of its own instead, named `<name> Fan`, as steps or as a percentage. The air conditioner then has no fan speed, so an app does not show two. No preset does this. The fan behaves the same in either place: it shows the speed the unit holds, also while the unit is off, and turning it off sets the first step.
 
-For Matter apps that show no Auto fan mode, the setup can add a switch named `<name> Auto Fan` on a unit that has an auto fan speed. On sets the fan to auto. Off puts it back at the speed it last ran at, or at a middle speed when the plugin never saw it at one. The switch is not offered while the fan is hidden with a fixed speed, because that speed is sent with every command.
+#### Auto fan speed
+
+On a unit that has an auto fan speed, the setup puts auto in one of these places in Matter:
+
+| Option               | In Matter                                                                                                                                                                                          |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Native fan mode only | The Auto fan mode of the fan speed, as Matter has it. Not every app shows it                                                                                                                       |
+| A switch             | The Auto fan mode, and a switch named `<name> Auto Fan` beside it. On sets the fan to auto. Off puts it back at the speed it last ran at, or at a middle speed when the plugin never saw it at one |
+| The first step       | Below the slowest speed of the unit: step 1, or the bottom of the slider                                                                                                                           |
+| The last step        | Above the fastest speed of the unit: the top step, or 100 %                                                                                                                                        |
+
+A switch or a step is for Matter apps that show no Auto fan mode. A step takes the place of the Auto fan mode, because the two cannot show at once: in the Auto fan mode, Matter holds no percent. As a step, auto shares the scale with the speeds of the unit, so a unit with six speeds gets seven steps. Off and 0 set the first step, as above, so with auto first, turning the fan off sets it to auto. While the fan speed is hidden, only the switch is offered, and not even that with a fixed speed, because that speed is sent with every command.
 
 ### Swing
 
@@ -188,18 +199,26 @@ Fixed louver positions are not controlled from Matter.
 
 ### Dry and fan modes
 
-Dry and Fan only are always among the thermostat modes of the air conditioner, but some Matter apps, such as Apple Home, only offer Off, Cool, Heat and Auto. For those apps the setup can add a switch for each of the two modes the unit has, named `<name> Dry Mode` and `<name> Fan Mode`. Neither is added unless you ask for it.
+Dry and Fan only are always among the native Matter modes of the air conditioner, but some Matter apps, such as Apple Home, only offer Off, Cool, Heat and Auto. For those apps the setup can add one of these:
+
+| Option            | In Matter                                                                                                              |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Native modes only | Nothing more: Dry and Fan only are among the modes of the air conditioner. The default                                 |
+| A mode select     | A mode select named `<name> Mode`, with every mode of the unit: see [Mode selects](#mode-selects)                      |
+| Switches          | A switch named `<name> Dry Mode`, `<name> Fan Mode` or both, for whichever of the two modes the unit has that you pick |
+
+A switch does this:
 
 | Switch     | Does                                                                                                                      |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------- |
 | Turned on  | Turns the unit on in that mode                                                                                            |
 | Turned off | Puts the unit back in Cool, or in Heat on a unit that only heats. The unit stays on: turn it off from the air conditioner |
 
-A switch is on while the unit is on and in its mode, whichever way it got there. A mode select can take the place of the two switches: see [Mode selects](#mode-selects).
+A switch is on while the unit is on and in its mode, whichever way it got there.
 
 ### Mode selects
 
-A mode select is the Matter device type that picks one value from a list, as a drop-down does. The setup can add one for the mode, named `<name> Mode`, on a unit with a dry or a fan mode, and one for the swing, named `<name> Swing`, as a choice under [Swing](#swing). Each lists only what the unit has, and takes the place of the switches: the mode select those of Dry and Fan only, the swing select those of the swing. No preset adds them.
+A mode select is the Matter device type that picks one value from a list, as a drop-down does. The setup can add one for the mode, named `<name> Mode`, on a unit with a dry or a fan mode, and one for the swing, named `<name> Swing`, as a choice under [Swing](#swing). Each lists only what the unit has, and is chosen instead of the switches: the mode select under [Dry and fan modes](#dry-and-fan-modes), the swing select under [Swing](#swing). The Full Matter support preset adds the swing select, and no preset adds the mode select.
 
 | Mode select | Lists                                                                    | Picking a value                                                                                                                              |
 | ----------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -221,18 +240,17 @@ Matter has no control for Powerful, Econo and Streamer, so the setup can add a s
 
 In the Options step, a preset fills in every choice above for what the unit can do. You can change any of them afterwards.
 
-| Preset      | Fan speed  | Swing     | Dry mode switch | Fan mode switch | Auto fan switch | Special mode switches | Humidity                    | Outdoor sensor |
-| ----------- | ---------- | --------- | --------------- | --------------- | --------------- | --------------------- | --------------------------- | -------------- |
-| Apple Home  | Percentage | Switches  | Yes             | Yes             | Yes             | None                  | Also on a sensor of its own | No             |
-| Google Home | Steps      | Switches  | Yes             | No              | No              | None                  | On the air conditioner      | No             |
-| Full        | Steps      | Switches  | Yes             | Yes             | Yes             | All                   | On the air conditioner      | Yes            |
-| Minimal     | Not shown  | Not shown | No              | No              | No              | None                  | On the air conditioner      | No             |
+| Preset              | Fan speed  | Swing         | Dry and fan modes | Auto fan | Special mode switches | Humidity                    | Outdoor sensor | Parts of the air conditioner |
+| ------------------- | ---------- | ------------- | ----------------- | -------- | --------------------- | --------------------------- | -------------- | ---------------------------- |
+| Apple Home          | Percentage | Not shown     | Native modes only | Switch   | None                  | Also on a sensor of its own | No             | No                           |
+| Google Home         | Steps      | Not shown     | Native modes only | Switch   | None                  | Also on a sensor of its own | No             | No                           |
+| Full Matter support | Steps      | A mode select | Native modes only | Native   | All                   | On the air conditioner      | Yes            | Yes                          |
 
-The Apple Home and Google Home presets are starting points, not tested recommendations. They add switches and sensors for what each app is not known to show: Home's climate controls have Off, Heat, Cool and Auto only and are reported to show no humidity, and Google Home is reported to show Fan only but not Dry.
+The Apple Home and Google Home presets are starting points, not tested recommendations. They add switches and sensors for what each app is not known to show: Home is reported to show no humidity on an air conditioner and no auto fan mode, Google Home is [reported](https://www.googlenestcommunity.com/t5/Smart-Home-Developer-Forum/Fan-Mode-Auto-Low-Medium-High-Missing-in-Google-Home-for-Matter-Device/td-p/785631) to show no fan modes of a Matter device, Google lists the Humidity Sensor among the [device types Google Home supports](https://developers.home.google.com/matter/supported-devices) but not the Room Air Conditioner, and neither app is known to show a mode select. No preset adds the dry and fan mode switches or the mode select: choose them in [Dry and fan modes](#dry-and-fan-modes) for an app whose climate controls lack those modes. The Apple Home and Google Home presets also leave the swing out of Matter and as it is: choose switches in [Swing](#swing) to control it from the app. Both presets also make the switches, a fan of its own and a humidity sensor of its own devices of their own: Home is [reported](https://github.com/Luligu/matterbridge-hass/discussions/86) to show the parts of a composed device without their names, and Google does not list composed devices, or the Room Air Conditioner, among the [device types Google Home supports](https://developers.home.google.com/matter/supported-devices), while it says that every device behind a bridge appears as normal.
 
 ### One device or several
 
-The switches, the mode selects, a fan of its own and a humidity sensor of its own are parts of the air conditioner, which Matter calls a composed device, so they move between rooms with it. The outdoor temperature sensor is a device of its own either way, so that you can put it in another room than the air conditioner. The setup can make each of them a device of its own instead, beside the air conditioner. A Matter app then does not know that they belong together, so each is put in a room by itself: moving the air conditioner to another room leaves them where they were. A new device starts as one composed device, and no preset changes the choice.
+The switches, the mode selects, a fan of its own and a humidity sensor of its own are parts of the air conditioner, which Matter calls a composed device, so they move between rooms with it. The outdoor temperature sensor is a device of its own either way, so that you can put it in another room than the air conditioner. The setup can make each of them a device of its own instead, beside the air conditioner. A Matter app then does not know that they belong together, so each is put in a room by itself: moving the air conditioner to another room leaves them where they were. A new device starts as one composed device. The Full Matter support preset keeps it one, and the Apple Home and Google Home presets make each part a device of its own: see [Presets](#presets).
 
 ```mermaid
 flowchart TD

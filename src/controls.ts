@@ -23,7 +23,7 @@
 
 import { type DaikinCapabilities, type DaikinSensors, type FanSpeed, OPERATING_MODES, SPECIAL_MODES, type SpecialMode } from 'daikin-local-control';
 
-import { type DaikinDeviceConfig, KEEP_SETTING } from './config.js';
+import { type DaikinDeviceConfig, KEEP_SETTING, SWITCHED_MODES } from './config.js';
 import { getFanSteps } from './mapping.js';
 
 /** The part of a unit's capabilities that decides which controls a device can have. */
@@ -89,7 +89,7 @@ export function getAvailableControls(capabilities: ExposedCapabilities): Availab
  *
  * @param {DaikinDeviceConfig} device The device.
  * @param {ExposedCapabilities} capabilities What its unit accepts.
- * @returns {DaikinDeviceConfig} The device, with a fixed fan speed or swing mode the unit lacks replaced by `keep`, and without the switches, the mode select and the fan the unit has no use for.
+ * @returns {DaikinDeviceConfig} The device, with a fixed fan speed or swing mode the unit lacks replaced by `keep`, an auto fan switch or step that cannot hold replaced by the native fan mode, and without the switches, the mode select and the fan the unit has no use for.
  */
 export function fitToCapabilities(device: DaikinDeviceConfig, capabilities: ExposedCapabilities): DaikinDeviceConfig {
   const fanSpeedWhenHidden = device.fanSpeedWhenHidden !== KEEP_SETTING && capabilities.fanSpeeds.includes(device.fanSpeedWhenHidden) ? device.fanSpeedWhenHidden : KEEP_SETTING;
@@ -97,17 +97,20 @@ export function fitToCapabilities(device: DaikinDeviceConfig, capabilities: Expo
     device.swingModeWhenHidden !== KEEP_SETTING && capabilities.swingModes.includes(device.swingModeWhenHidden) ? device.swingModeWhenHidden : KEEP_SETTING;
   // A fixed fan speed is sent with every command, so a switch for auto would not hold.
   const hasFixedFanSpeed = device.fanControl === 'hidden' && fanSpeedWhenHidden !== KEEP_SETTING;
-  // The thermostat mode already offers every mode but these two.
-  const hasModeSelect = device.hasModeSelect && (capabilities.modes.includes('dehumidify') || capabilities.modes.includes('fan'));
+  const isAutoStep = device.fanAutoControl === 'firstStep' || device.fanAutoControl === 'lastStep';
+  // Auto is a step only of a fan control that is shown.
+  const canHold = hasFanAuto(capabilities) && (isAutoStep ? device.fanControl !== 'hidden' : !hasFixedFanSpeed);
+  // The thermostat mode already offers every mode but these two, so a switch or a mode select is only of use for them.
+  const switchedModes = SWITCHED_MODES.filter((mode) => capabilities.modes.includes(mode));
+  const modeSwitches = device.modeControl === 'switches' ? switchedModes.filter((mode) => device.modeSwitches.includes(mode)) : [];
+  const hasModeControl = device.modeControl === 'switches' ? modeSwitches.length > 0 : switchedModes.length > 0;
   return {
     ...device,
     fanSpeedWhenHidden,
     swingModeWhenHidden,
-    // The mode select takes the place of the switches of the modes.
-    hasDryModeSwitch: device.hasDryModeSwitch && !hasModeSelect && capabilities.modes.includes('dehumidify'),
-    hasFanModeSwitch: device.hasFanModeSwitch && !hasModeSelect && capabilities.modes.includes('fan'),
-    hasModeSelect,
-    hasFanAutoSwitch: device.hasFanAutoSwitch && hasFanAuto(capabilities) && !hasFixedFanSpeed,
+    modeControl: hasModeControl ? device.modeControl : 'native',
+    modeSwitches,
+    fanAutoControl: canHold ? device.fanAutoControl : 'native',
     hasSeparateFan: device.hasSeparateFan && device.fanControl !== 'hidden' && getFanSteps(capabilities.fanSpeeds).length > 0,
     specialModeSwitches: getSwitchableSpecialModes(capabilities).filter((mode) => device.specialModeSwitches.includes(mode)),
   };

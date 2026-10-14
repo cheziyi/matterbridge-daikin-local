@@ -64,11 +64,11 @@ function addFanControl(endpoint: MatterbridgeEndpoint, layout: AccessoryLayout):
   // Off and 0 are valid in every sequence; the first read replaces them with the unit's own speed.
   const base = {
     fanMode: FanControl.FanMode.Off,
-    fanModeSequence: getFanModeSequence(layout.fanSteps.length, layout.hasFanAuto),
+    fanModeSequence: getFanModeSequence(layout.fanPositions.length, layout.hasFanAuto),
     percentSetting: 0,
     percentCurrent: 0,
   };
-  const speeds = { speedMax: layout.fanSteps.length, speedSetting: 0, speedCurrent: 0 };
+  const speeds = { speedMax: layout.fanPositions.length, speedSetting: 0, speedCurrent: 0 };
   if (layout.hasFanSteps && layout.hasFanAuto) {
     endpoint.behaviors.require(MatterbridgeFanControlServer.with(FanControl.Feature.MultiSpeed, FanControl.Feature.Auto), { ...base, ...speeds });
   } else if (layout.hasFanSteps) {

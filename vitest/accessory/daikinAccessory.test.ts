@@ -26,6 +26,8 @@ import { log, setupTest } from 'matterbridge/vitest-utils';
 import { addDevice, aggregator, createServerNode, createTestEnvironment, startServerNode, stopServerNode } from 'matterbridge/vitest-utils/matter';
 
 import { DaikinAccessory } from '../../src/accessory/daikinAccessory.js';
+import { readFanSpeed } from '../../src/accessory/matterState.js';
+import { PendingCommand } from '../../src/accessory/pendingCommand.js';
 import { createCapabilities, createDeviceConfig, createFakeClient, type FakeClient, macOf } from '../fakeDaikin.js';
 
 const online = { fabric: 1 } as unknown as ActionContext;
@@ -273,12 +275,19 @@ describe('DaikinAccessory', () => {
       expect(client.setState).toHaveBeenLastCalledWith({ fanSpeed: 'level5' });
     });
 
-    it('should put the speed of the unit back when a controller turns the fan off', async () => {
+    it('should set the slowest speed when a controller turns the fan off', async () => {
       await writeAsController(accessory.endpoint, 'FanControl', 'percentSetting', 0);
       await accessory.flushCommands();
-      expect(client.setState).not.toHaveBeenCalled();
-      expect(accessory.endpoint.getAttribute(FanControl, 'percentSetting')).toBe(100);
-      expect(accessory.endpoint.getAttribute(FanControl, 'fanMode')).toBe(FanControl.FanMode.High);
+      expect(client.setState).toHaveBeenLastCalledWith({ fanSpeed: 'silent' });
+      expect(accessory.endpoint.getAttribute(FanControl, 'percentSetting')).toBe(16);
+      expect(accessory.endpoint.getAttribute(FanControl, 'speedSetting')).toBe(1);
+      expect(accessory.endpoint.getAttribute(FanControl, 'fanMode')).toBe(FanControl.FanMode.Low);
+
+      await writeAsController(accessory.endpoint, 'FanControl', 'percentSetting', 100);
+      await writeAsController(accessory.endpoint, 'FanControl', 'fanMode', FanControl.FanMode.Off);
+      await accessory.flushCommands();
+      expect(client.setState).toHaveBeenLastCalledWith({ fanSpeed: 'silent' });
+      expect(accessory.endpoint.getAttribute(FanControl, 'fanMode')).toBe(FanControl.FanMode.Low);
     });
 
     it('should swing on each axis from its own switch', async () => {
@@ -441,12 +450,12 @@ describe('DaikinAccessory', () => {
       expect(accessory.endpoint.getAttribute(FanControl, 'fanMode')).toBe(FanControl.FanMode.Medium);
     });
 
-    it('should put the speed of a unit without auto back when a controller turns the fan off', async () => {
+    it('should set the slowest speed of a unit without auto when a controller turns the fan off', async () => {
       await writeAsController(accessory.endpoint, 'FanControl', 'percentSetting', 0);
       await accessory.flushCommands();
-      expect(client.setState).not.toHaveBeenCalled();
-      expect(accessory.endpoint.getAttribute(FanControl, 'percentSetting')).toBe(66);
-      expect(accessory.endpoint.getAttribute(FanControl, 'fanMode')).toBe(FanControl.FanMode.Medium);
+      expect(client.setState).toHaveBeenCalledExactlyOnceWith({ fanSpeed: 'level1', swingMode: 'vertical' });
+      expect(accessory.endpoint.getAttribute(FanControl, 'percentSetting')).toBe(33);
+      expect(accessory.endpoint.getAttribute(FanControl, 'fanMode')).toBe(FanControl.FanMode.Low);
     });
 
     it('should send the fixed swing mode with every command', async () => {
@@ -495,7 +504,7 @@ describe('DaikinAccessory', () => {
 
     it('should create one switch for each mode that is asked for and that the unit has', async () => {
       client = createFakeClient();
-      const config = createDeviceConfig({ name: 'Den', fanControl: 'hidden', swingControl: 'hidden', hasDryModeSwitch: true, hasFanModeSwitch: true });
+      const config = createDeviceConfig({ name: 'Den', fanControl: 'hidden', swingControl: 'hidden', modeControl: 'switches', modeSwitches: ['dehumidify', 'fan'] });
       accessory = new DaikinAccessory({ config, capabilities: createCapabilities(), client, log, vendorId });
       expect(accessory.endpoints).toHaveLength(3);
       expect(accessory.dryModeSwitch?.deviceName).toBe('Den Dry Mode');
@@ -558,7 +567,13 @@ describe('DaikinAccessory', () => {
     it('should go back to heating on a unit that only heats', async () => {
       const capabilities = createCapabilities({ modes: ['heat', 'fan'], swingModes: [], fanSpeeds: [] });
       const heater = createFakeClient({ mode: 'fan', targetTemperatureInC: null, swingMode: 'off' }, capabilities);
-      const warm = new DaikinAccessory({ config: createDeviceConfig({ name: 'Shed', hasFanModeSwitch: true }), capabilities, client: heater, log, vendorId });
+      const warm = new DaikinAccessory({
+        config: createDeviceConfig({ name: 'Shed', modeControl: 'switches', modeSwitches: ['fan'] }),
+        capabilities,
+        client: heater,
+        log,
+        vendorId,
+      });
       if (warm.fanModeSwitch === undefined) throw new Error('The fan mode switch is missing');
       await addAccessory(warm);
       await warm.refresh();
@@ -576,11 +591,13 @@ describe('DaikinAccessory', () => {
 
     it('should create the switch on a unit that has an auto fan speed, and show whether the fan is on auto', async () => {
       client = createFakeClient({ fanSpeed: 'auto' });
-      const config = createDeviceConfig({ name: 'Nook', macAddress: 'A4:08:EA:CC:91:D4', swingControl: 'hidden', hasFanAutoSwitch: true });
+      const config = createDeviceConfig({ name: 'Nook', macAddress: 'A4:08:EA:CC:91:D4', swingControl: 'hidden', fanAutoControl: 'switch' });
       accessory = new DaikinAccessory({ config, capabilities: createCapabilities(), client, log, vendorId });
       expect(accessory.endpoints).toHaveLength(2);
       expect(accessory.fanAutoSwitch?.deviceName).toBe('Nook Auto Fan');
       await addAccessory(accessory);
+      // The switch is beside the fan mode Auto.
+      expect(accessory.endpoint.getAttribute(FanControl, 'fanModeSequence')).toBe(FanControl.FanModeSequence.OffLowMedHighAuto);
       await accessory.refresh();
       expect(accessory.fanAutoSwitch?.getAttribute(OnOff, 'onOff')).toBe(true);
 
@@ -605,7 +622,9 @@ describe('DaikinAccessory', () => {
       await writeAsController(accessory.fanAutoSwitch, 'OnOff', 'onOff', true);
       await accessory.flushCommands();
       expect(client.setState).toHaveBeenLastCalledWith({ fanSpeed: 'auto' });
+      expect(accessory.fanAutoSwitch.getAttribute(OnOff, 'onOff')).toBe(true);
       expect(accessory.endpoint.getAttribute(FanControl, 'fanMode')).toBe(FanControl.FanMode.Auto);
+      expect(accessory.endpoint.getAttribute(FanControl, 'percentSetting')).toBeNull();
 
       await writeAsController(accessory.fanAutoSwitch, 'OnOff', 'onOff', false);
       await accessory.flushCommands();
@@ -617,6 +636,72 @@ describe('DaikinAccessory', () => {
       await writeAsController(accessory.fanAutoSwitch, 'OnOff', 'onOff', false);
       await accessory.flushCommands();
       expect(client.setState).not.toHaveBeenCalled();
+      await accessory.close();
+    });
+  });
+
+  describe('a unit with the auto fan speed as a step', () => {
+    let client: FakeClient;
+    let accessory: DaikinAccessory;
+
+    it('should put auto below the speeds of the unit, in place of the fan mode Auto', async () => {
+      client = createFakeClient({ fanSpeed: 'auto' });
+      accessory = new DaikinAccessory({
+        config: createDeviceConfig({ name: 'Attic', swingControl: 'hidden', fanAutoControl: 'firstStep' }),
+        capabilities: createCapabilities(),
+        client,
+        log,
+        vendorId,
+      });
+      await addAccessory(accessory);
+      // Auto, then silent and level1 to level5.
+      expect(accessory.endpoint.getAttribute(FanControl, 'speedMax')).toBe(7);
+      expect(accessory.endpoint.getAttribute(FanControl, 'fanModeSequence')).toBe(FanControl.FanModeSequence.OffLowMedHigh);
+      await accessory.refresh();
+      expect(accessory.endpoint.getAttribute(FanControl, 'percentSetting')).toBe(14);
+      expect(accessory.endpoint.getAttribute(FanControl, 'speedCurrent')).toBe(1);
+      client.state.fanSpeed = 'silent';
+      await accessory.refresh();
+      expect(accessory.endpoint.getAttribute(FanControl, 'percentSetting')).toBe(28);
+      expect(accessory.endpoint.getAttribute(FanControl, 'speedCurrent')).toBe(2);
+    });
+
+    it('should set auto from the first step, and a speed of the unit from the others', async () => {
+      await writeAsController(accessory.endpoint, 'FanControl', 'percentSetting', 10);
+      await accessory.flushCommands();
+      expect(client.setState).toHaveBeenLastCalledWith({ fanSpeed: 'auto' });
+      expect(accessory.endpoint.getAttribute(FanControl, 'percentSetting')).toBe(14);
+
+      await writeAsController(accessory.endpoint, 'FanControl', 'percentSetting', 100);
+      await accessory.flushCommands();
+      expect(client.setState).toHaveBeenLastCalledWith({ fanSpeed: 'level5' });
+
+      // Off is the first step, which is auto here.
+      await writeAsController(accessory.endpoint, 'FanControl', 'percentSetting', 0);
+      await accessory.flushCommands();
+      expect(client.setState).toHaveBeenLastCalledWith({ fanSpeed: 'auto' });
+      expect(accessory.endpoint.getAttribute(FanControl, 'percentSetting')).toBe(14);
+      await accessory.close();
+    });
+
+    it('should put auto above the speeds of the unit, at 100 %', async () => {
+      client = createFakeClient({ fanSpeed: 'auto' });
+      const config = createDeviceConfig({ name: 'Conservatory', fanControl: 'percent', swingControl: 'hidden', fanAutoControl: 'lastStep' });
+      accessory = new DaikinAccessory({ config, capabilities: createCapabilities(), client, log, vendorId });
+      expect(accessory.endpoints).toHaveLength(1);
+      await addAccessory(accessory);
+      expect(accessory.endpoint.getAttribute(FanControl, 'fanModeSequence')).toBe(FanControl.FanModeSequence.OffLowMedHigh);
+      await accessory.refresh();
+      expect(accessory.endpoint.getAttribute(FanControl, 'percentSetting')).toBe(100);
+
+      await writeAsController(accessory.endpoint, 'FanControl', 'percentSetting', 50);
+      await accessory.flushCommands();
+      // The fourth of silent, level1 to level5 and auto.
+      expect(client.setState).toHaveBeenLastCalledWith({ fanSpeed: 'level3' });
+
+      await writeAsController(accessory.endpoint, 'FanControl', 'percentSetting', 100);
+      await accessory.flushCommands();
+      expect(client.setState).toHaveBeenLastCalledWith({ fanSpeed: 'auto' });
       await accessory.close();
     });
   });
@@ -823,7 +908,7 @@ describe('DaikinAccessory', () => {
 
   describe('a unit with a mode select and a swing select', () => {
     it('should show the mode and the swing of the unit, and send what a controller picks', async () => {
-      const config = createDeviceConfig({ name: 'Workshop', hasModeSelect: true, swingControl: 'select' });
+      const config = createDeviceConfig({ name: 'Workshop', modeControl: 'select', swingControl: 'select' });
       const capabilities = createCapabilities({ modes: ['cool', 'heat', 'dehumidify'], swingModes: ['off', 'vertical'] });
       const client = createFakeClient({ power: false, mode: 'heat', swingMode: 'vertical' });
       const accessory = new DaikinAccessory({ config, capabilities, reportedSensors: { hasHumidity: false, hasOutdoorTemperature: false }, client, log, vendorId });
@@ -876,7 +961,7 @@ describe('DaikinAccessory', () => {
     });
 
     it('should tell the selects of a composed device apart by their tags, beside a switch', async () => {
-      const config = createDeviceConfig({ name: 'Atrium', hasModeSelect: true, swingControl: 'select', hasFanAutoSwitch: true, isComposed: true });
+      const config = createDeviceConfig({ name: 'Atrium', modeControl: 'select', swingControl: 'select', fanAutoControl: 'switch', isComposed: true });
       const accessory = new DaikinAccessory({ config, capabilities: createCapabilities(), client: createFakeClient(), log, vendorId });
       expect(accessory.endpoints).toEqual([accessory.endpoint]);
       expect(accessory.endpoint.getChildEndpoints()).toEqual([accessory.fanAutoSwitch, accessory.modeSelect, accessory.swingSelect]);
@@ -896,7 +981,14 @@ describe('DaikinAccessory', () => {
   });
 
   describe('a unit whose fan, switches and humidity sensor are parts of the air conditioner', () => {
-    const config = createDeviceConfig({ name: 'Mezzanine', hasSeparateFan: true, hasDryModeSwitch: true, hasSeparateHumiditySensor: true, isComposed: true });
+    const config = createDeviceConfig({
+      name: 'Mezzanine',
+      hasSeparateFan: true,
+      modeControl: 'switches',
+      modeSwitches: ['dehumidify'],
+      hasSeparateHumiditySensor: true,
+      isComposed: true,
+    });
     const reportedSensors = { hasHumidity: true, hasOutdoorTemperature: true };
 
     it('should register the air conditioner and the outdoor sensor, and tell its parts apart by their tags', async () => {
@@ -983,6 +1075,17 @@ describe('DaikinAccessory', () => {
       const accessory = new DaikinAccessory({ config: createDeviceConfig({ name: 'None' }), capabilities, client: createFakeClient(), log, vendorId });
       expect(accessory.endpoint.hasClusterServer(FanControl)).toBe(false);
     });
+  });
+
+  it('should read no fan speed from a fan control that holds no percent outside of Auto', () => {
+    // Matter holds no percent in Auto alone, so this guards against a fan control that breaks the rule.
+    const endpoint = { getAttribute: (_cluster: unknown, attribute: string) => (attribute === 'fanMode' ? FanControl.FanMode.Low : null) } as unknown as MatterbridgeEndpoint;
+    expect(readFanSpeed(endpoint, ['level1', 'level2'])).toBeUndefined();
+    // A fan speed that cannot be read is left out of the command.
+    const pending = new PendingCommand();
+    pending.requestFanSpeed();
+    const unit = { state: undefined, capabilities: createCapabilities(), fanSteps: ['level1', 'level2'] as const, lastManualFanSpeed: undefined };
+    expect(pending.take(unit, vi.fn()).control).toEqual({});
   });
 
   it('should refuse a unit that neither cools nor heats', () => {
