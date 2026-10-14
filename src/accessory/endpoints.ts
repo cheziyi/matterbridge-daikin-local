@@ -33,7 +33,7 @@ import {
   temperatureSensor,
 } from 'matterbridge';
 import { MatterbridgeFanControlServer } from 'matterbridge/behaviors';
-import { CommonLocationTag, CommonNumberTag } from 'matterbridge/matter';
+import { CommonNumberTag } from 'matterbridge/matter';
 import { FanControl, OnOff } from 'matterbridge/matter/clusters';
 import type { Semtag } from 'matterbridge/matter/types';
 
@@ -211,16 +211,15 @@ export function createHumidityEndpoint(identity: EndpointIdentity, airConditione
 /**
  * Create the outdoor temperature sensor of a device
  *
- * The air conditioner cannot show it: a second temperature there would be taken for that of the room.
+ * The air conditioner cannot show it: a second temperature there would be taken for that of the room. It is a device
+ * of its own even when the other endpoints are parts of the air conditioner, so that it can be put in another room of
+ * a Matter app, such as outside, instead of reporting the outdoor temperature for the room of the air conditioner.
  *
  * @param {EndpointIdentity} identity The device the endpoint belongs to.
- * @param {MatterbridgeEndpoint} [airConditioner] The air conditioner the sensor is a part of. Left out, the sensor is a device of its own.
  * @returns {MatterbridgeEndpoint} The endpoint, with no value until the first read.
  */
-export function createOutdoorTemperatureEndpoint(identity: EndpointIdentity, airConditioner?: MatterbridgeEndpoint): MatterbridgeEndpoint {
-  const endpoint =
-    airConditioner === undefined
-      ? createExtraEndpoint(temperatureSensor, identity, 'outdoor-temperature', 'O', 'Outdoor Temperature')
-      : createPartEndpoint(airConditioner, temperatureSensor, 'outdoor-temperature', CommonLocationTag.Outdoor);
-  return endpoint.createDefaultTemperatureMeasurementClusterServer(null).addRequiredClusters();
+export function createOutdoorTemperatureEndpoint(identity: EndpointIdentity): MatterbridgeEndpoint {
+  return createExtraEndpoint(temperatureSensor, identity, 'outdoor-temperature', 'O', 'Outdoor Temperature')
+    .createDefaultTemperatureMeasurementClusterServer(null)
+    .addRequiredClusters();
 }

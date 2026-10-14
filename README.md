@@ -111,7 +111,7 @@ The adapter does not report whether the compressor is running, so a unit that is
 
 ### How it is built in Matter
 
-Matter describes a device as endpoints. Each endpoint has one or more device types, which say what it is, and clusters, which hold its attributes and commands. Each air conditioner is one device: an endpoint for the air conditioner, with every control or sensor that has no place on it as a part of it, on an endpoint of its own:
+Matter describes a device as endpoints. Each endpoint has one or more device types, which say what it is, and clusters, which hold its attributes and commands. Each air conditioner is one device: an endpoint for the air conditioner, with every control or sensor that has no place on it as a part of it, on an endpoint of its own. The outdoor temperature sensor is the exception, and is always a device of its own:
 
 ```mermaid
 flowchart TD
@@ -121,16 +121,16 @@ flowchart TD
         fan["Fan<br/>Fan Control"]
         switches["On/Off Plug-in Unit, one for each switch<br/>tagged 1 Vertical Swing, 2 Horizontal Swing and so on<br/>On/Off"]
         humidity["Humidity Sensor<br/>Relative Humidity"]
-        outdoor["Temperature Sensor, tagged Outdoor<br/>Temperature Measurement"]
     end
+    outdoor["<b>Living Room Outdoor Temperature</b><br/>Temperature Sensor, Bridged Node, Power Source<br/>Temperature Measurement"]
     bridge --> ac
     ac -.-> fan
     ac -.-> switches
     ac -.-> humidity
-    ac -.-> outdoor
+    bridge -.-> outdoor
 ```
 
-A solid line is always there. A dashed one is there when you choose it in the setup, and for a sensor once the unit gives its reading. The air conditioner also has the Bridged Node and Power Source device types, with the Identify, Bridged Device Basic Information and Power Source clusters: the name and the serial number of the device, whether it is reachable, and that it runs on mains power. Its parts have none of these, because in Matter they belong to the device.
+A solid line is always there. A dashed one is there when you choose it in the setup, and for a sensor once the unit gives its reading. The air conditioner also has the Bridged Node and Power Source device types, with the Identify, Bridged Device Basic Information and Power Source clusters: the name and the serial number of the device, whether it is reachable, and that it runs on mains power. Its parts have none of these, because in Matter they belong to the device. The outdoor temperature sensor has them all, with a name and a serial number of its own, so that you can put it in another room of your Matter app, such as outside, and it does not report the outdoor temperature for the room of the air conditioner.
 
 | Device type          | ID     | Stands for                                            |
 | -------------------- | ------ | ----------------------------------------------------- |
@@ -149,10 +149,10 @@ The setup can also make each part a device of its own: see [One device or severa
 
 The room temperature is always on the air conditioner. You choose where the other two go, and each appears once the unit gives it.
 
-| Reading             | In Matter                                                                                                                                                                                                                                                                                                                  |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Humidity            | On the air conditioner, beside the room temperature, where it adds no device. Or on a humidity sensor of its own, named `<name> Humidity`, for Matter apps that show no humidity on an air conditioner                                                                                                                     |
-| Outdoor temperature | None, unless you turn on a temperature sensor named `<name> Outdoor Temperature`. It is off by default because a Matter app may take a temperature sensor beside or inside an air conditioner for the temperature of the room. It is never on the air conditioner itself, where it would be taken for the room temperature |
+| Reading             | In Matter                                                                                                                                                                                                                                                                                                                                                                              |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Humidity            | On the air conditioner, beside the room temperature, where it adds no device. Or on a humidity sensor of its own, named `<name> Humidity`, for Matter apps that show no humidity on an air conditioner                                                                                                                                                                                 |
+| Outdoor temperature | None, unless you turn on a temperature sensor named `<name> Outdoor Temperature`. It is a device of its own, never on the air conditioner or a part of it, so that you can put it in another room, such as outside. It is off by default because a Matter app puts a new device in a room of its choosing, which may show the outdoor temperature as its own until you move the sensor |
 
 - **No adapter says which readings its unit has**, so the plugin goes by what the unit reads. The humidity and the outdoor temperature get their place in Matter the first time the unit gives them: at once for a unit that gave them during setup, and otherwise the air conditioner is built again in Matter when the reading first comes. An outdoor temperature with its sensor turned off builds nothing.
 - **A reading keeps its place from then on.** Some units give no outdoor temperature while they are idle, and a sensor that came and went would be a device that comes and goes in your Matter apps.
@@ -215,7 +215,7 @@ The Apple Home and Google Home presets are starting points, not tested recommend
 
 ### One device or several
 
-The switches, a fan of its own and the sensors are parts of the air conditioner, which Matter calls a composed device, so they move between rooms with it. The setup can make each of them a device of its own instead, beside the air conditioner. A Matter app then does not know that they belong together, so each is put in a room by itself: moving the air conditioner to another room leaves them where they were. A new device starts as one composed device, and no preset changes the choice.
+The switches, a fan of its own and a humidity sensor of its own are parts of the air conditioner, which Matter calls a composed device, so they move between rooms with it. The outdoor temperature sensor is a device of its own either way, so that you can put it in another room than the air conditioner. The setup can make each of them a device of its own instead, beside the air conditioner. A Matter app then does not know that they belong together, so each is put in a room by itself: moving the air conditioner to another room leaves them where they were. A new device starts as one composed device, and no preset changes the choice.
 
 ```mermaid
 flowchart TD
@@ -232,16 +232,16 @@ flowchart TD
     bridge -.-> outdoor
 ```
 
-|                 | Parts of the air conditioner                                                                                                                                   | Devices of their own                                               |
-| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| In a Matter app | One device                                                                                                                                                     | One device for the air conditioner, and one for each of the others |
-| Rooms           | The parts move with the air conditioner                                                                                                                        | Each is put in a room by itself                                    |
-| Names           | The air conditioner alone has one. Each switch is tagged with a number and with what it is, such as `Vertical Swing`, and the outdoor sensor is tagged outdoor | Each has its own, such as `<name> Vertical Swing`                  |
-| Unreachable     | The air conditioner says so for all of them                                                                                                                    | Each says so itself                                                |
+|                 | Parts of the air conditioner                                                                                         | Devices of their own                                               |
+| --------------- | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| In a Matter app | One device                                                                                                           | One device for the air conditioner, and one for each of the others |
+| Rooms           | The parts move with the air conditioner                                                                              | Each is put in a room by itself                                    |
+| Names           | The air conditioner alone has one. Each switch is tagged with a number and with what it is, such as `Vertical Swing` | Each has its own, such as `<name> Vertical Swing`                  |
+| Unreachable     | The air conditioner says so for all of them                                                                          | Each says so itself                                                |
 
 Matter names a device, not its parts, so what a part is called is up to the Matter app. One that reads the tags can show `Vertical Swing`, one that does not shows numbered outlets to rename yourself, and one that shows no parts at all shows the air conditioner alone. This has not been tested in each Matter app: try it in yours, and turn it off if the parts do not show as you want.
 
-Changing the choice builds the air conditioner again in Matter. The switches, the fan and the sensors are removed and added in their new place, so a Matter app takes them for new devices: they lose the rooms, the names and the automations they had there.
+Changing the choice builds the air conditioner again in Matter. The switches, the fan and the humidity sensor are removed and added in their new place, so a Matter app takes them for new devices: they lose the rooms, the names and the automations they had there.
 
 ## Compared with other Daikin plugins
 

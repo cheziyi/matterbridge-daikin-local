@@ -243,7 +243,7 @@ function sensorSection(draft: Draft): HTMLElement {
         'outdoor-sensor',
         draft.hasOutdoorTemperatureSensor,
         'Add a sensor for the outdoor temperature',
-        `It appears as "${draft.name} Outdoor Temperature". A Matter app may take it for the temperature of the room, so it is off unless you turn it on. Some units give no outdoor temperature while they are idle: the sensor then shows no value.`,
+        `It appears as "${draft.name} Outdoor Temperature". It is a device of its own, which you can put in another room, such as outside. Until you do, a Matter app may show the outdoor temperature as that of the room it put the sensor in. Some units give no outdoor temperature while they are idle: the sensor then shows no value.`,
         (hasOutdoorTemperatureSensor) => update(draft, { hasOutdoorTemperatureSensor }),
       ),
     ),
@@ -258,7 +258,7 @@ function composedSection(draft: Draft): HTMLElement {
     h(
       'p',
       { class: 'help' },
-      'The switches, a fan of its own and the sensors can be parts of the air conditioner in Matter, or devices of their own beside it.',
+      'The switches, a fan of its own and a humidity sensor of its own can be parts of the air conditioner in Matter, or devices of their own beside it. The outdoor temperature sensor is always a device of its own, so that you can put it in another room than the air conditioner.',
     ),
     h(
       'div',
