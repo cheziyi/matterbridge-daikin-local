@@ -202,9 +202,9 @@ export class DaikinAccessory implements AccessoryEndpoints {
     }
     this.specialModeSwitches = specialModeSwitches;
     if (this.layout.modeSelectModes.length > 0) {
-      // Picking a mode turns the unit on in it, as the switch of a mode does.
+      // Picking a mode turns the unit on in it, as the system mode of the thermostat does.
       this.modeSelect = this.createSelect('mode-select', 'M', 'Mode', modeSelectChoices, this.layout.modeSelectModes, (mode) =>
-        this.queueControl({ power: true, mode }, `mode select ${mode}`),
+        this.queueControl(mode === 'off' ? { power: false } : { power: true, mode }, `mode select ${mode}`),
       );
     }
     if (this.layout.swingSelectModes.length > 0) {

@@ -197,7 +197,6 @@ export async function applyState(endpoints: AccessoryEndpoints, layout: Accessor
   await endpoints.fanModeSwitch?.updateAttribute(OnOff, 'onOff', state.power && state.mode === 'fan');
   await endpoints.fanAutoSwitch?.updateAttribute(OnOff, 'onOff', state.fanSpeed === 'auto');
   for (const [specialMode, specialModeSwitch] of endpoints.specialModeSwitches) await specialModeSwitch.updateAttribute(OnOff, 'onOff', state.specialModes.includes(specialMode));
-  // The mode select shows the mode of the unit also while it is off: picking it turns the unit on.
-  await applySelect(endpoints.modeSelect, modeSelectChoices, layout.modeSelectModes, state.mode);
+  await applySelect(endpoints.modeSelect, modeSelectChoices, layout.modeSelectModes, state.power ? state.mode : 'off');
   await applySelect(endpoints.swingSelect, swingSelectChoices, layout.swingSelectModes, state.swingMode);
 }

@@ -207,7 +207,7 @@ function modeSection(draft: Draft, controls: AvailableControls): Child {
         'mode-select',
         draft.hasModeSelect,
         'Use a mode select instead of switches',
-        `It appears as "${draft.name} Mode", with every mode of the unit. Picking a mode turns the unit on in it. ${selectSupport}`,
+        `It appears as "${draft.name} Mode", with Off and every mode of the unit, as the thermostat mode has them. Picking a mode turns the unit on in it. ${selectSupport}`,
         // The select takes the place of the switches.
         (hasModeSelect) => update(draft, hasModeSelect ? { hasModeSelect, hasDryModeSwitch: false, hasFanModeSwitch: false } : { hasModeSelect }),
       ),

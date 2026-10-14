@@ -21,11 +21,11 @@
  * limitations under the License.
  */
 
-import type { DaikinCapabilities, FanSpeed, OperatingMode, SwingMode, TemperatureRange } from 'daikin-local-control';
+import type { DaikinCapabilities, FanSpeed, SwingMode, TemperatureRange } from 'daikin-local-control';
 
 import type { DaikinDeviceConfig } from '../config.js';
 import type { ReportedSensors } from '../controls.js';
-import { getFanSteps, getTemperatureRange, getThermostatProfile, type ThermostatProfile } from '../mapping.js';
+import { getFanSteps, getTemperatureRange, getThermostatProfile, type ModeSelectValue, type ThermostatProfile } from '../mapping.js';
 
 /** How the controls of a device are laid out in Matter, worked out once from what its unit accepts and how it is configured. */
 export interface AccessoryLayout {
@@ -49,8 +49,8 @@ export interface AccessoryLayout {
   hasHumidity: boolean;
   /** Whether that humidity is on a sensor of its own, instead of on the air conditioner. */
   hasSeparateHumiditySensor: boolean;
-  /** The modes the mode select picks from, or none when the device has no mode select. */
-  modeSelectModes: readonly OperatingMode[];
+  /** Off and the modes the mode select picks from, or none when the device has no mode select. */
+  modeSelectModes: readonly ModeSelectValue[];
   /** The swing modes the swing select picks from, or none when the device has no swing select. */
   swingSelectModes: readonly SwingMode[];
   /** Whether the device has a sensor for the outdoor temperature. */
@@ -87,7 +87,7 @@ export function getAccessoryLayout(config: DaikinDeviceConfig, capabilities: Dai
     coolLimits: profile === 'heatCool' ? { ...coolRange, max: Math.max(coolRange.max, heatRange.max) } : coolRange,
     hasHumidity: reportedSensors.hasHumidity,
     hasSeparateHumiditySensor: reportedSensors.hasHumidity && config.hasSeparateHumiditySensor,
-    modeSelectModes: config.hasModeSelect ? capabilities.modes : [],
+    modeSelectModes: config.hasModeSelect ? ['off', ...capabilities.modes] : [],
     swingSelectModes: config.swingControl === 'select' ? capabilities.swingModes : [],
     hasOutdoorTemperature: reportedSensors.hasOutdoorTemperature && config.hasOutdoorTemperatureSensor,
     isComposed: config.isComposed,

@@ -201,10 +201,10 @@ A switch is on while the unit is on and in its mode, whichever way it got there.
 
 A mode select is the Matter device type that picks one value from a list, as a drop-down does. The setup can add one for the mode, named `<name> Mode`, on a unit with a dry or a fan mode, and one for the swing, named `<name> Swing`, as a choice under [Swing](#swing). Each lists only what the unit has, and takes the place of the switches: the mode select those of Dry and Fan only, the swing select those of the swing. No preset adds them.
 
-| Mode select | Lists                              | Picking a value                                                                                   |
-| ----------- | ---------------------------------- | ------------------------------------------------------------------------------------------------- |
-| Mode        | Auto, Cool, Heat, Dry and Fan Only | Turns the unit on in that mode. The select shows the mode of the unit, also while the unit is off |
-| Swing       | Off, Vertical, Horizontal and Both | Sets the swing                                                                                    |
+| Mode select | Lists                                                                    | Picking a value                                                                                                                              |
+| ----------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Mode        | Off, Auto, Cool, Heat, Dry and Fan Only, as the thermostat mode has them | Off turns the unit off, and any other mode turns it on in that mode. The select shows Off while the unit is off, as the thermostat mode does |
+| Swing       | Off, Vertical, Horizontal and Both                                       | Sets the swing                                                                                                                               |
 
 **Few Matter apps show a mode select.** Home Assistant shows each one as a select among the settings of the device. Apple Home is reported not to show them, and Google Home, Amazon Alexa and SmartThings do not list them among the devices they support. This has not been tested with this plugin. In the other apps, the switches are the way to reach these controls.
 

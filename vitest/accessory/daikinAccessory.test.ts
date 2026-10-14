@@ -831,29 +831,36 @@ describe('DaikinAccessory', () => {
       expect(accessory.modeSelect?.deviceName).toBe('Workshop Mode');
       expect(accessory.swingSelect?.deviceName).toBe('Workshop Swing');
       await addAccessory(accessory);
-      // Only the modes the unit takes, each with the same number whatever the unit takes.
+      // Off and the modes the unit takes, each with the same number whatever the unit takes.
       expect(accessory.modeSelect?.getAttribute(ModeSelect, 'description')).toBe('Mode');
       expect(accessory.modeSelect?.getAttribute(ModeSelect, 'supportedModes')).toEqual([
-        { label: 'Cool', mode: 1, semanticTags: [] },
-        { label: 'Heat', mode: 2, semanticTags: [] },
-        { label: 'Dry', mode: 3, semanticTags: [] },
+        { label: 'Off', mode: 0, semanticTags: [] },
+        { label: 'Cool', mode: 2, semanticTags: [] },
+        { label: 'Heat', mode: 3, semanticTags: [] },
+        { label: 'Dry', mode: 4, semanticTags: [] },
       ]);
       expect(accessory.swingSelect?.getAttribute(ModeSelect, 'supportedModes')).toEqual([
         { label: 'Off', mode: 0, semanticTags: [] },
         { label: 'Vertical', mode: 1, semanticTags: [] },
       ]);
 
-      // The mode select shows the mode of a unit that is off.
+      // A unit that is off shows Off, as the system mode of the thermostat does.
       await accessory.refresh();
-      expect(accessory.modeSelect?.getAttribute(ModeSelect, 'currentMode')).toBe(2);
+      expect(accessory.modeSelect?.getAttribute(ModeSelect, 'currentMode')).toBe(0);
       expect(accessory.swingSelect?.getAttribute(ModeSelect, 'currentMode')).toBe(1);
 
       if (accessory.modeSelect === undefined || accessory.swingSelect === undefined) throw new Error('A select is missing');
       // Picking a mode turns the unit on in it.
-      await writeAsController(accessory.modeSelect, 'ModeSelect', 'currentMode', 3);
+      await writeAsController(accessory.modeSelect, 'ModeSelect', 'currentMode', 4);
       await accessory.flushCommands();
       expect(client.setState).toHaveBeenLastCalledWith({ power: true, mode: 'dehumidify' });
       expect(accessory.endpoint.getAttribute(Thermostat, 'systemMode')).toBe(Thermostat.SystemMode.Dry);
+      expect(accessory.modeSelect.getAttribute(ModeSelect, 'currentMode')).toBe(4);
+      // Picking Off turns the unit off.
+      await writeAsController(accessory.modeSelect, 'ModeSelect', 'currentMode', 0);
+      await accessory.flushCommands();
+      expect(client.setState).toHaveBeenLastCalledWith({ power: false });
+      expect(accessory.endpoint.getAttribute(Thermostat, 'systemMode')).toBe(Thermostat.SystemMode.Off);
       await writeAsController(accessory.swingSelect, 'ModeSelect', 'currentMode', 0);
       await accessory.flushCommands();
       expect(client.setState).toHaveBeenLastCalledWith({ swingMode: 'off' });
@@ -879,7 +886,7 @@ describe('DaikinAccessory', () => {
       await addAccessory(accessory);
       expect(accessory.endpoint.getAttribute(Descriptor, 'partsList')).toHaveLength(3);
       await accessory.refresh();
-      expect(accessory.modeSelect?.getAttribute(ModeSelect, 'currentMode')).toBe(1);
+      expect(accessory.modeSelect?.getAttribute(ModeSelect, 'currentMode')).toBe(2);
       expect(accessory.swingSelect?.getAttribute(ModeSelect, 'currentMode')).toBe(1);
       expect(accessory.fanAutoSwitch?.getAttribute(OnOff, 'onOff')).toBe(false);
       await accessory.close();

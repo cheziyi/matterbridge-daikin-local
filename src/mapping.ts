@@ -42,10 +42,13 @@ export interface SelectChoices<T extends string> {
   labels: Readonly<Record<T, string>>;
 }
 
-/** The modes of the unit on its mode select. */
-export const modeSelectChoices: SelectChoices<OperatingMode> = {
-  values: ['auto', 'cool', 'heat', 'dehumidify', 'fan'],
-  labels: { auto: 'Auto', cool: 'Cool', heat: 'Heat', dehumidify: 'Dry', fan: 'Fan Only' },
+/** What the mode select picks: off, or a mode of the unit, as the Thermostat system mode does. */
+export type ModeSelectValue = 'off' | OperatingMode;
+
+/** Off and the modes of the unit on its mode select, in the order of the Thermostat system modes. */
+export const modeSelectChoices: SelectChoices<ModeSelectValue> = {
+  values: ['off', 'auto', 'cool', 'heat', 'dehumidify', 'fan'],
+  labels: { off: 'Off', auto: 'Auto', cool: 'Cool', heat: 'Heat', dehumidify: 'Dry', fan: 'Fan Only' },
 };
 
 /** The swing modes of the unit on its swing select. */
