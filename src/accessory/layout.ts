@@ -47,7 +47,7 @@ export interface AccessoryLayout {
   coolLimits: TemperatureRange;
   /** Whether the device shows the indoor humidity. */
   hasHumidity: boolean;
-  /** Whether that humidity is on a sensor of its own, instead of on the air conditioner. */
+  /** Whether that humidity is also on a sensor of its own, besides the air conditioner. */
   hasSeparateHumiditySensor: boolean;
   /** Off and the modes the mode select picks from, or none when the device has no mode select. */
   modeSelectModes: readonly ModeSelectValue[];

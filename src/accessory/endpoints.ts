@@ -81,8 +81,8 @@ function addFanControl(endpoint: MatterbridgeEndpoint, layout: AccessoryLayout):
 }
 
 /**
- * Create the room air conditioner of a device: on/off, a thermostat for what its unit does and, when they are exposed
- * there, a fan control and the indoor humidity
+ * Create the room air conditioner of a device: on/off, a thermostat for what its unit does, a fan control when it is
+ * exposed there, and the indoor humidity of a unit that has given it
  *
  * @param {EndpointIdentity} identity The device the endpoint belongs to.
  * @param {AccessoryLayout} layout How the controls of the device are laid out.
@@ -106,8 +106,8 @@ export function createAirConditionerEndpoint(identity: EndpointIdentity, layout:
     endpoint.createDefaultHeatingThermostatClusterServer(23, heatSetpoint, heatLimits.min, heatLimits.max);
   }
   if (layout.hasFan && !layout.hasSeparateFan) addFanControl(endpoint, layout);
-  // No value until the first read.
-  if (layout.hasHumidity && !layout.hasSeparateHumiditySensor) endpoint.createDefaultRelativeHumidityMeasurementClusterServer(null);
+  // No value until the first read. A humidity sensor of its own shows the humidity too, never instead.
+  if (layout.hasHumidity) endpoint.createDefaultRelativeHumidityMeasurementClusterServer(null);
   endpoint.addRequiredClusters();
   return endpoint;
 }
@@ -226,7 +226,7 @@ export function createFanEndpoint(identity: EndpointIdentity, layout: AccessoryL
 }
 
 /**
- * Create the humidity sensor of a device whose humidity is not on its air conditioner
+ * Create the humidity sensor of a device that shows the humidity on a sensor of its own, besides its air conditioner
  *
  * @param {EndpointIdentity} identity The device the endpoint belongs to.
  * @param {MatterbridgeEndpoint} [airConditioner] The air conditioner the sensor is a part of. Left out, the sensor is a device of its own.

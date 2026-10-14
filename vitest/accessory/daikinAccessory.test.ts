@@ -781,7 +781,7 @@ describe('DaikinAccessory', () => {
       await accessory.close();
     });
 
-    it('should show the humidity on a sensor of its own when asked to', async () => {
+    it('should show the humidity on a sensor of its own too when asked to', async () => {
       const client = createFakeClient();
       client.sensors = { indoorTemperatureInC: 26.5, outdoorTemperatureInC: null, indoorHumidityInPercent: 60 };
       const separate = { ...config, name: 'Pantry', macAddress: macOf('Pantry'), hasSeparateHumiditySensor: true };
@@ -790,11 +790,13 @@ describe('DaikinAccessory', () => {
       expect(accessory.endpoints).toHaveLength(2);
       expect(accessory.humiditySensor?.deviceName).toBe('Pantry Humidity');
       expect(accessory.humiditySensor?.serialNumber).toBe(`${macOf('Pantry')}R`);
-      expect(accessory.endpoint.hasClusterServer(RelativeHumidityMeasurement)).toBe(false);
+      // The air conditioner keeps the humidity, as it keeps the room temperature.
+      expect(accessory.endpoint.hasClusterServer(RelativeHumidityMeasurement)).toBe(true);
       await addAccessory(accessory);
       expect(accessory.humiditySensor?.getAttribute(RelativeHumidityMeasurement, 'measuredValue')).toBeNull();
       await accessory.refresh();
       expect(accessory.humiditySensor?.getAttribute(RelativeHumidityMeasurement, 'measuredValue')).toBe(6000);
+      expect(accessory.endpoint.getAttribute(RelativeHumidityMeasurement, 'measuredValue')).toBe(6000);
       expect(accessory.humiditySensor?.getAttribute(BridgedDeviceBasicInformation, 'reachable')).toBe(true);
       await accessory.close();
     });
@@ -923,7 +925,7 @@ describe('DaikinAccessory', () => {
       expect(accessory.horizontalSwitch?.getAttribute(OnOff, 'onOff')).toBe(false);
       expect(accessory.outdoorTemperatureSensor?.getAttribute(TemperatureMeasurement, 'measuredValue')).toBe(3100);
       expect(accessory.humiditySensor?.getAttribute(RelativeHumidityMeasurement, 'measuredValue')).toBe(6000);
-      expect(accessory.endpoint.hasClusterServer(RelativeHumidityMeasurement)).toBe(false);
+      expect(accessory.endpoint.getAttribute(RelativeHumidityMeasurement, 'measuredValue')).toBe(6000);
       // The air conditioner says whether the unit is reachable for its parts, and the outdoor sensor for itself.
       expect(accessory.endpoint.getAttribute(BridgedDeviceBasicInformation, 'reachable')).toBe(true);
       expect(accessory.outdoorTemperatureSensor?.getAttribute(BridgedDeviceBasicInformation, 'reachable')).toBe(true);

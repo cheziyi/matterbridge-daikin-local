@@ -102,7 +102,7 @@ The plugin presents itself to every adapter with a **Terminal ID**, which it gen
 | Thermostat mode     | Off, Cool, Heat, Auto, Dry (dehumidify) and Fan only, for the modes the unit has. Not every Matter app offers Dry and Fan only                                             |
 | Target temperature  | The setpoint of the current mode, within the limits and the step the unit reports. In Auto the unit has one setpoint, which both the heating and the cooling setpoint show |
 | Current temperature | The indoor temperature the unit measures                                                                                                                                   |
-| Humidity            | The indoor humidity, on the air conditioner or on a sensor of its own, for a unit that gives it: see below                                                                 |
+| Humidity            | The indoor humidity, on the air conditioner and, when you add one, on a sensor of its own, for a unit that gives it: see below                                             |
 | Outdoor temperature | A temperature sensor named `<name> Outdoor Temperature`, when you turn it on, for a unit that gives it: see below                                                          |
 | Fan speed           | Your choice: see below                                                                                                                                                     |
 | Swing               | Your choice: see below                                                                                                                                                     |
@@ -117,7 +117,7 @@ Matter describes a device as endpoints. Each endpoint has one or more device typ
 flowchart TD
     bridge["Matterbridge<br/>Aggregator"]
     subgraph device["One device in a Matter app"]
-        ac["<b>Living Room</b><br/>Room Air Conditioner, Bridged Node, Power Source<br/>On/Off, Thermostat<br/>and Fan Control, Relative Humidity when they are here"]
+        ac["<b>Living Room</b><br/>Room Air Conditioner, Bridged Node, Power Source<br/>On/Off, Thermostat<br/>Fan Control when it is here, and Relative Humidity once the unit gives it"]
         fan["Fan<br/>Fan Control"]
         switches["On/Off Plug-in Unit, one for each switch<br/>tagged 1 Vertical Swing, 2 Horizontal Swing and so on<br/>On/Off"]
         selects["Mode Select, one for the mode and one for the swing<br/>tagged 1 Mode, 2 Swing<br/>Mode Select"]
@@ -150,17 +150,17 @@ The setup can also make each part a device of its own: see [One device or severa
 
 ### Room temperature, humidity and outdoor temperature
 
-The room temperature is always on the air conditioner. You choose where the other two go, and each appears once the unit gives it.
+The room temperature and the humidity are always on the air conditioner. You choose whether the humidity also gets a sensor of its own, and whether the outdoor temperature gets a sensor, and each appears once the unit gives it.
 
 | Reading             | In Matter                                                                                                                                                                                                                                                                                                                                                                              |
 | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Humidity            | On the air conditioner, beside the room temperature, where it adds no device. Or on a humidity sensor of its own, named `<name> Humidity`, for Matter apps that show no humidity on an air conditioner                                                                                                                                                                                 |
+| Humidity            | On the air conditioner, beside the room temperature. You can add a humidity sensor of its own, named `<name> Humidity`, for Matter apps that show no humidity on an air conditioner. It shows the same humidity, which stays on the air conditioner for the apps that do                                                                                                               |
 | Outdoor temperature | None, unless you turn on a temperature sensor named `<name> Outdoor Temperature`. It is a device of its own, never on the air conditioner or a part of it, so that you can put it in another room, such as outside. It is off by default because a Matter app puts a new device in a room of its choosing, which may show the outdoor temperature as its own until you move the sensor |
 
 - **No adapter says which readings its unit has**, so the plugin goes by what the unit reads. The humidity and the outdoor temperature get their place in Matter the first time the unit gives them: at once for a unit that gave them during setup, and otherwise the air conditioner is built again in Matter when the reading first comes. An outdoor temperature with its sensor turned off builds nothing.
 - **A reading keeps its place from then on.** Some units give no outdoor temperature while they are idle, and a sensor that came and went would be a device that comes and goes in your Matter apps.
 - **A reading the unit does not give right now shows no value**, instead of the last one it gave. This holds for all three, the room temperature included.
-- **Apple Home is reported to show a humidity only on a sensor of its own**, and not on an air conditioner: see the [Home Assistant Matter Hub notes](https://riddix.github.io/home-assistant-matter-hub/devices/temperature-humidity-sensor). The Apple Home preset puts the humidity there for that reason. It has not been tested with this plugin.
+- **Apple Home is reported to show a humidity only on a sensor of its own**, and not on an air conditioner: see the [Home Assistant Matter Hub notes](https://riddix.github.io/home-assistant-matter-hub/devices/temperature-humidity-sensor). The Apple Home preset adds that sensor for that reason. It has not been tested with this plugin.
 
 ### Fan speed
 
@@ -221,12 +221,12 @@ Matter has no control for Powerful, Econo and Streamer, so the setup can add a s
 
 In the Options step, a preset fills in every choice above for what the unit can do. You can change any of them afterwards.
 
-| Preset      | Fan speed  | Swing     | Dry mode switch | Fan mode switch | Auto fan switch | Special mode switches | Humidity               | Outdoor sensor |
-| ----------- | ---------- | --------- | --------------- | --------------- | --------------- | --------------------- | ---------------------- | -------------- |
-| Apple Home  | Percentage | Switches  | Yes             | Yes             | Yes             | None                  | On a sensor of its own | No             |
-| Google Home | Steps      | Switches  | Yes             | No              | No              | None                  | On the air conditioner | No             |
-| Full        | Steps      | Switches  | Yes             | Yes             | Yes             | All                   | On the air conditioner | Yes            |
-| Minimal     | Not shown  | Not shown | No              | No              | No              | None                  | On the air conditioner | No             |
+| Preset      | Fan speed  | Swing     | Dry mode switch | Fan mode switch | Auto fan switch | Special mode switches | Humidity                    | Outdoor sensor |
+| ----------- | ---------- | --------- | --------------- | --------------- | --------------- | --------------------- | --------------------------- | -------------- |
+| Apple Home  | Percentage | Switches  | Yes             | Yes             | Yes             | None                  | Also on a sensor of its own | No             |
+| Google Home | Steps      | Switches  | Yes             | No              | No              | None                  | On the air conditioner      | No             |
+| Full        | Steps      | Switches  | Yes             | Yes             | Yes             | All                   | On the air conditioner      | Yes            |
+| Minimal     | Not shown  | Not shown | No              | No              | No              | None                  | On the air conditioner      | No             |
 
 The Apple Home and Google Home presets are starting points, not tested recommendations. They add switches and sensors for what each app is not known to show: Home's climate controls have Off, Heat, Cool and Auto only and are reported to show no humidity, and Google Home is reported to show Fan only but not Dry.
 
@@ -237,7 +237,7 @@ The switches, the mode selects, a fan of its own and a humidity sensor of its ow
 ```mermaid
 flowchart TD
     bridge["Matterbridge<br/>Aggregator"]
-    ac["<b>Living Room</b><br/>Room Air Conditioner<br/>On/Off, Thermostat<br/>and Fan Control, Relative Humidity when they are here"]
+    ac["<b>Living Room</b><br/>Room Air Conditioner<br/>On/Off, Thermostat<br/>Fan Control when it is here, and Relative Humidity once the unit gives it"]
     fan["<b>Living Room Fan</b><br/>Fan<br/>Fan Control"]
     switches["<b>Living Room Vertical Swing</b>, and the other switches<br/>On/Off Plug-in Unit, one for each switch<br/>On/Off"]
     selects["<b>Living Room Mode</b> and <b>Living Room Swing</b><br/>Mode Select, one for each<br/>Mode Select"]

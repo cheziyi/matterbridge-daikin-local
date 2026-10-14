@@ -94,7 +94,7 @@ export interface DaikinDeviceExposure {
   specialModeSwitches: SpecialMode[];
   /** Whether Matter gets a sensor for the outdoor temperature, once the unit gives it. */
   hasOutdoorTemperatureSensor: boolean;
-  /** Whether the indoor humidity is on a sensor of its own in Matter, instead of on the air conditioner, once the unit gives it. */
+  /** Whether the indoor humidity is also on a sensor of its own in Matter, besides the air conditioner, once the unit gives it. */
   hasSeparateHumiditySensor: boolean;
   /**
    * Whether the fan of its own, the switches and the humidity sensor of its own are parts of the air conditioner in

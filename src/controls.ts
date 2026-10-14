@@ -120,7 +120,7 @@ export function fitToCapabilities(device: DaikinDeviceConfig, capabilities: Expo
  * Matter for good, and shows no value while the unit gives none.
  */
 export interface ReportedSensors {
-  /** Whether the unit has given its indoor humidity, which the air conditioner or a sensor of its own shows. */
+  /** Whether the unit has given its indoor humidity, which the air conditioner shows, and a sensor of its own too when one is asked for. */
   hasHumidity: boolean;
   /** Whether the unit has given its outdoor temperature, which gets a sensor of its own when one is asked for. */
   hasOutdoorTemperature: boolean;

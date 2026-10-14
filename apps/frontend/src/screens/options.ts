@@ -248,7 +248,7 @@ function sensorSection(draft: Draft): HTMLElement {
     h(
       'p',
       { class: 'help' },
-      'No adapter says which readings its unit has, so each of these takes effect once the unit gives that reading. The room temperature is always on the air conditioner.',
+      'No adapter says which readings its unit has, so each of these takes effect once the unit gives that reading. The room temperature and the humidity are always on the air conditioner.',
     ),
     h(
       'div',
@@ -256,8 +256,8 @@ function sensorSection(draft: Draft): HTMLElement {
       toggle(
         'separate-humidity',
         draft.hasSeparateHumiditySensor,
-        'Show the humidity on a sensor of its own',
-        `It appears as "${draft.name} Humidity", and the air conditioner has no humidity of its own. For apps that show no humidity on an air conditioner, which Apple Home is reported to be.`,
+        'Also show the humidity on a sensor of its own',
+        `It appears as "${draft.name} Humidity", and the air conditioner keeps its humidity. For apps that show no humidity on an air conditioner, which Apple Home is reported to be.`,
         (hasSeparateHumiditySensor) => update(draft, { hasSeparateHumiditySensor }),
       ),
       toggle(

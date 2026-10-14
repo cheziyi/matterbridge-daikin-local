@@ -14,7 +14,7 @@ export type PresetName = 'apple' | 'google' | 'full' | 'minimal';
 export const presets: Record<PresetName, { title: string; text: string }> = {
   apple: {
     title: 'Apple Home',
-    text: 'Fan speed as a percentage, the humidity on a sensor of its own, and a switch for everything Home has no control for: swing, dry mode, fan mode and auto fan.',
+    text: 'Fan speed as a percentage, the humidity on a sensor of its own too, and a switch for everything Home has no control for: swing, dry mode, fan mode and auto fan.',
   },
   google: { title: 'Google Home', text: 'Fan speed as steps, swing switches and a dry mode switch.' },
   full: { title: 'Full', text: 'Every control, switch and sensor this unit can have, special modes and the outdoor temperature included.' },

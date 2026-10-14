@@ -107,9 +107,10 @@ function ignore(): void {
 /**
  * One Daikin air conditioner and the Matter endpoints that stand for it: a room air conditioner and, when they are
  * exposed, one on/off switch for each axis the unit swings on, for each of the dry and fan modes, for the auto fan speed
- * and for each special mode, and a mode select for the mode and one for the swing. The fan control is a fan of its own when it is exposed that way, and so is the humidity
- * of a unit that has given it. A unit that has given its outdoor temperature gets a sensor for it, unless none is asked
- * for. The fan, the switches, the mode selects and the humidity sensor are each a device of their own in Matter, or parts of the air
+ * and for each special mode, and a mode select for the mode and one for the swing. The fan control is a fan of its own
+ * when it is exposed that way. The humidity of a unit that has given it is on the air conditioner, and on a sensor of
+ * its own too when one is asked for. A unit that has given its outdoor temperature gets a sensor for it, unless none is
+ * asked for. The fan, the switches, the mode selects and the humidity sensor are each a device of their own in Matter, or parts of the air
  * conditioner when the device is exposed as a composed one. The outdoor temperature sensor is always a device of its own.
  *
  * The endpoints are built in `endpoints.ts`, what the controllers ask for is collected in `pendingCommand.ts` and what
@@ -130,7 +131,7 @@ export class DaikinAccessory implements AccessoryEndpoints {
   readonly specialModeSwitches: ReadonlyMap<SpecialMode, MatterbridgeEndpoint>;
   readonly modeSelect: MatterbridgeEndpoint | undefined;
   readonly swingSelect: MatterbridgeEndpoint | undefined;
-  /** The humidity sensor, when the humidity is not on the air conditioner. */
+  /** The humidity sensor, when the humidity is on a sensor of its own besides the air conditioner. */
   readonly humiditySensor: MatterbridgeEndpoint | undefined;
   readonly outdoorTemperatureSensor: MatterbridgeEndpoint | undefined;
   /** What the unit accepted when the endpoints were built. */
