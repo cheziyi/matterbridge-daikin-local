@@ -12,7 +12,16 @@
 import { DaikinError, type DaikinSensors } from 'daikin-local-control';
 import type { MatterbridgeEndpoint } from 'matterbridge';
 import { type ActionContext, CommonNumberTag } from 'matterbridge/matter';
-import { BridgedDeviceBasicInformation, Descriptor, FanControl, OnOff, RelativeHumidityMeasurement, TemperatureMeasurement, Thermostat } from 'matterbridge/matter/clusters';
+import {
+  BridgedDeviceBasicInformation,
+  Descriptor,
+  FanControl,
+  ModeSelect,
+  OnOff,
+  RelativeHumidityMeasurement,
+  TemperatureMeasurement,
+  Thermostat,
+} from 'matterbridge/matter/clusters';
 import { log, setupTest } from 'matterbridge/vitest-utils';
 import { addDevice, aggregator, createServerNode, createTestEnvironment, startServerNode, stopServerNode } from 'matterbridge/vitest-utils/matter';
 
@@ -772,7 +781,7 @@ describe('DaikinAccessory', () => {
       await accessory.close();
     });
 
-    it('should show the humidity on a sensor of its own when asked to', async () => {
+    it('should show the humidity on a sensor of its own too when asked to', async () => {
       const client = createFakeClient();
       client.sensors = { indoorTemperatureInC: 26.5, outdoorTemperatureInC: null, indoorHumidityInPercent: 60 };
       const separate = { ...config, name: 'Pantry', macAddress: macOf('Pantry'), hasSeparateHumiditySensor: true };
@@ -781,11 +790,13 @@ describe('DaikinAccessory', () => {
       expect(accessory.endpoints).toHaveLength(2);
       expect(accessory.humiditySensor?.deviceName).toBe('Pantry Humidity');
       expect(accessory.humiditySensor?.serialNumber).toBe(`${macOf('Pantry')}R`);
-      expect(accessory.endpoint.hasClusterServer(RelativeHumidityMeasurement)).toBe(false);
+      // The air conditioner keeps the humidity, as it keeps the room temperature.
+      expect(accessory.endpoint.hasClusterServer(RelativeHumidityMeasurement)).toBe(true);
       await addAccessory(accessory);
       expect(accessory.humiditySensor?.getAttribute(RelativeHumidityMeasurement, 'measuredValue')).toBeNull();
       await accessory.refresh();
       expect(accessory.humiditySensor?.getAttribute(RelativeHumidityMeasurement, 'measuredValue')).toBe(6000);
+      expect(accessory.endpoint.getAttribute(RelativeHumidityMeasurement, 'measuredValue')).toBe(6000);
       expect(accessory.humiditySensor?.getAttribute(BridgedDeviceBasicInformation, 'reachable')).toBe(true);
       await accessory.close();
     });
@@ -807,6 +818,80 @@ describe('DaikinAccessory', () => {
       const known = new DaikinAccessory({ config: withoutOutdoor, capabilities: createCapabilities(), reportedSensors, client: createFakeClient(), log, vendorId });
       expect(known.outdoorTemperatureSensor).toBeUndefined();
       expect(known.humiditySensor).toBeUndefined();
+    });
+  });
+
+  describe('a unit with a mode select and a swing select', () => {
+    it('should show the mode and the swing of the unit, and send what a controller picks', async () => {
+      const config = createDeviceConfig({ name: 'Workshop', hasModeSelect: true, swingControl: 'select' });
+      const capabilities = createCapabilities({ modes: ['cool', 'heat', 'dehumidify'], swingModes: ['off', 'vertical'] });
+      const client = createFakeClient({ power: false, mode: 'heat', swingMode: 'vertical' });
+      const accessory = new DaikinAccessory({ config, capabilities, reportedSensors: { hasHumidity: false, hasOutdoorTemperature: false }, client, log, vendorId });
+      // The select takes the place of the swing switches.
+      expect(accessory.endpoints).toEqual([accessory.endpoint, accessory.modeSelect, accessory.swingSelect]);
+      expect(accessory.verticalSwitch).toBeUndefined();
+      expect(accessory.modeSelect?.deviceName).toBe('Workshop Mode');
+      expect(accessory.swingSelect?.deviceName).toBe('Workshop Swing');
+      await addAccessory(accessory);
+      // Off and the modes the unit takes, each with the same number whatever the unit takes.
+      expect(accessory.modeSelect?.getAttribute(ModeSelect, 'description')).toBe('Mode');
+      expect(accessory.modeSelect?.getAttribute(ModeSelect, 'supportedModes')).toEqual([
+        { label: 'Off', mode: 0, semanticTags: [] },
+        { label: 'Cool', mode: 2, semanticTags: [] },
+        { label: 'Heat', mode: 3, semanticTags: [] },
+        { label: 'Dry', mode: 4, semanticTags: [] },
+      ]);
+      expect(accessory.swingSelect?.getAttribute(ModeSelect, 'supportedModes')).toEqual([
+        { label: 'Off', mode: 0, semanticTags: [] },
+        { label: 'Vertical', mode: 1, semanticTags: [] },
+      ]);
+
+      // A unit that is off shows Off, as the system mode of the thermostat does.
+      await accessory.refresh();
+      expect(accessory.modeSelect?.getAttribute(ModeSelect, 'currentMode')).toBe(0);
+      expect(accessory.swingSelect?.getAttribute(ModeSelect, 'currentMode')).toBe(1);
+
+      if (accessory.modeSelect === undefined || accessory.swingSelect === undefined) throw new Error('A select is missing');
+      // Picking a mode turns the unit on in it.
+      await writeAsController(accessory.modeSelect, 'ModeSelect', 'currentMode', 4);
+      await accessory.flushCommands();
+      expect(client.setState).toHaveBeenLastCalledWith({ power: true, mode: 'dehumidify' });
+      expect(accessory.endpoint.getAttribute(Thermostat, 'systemMode')).toBe(Thermostat.SystemMode.Dry);
+      expect(accessory.modeSelect.getAttribute(ModeSelect, 'currentMode')).toBe(4);
+      // Picking Off turns the unit off.
+      await writeAsController(accessory.modeSelect, 'ModeSelect', 'currentMode', 0);
+      await accessory.flushCommands();
+      expect(client.setState).toHaveBeenLastCalledWith({ power: false });
+      expect(accessory.endpoint.getAttribute(Thermostat, 'systemMode')).toBe(Thermostat.SystemMode.Off);
+      await writeAsController(accessory.swingSelect, 'ModeSelect', 'currentMode', 0);
+      await accessory.flushCommands();
+      expect(client.setState).toHaveBeenLastCalledWith({ swingMode: 'off' });
+      expect(accessory.swingSelect.getAttribute(ModeSelect, 'currentMode')).toBe(0);
+
+      // A swing mode the select does not list leaves it as it was.
+      client.state.swingMode = 'both';
+      await accessory.refresh();
+      expect(accessory.swingSelect.getAttribute(ModeSelect, 'currentMode')).toBe(0);
+      await accessory.close();
+    });
+
+    it('should tell the selects of a composed device apart by their tags, beside a switch', async () => {
+      const config = createDeviceConfig({ name: 'Atrium', hasModeSelect: true, swingControl: 'select', hasFanAutoSwitch: true, isComposed: true });
+      const accessory = new DaikinAccessory({ config, capabilities: createCapabilities(), client: createFakeClient(), log, vendorId });
+      expect(accessory.endpoints).toEqual([accessory.endpoint]);
+      expect(accessory.endpoint.getChildEndpoints()).toEqual([accessory.fanAutoSwitch, accessory.modeSelect, accessory.swingSelect]);
+      // The switches and the selects are numbered each on their own.
+      expect(accessory.fanAutoSwitch?.tagList).toEqual([{ ...CommonNumberTag.One, label: 'Auto Fan' }]);
+      expect(accessory.modeSelect?.tagList).toEqual([{ ...CommonNumberTag.One, label: 'Mode' }]);
+      expect(accessory.swingSelect?.tagList).toEqual([{ ...CommonNumberTag.Two, label: 'Swing' }]);
+      expect(accessory.modeSelect?.deviceName).toBeUndefined();
+      await addAccessory(accessory);
+      expect(accessory.endpoint.getAttribute(Descriptor, 'partsList')).toHaveLength(3);
+      await accessory.refresh();
+      expect(accessory.modeSelect?.getAttribute(ModeSelect, 'currentMode')).toBe(2);
+      expect(accessory.swingSelect?.getAttribute(ModeSelect, 'currentMode')).toBe(1);
+      expect(accessory.fanAutoSwitch?.getAttribute(OnOff, 'onOff')).toBe(false);
+      await accessory.close();
     });
   });
 
@@ -840,7 +925,7 @@ describe('DaikinAccessory', () => {
       expect(accessory.horizontalSwitch?.getAttribute(OnOff, 'onOff')).toBe(false);
       expect(accessory.outdoorTemperatureSensor?.getAttribute(TemperatureMeasurement, 'measuredValue')).toBe(3100);
       expect(accessory.humiditySensor?.getAttribute(RelativeHumidityMeasurement, 'measuredValue')).toBe(6000);
-      expect(accessory.endpoint.hasClusterServer(RelativeHumidityMeasurement)).toBe(false);
+      expect(accessory.endpoint.getAttribute(RelativeHumidityMeasurement, 'measuredValue')).toBe(6000);
       // The air conditioner says whether the unit is reachable for its parts, and the outdoor sensor for itself.
       expect(accessory.endpoint.getAttribute(BridgedDeviceBasicInformation, 'reachable')).toBe(true);
       expect(accessory.outdoorTemperatureSensor?.getAttribute(BridgedDeviceBasicInformation, 'reachable')).toBe(true);

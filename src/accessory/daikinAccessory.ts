@@ -34,16 +34,17 @@ import {
 import type { MatterbridgeEndpoint } from 'matterbridge';
 import type { AnsiLogger } from 'matterbridge/logger';
 import type { ActionContext } from 'matterbridge/matter';
-import { BridgedDeviceBasicInformation, FanControl, OnOff, Thermostat } from 'matterbridge/matter/clusters';
+import { BridgedDeviceBasicInformation, FanControl, ModeSelect, OnOff, Thermostat } from 'matterbridge/matter/clusters';
 
 import type { DaikinDeviceConfig } from '../config.js';
 import { addReportedSensors, getSwitchableSpecialModes, hasFanAuto, noReportedSensors, type ReportedSensors } from '../controls.js';
 import { getErrorMessage } from '../errors.js';
-import { toOperatingMode } from '../mapping.js';
+import { modeSelectChoices, type SelectChoices, swingSelectChoices, toModeOptions, toOperatingMode } from '../mapping.js';
 import {
   createAirConditionerEndpoint,
   createFanEndpoint,
   createHumidityEndpoint,
+  createModeSelectEndpoint,
   createOutdoorTemperatureEndpoint,
   createSwitchEndpoint,
   type EndpointIdentity,
@@ -106,9 +107,10 @@ function ignore(): void {
 /**
  * One Daikin air conditioner and the Matter endpoints that stand for it: a room air conditioner and, when they are
  * exposed, one on/off switch for each axis the unit swings on, for each of the dry and fan modes, for the auto fan speed
- * and for each special mode. The fan control is a fan of its own when it is exposed that way, and so is the humidity
- * of a unit that has given it. A unit that has given its outdoor temperature gets a sensor for it, unless none is asked
- * for. The fan, the switches and the humidity sensor are each a device of their own in Matter, or parts of the air
+ * and for each special mode, and a mode select for the mode and one for the swing. The fan control is a fan of its own
+ * when it is exposed that way. The humidity of a unit that has given it is on the air conditioner, and on a sensor of
+ * its own too when one is asked for. A unit that has given its outdoor temperature gets a sensor for it, unless none is
+ * asked for. The fan, the switches, the mode selects and the humidity sensor are each a device of their own in Matter, or parts of the air
  * conditioner when the device is exposed as a composed one. The outdoor temperature sensor is always a device of its own.
  *
  * The endpoints are built in `endpoints.ts`, what the controllers ask for is collected in `pendingCommand.ts` and what
@@ -127,7 +129,9 @@ export class DaikinAccessory implements AccessoryEndpoints {
   readonly fan: MatterbridgeEndpoint | undefined;
   /** The switch of each special mode that is exposed. */
   readonly specialModeSwitches: ReadonlyMap<SpecialMode, MatterbridgeEndpoint>;
-  /** The humidity sensor, when the humidity is not on the air conditioner. */
+  readonly modeSelect: MatterbridgeEndpoint | undefined;
+  readonly swingSelect: MatterbridgeEndpoint | undefined;
+  /** The humidity sensor, when the humidity is on a sensor of its own besides the air conditioner. */
   readonly humiditySensor: MatterbridgeEndpoint | undefined;
   readonly outdoorTemperatureSensor: MatterbridgeEndpoint | undefined;
   /** What the unit accepted when the endpoints were built. */
@@ -198,6 +202,17 @@ export class DaikinAccessory implements AccessoryEndpoints {
       if (this.config.specialModeSwitches.includes(specialMode)) specialModeSwitches.set(specialMode, this.createSpecialModeSwitch(specialMode));
     }
     this.specialModeSwitches = specialModeSwitches;
+    if (this.layout.modeSelectModes.length > 0) {
+      // Picking a mode turns the unit on in it, as the system mode of the thermostat does.
+      this.modeSelect = this.createSelect('mode-select', 'M', 'Mode', modeSelectChoices, this.layout.modeSelectModes, (mode) =>
+        this.queueControl(mode === 'off' ? { power: false } : { power: true, mode }, `mode select ${mode}`),
+      );
+    }
+    if (this.layout.swingSelectModes.length > 0) {
+      this.swingSelect = this.createSelect('swing-select', 'W', 'Swing', swingSelectChoices, this.layout.swingSelectModes, (swingMode) =>
+        this.queueControl({ swingMode }, `swing select ${swingMode}`),
+      );
+    }
     if (this.layout.hasSeparateHumiditySensor) this.humiditySensor = createHumidityEndpoint(this.identity, this.parent);
     if (this.layout.hasOutdoorTemperature) this.outdoorTemperatureSensor = createOutdoorTemperatureEndpoint(this.identity);
   }
@@ -211,7 +226,9 @@ export class DaikinAccessory implements AccessoryEndpoints {
   get endpoints(): MatterbridgeEndpoint[] {
     if (this.parent !== undefined) return [this.parent, this.outdoorTemperatureSensor].filter((endpoint) => endpoint !== undefined);
     const switches = [this.verticalSwitch, this.horizontalSwitch, this.dryModeSwitch, this.fanModeSwitch, this.fanAutoSwitch, ...this.specialModeSwitches.values()];
-    return [this.endpoint, this.fan, ...switches, this.humiditySensor, this.outdoorTemperatureSensor].filter((endpoint) => endpoint !== undefined);
+    return [this.endpoint, this.fan, ...switches, this.modeSelect, this.swingSelect, this.humiditySensor, this.outdoorTemperatureSensor].filter(
+      (endpoint) => endpoint !== undefined,
+    );
   }
 
   /**
@@ -354,6 +371,22 @@ export class DaikinAccessory implements AccessoryEndpoints {
     const endpoint = createSwitchEndpoint(this.identity, key, code, label, this.parent);
     endpoint.subscribeAttribute(OnOff, 'onOff', (isOn: boolean, _wasOn: boolean, context: ActionContext) => {
       if (isControllerWrite(context)) onWrite(isOn);
+    });
+    return endpoint;
+  }
+
+  // Matter refuses a mode the select does not list, so a controller only ever picks one the unit takes.
+  private createSelect<T extends string>(
+    key: string,
+    code: string,
+    label: string,
+    choices: SelectChoices<T>,
+    supported: readonly T[],
+    onPick: (value: T) => void,
+  ): MatterbridgeEndpoint {
+    const endpoint = createModeSelectEndpoint(this.identity, key, code, label, toModeOptions(choices, supported), this.parent);
+    endpoint.subscribeAttribute(ModeSelect, 'currentMode', (mode: number, _previous: number, context: ActionContext) => {
+      if (isControllerWrite(context)) onPick(choices.values[mode]);
     });
     return endpoint;
   }

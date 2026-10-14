@@ -89,7 +89,7 @@ export function getAvailableControls(capabilities: ExposedCapabilities): Availab
  *
  * @param {DaikinDeviceConfig} device The device.
  * @param {ExposedCapabilities} capabilities What its unit accepts.
- * @returns {DaikinDeviceConfig} The device, with a fixed fan speed or swing mode the unit lacks replaced by `keep`, and without the switches and the fan the unit has no use for.
+ * @returns {DaikinDeviceConfig} The device, with a fixed fan speed or swing mode the unit lacks replaced by `keep`, and without the switches, the mode select and the fan the unit has no use for.
  */
 export function fitToCapabilities(device: DaikinDeviceConfig, capabilities: ExposedCapabilities): DaikinDeviceConfig {
   const fanSpeedWhenHidden = device.fanSpeedWhenHidden !== KEEP_SETTING && capabilities.fanSpeeds.includes(device.fanSpeedWhenHidden) ? device.fanSpeedWhenHidden : KEEP_SETTING;
@@ -97,12 +97,16 @@ export function fitToCapabilities(device: DaikinDeviceConfig, capabilities: Expo
     device.swingModeWhenHidden !== KEEP_SETTING && capabilities.swingModes.includes(device.swingModeWhenHidden) ? device.swingModeWhenHidden : KEEP_SETTING;
   // A fixed fan speed is sent with every command, so a switch for auto would not hold.
   const hasFixedFanSpeed = device.fanControl === 'hidden' && fanSpeedWhenHidden !== KEEP_SETTING;
+  // The thermostat mode already offers every mode but these two.
+  const hasModeSelect = device.hasModeSelect && (capabilities.modes.includes('dehumidify') || capabilities.modes.includes('fan'));
   return {
     ...device,
     fanSpeedWhenHidden,
     swingModeWhenHidden,
-    hasDryModeSwitch: device.hasDryModeSwitch && capabilities.modes.includes('dehumidify'),
-    hasFanModeSwitch: device.hasFanModeSwitch && capabilities.modes.includes('fan'),
+    // The mode select takes the place of the switches of the modes.
+    hasDryModeSwitch: device.hasDryModeSwitch && !hasModeSelect && capabilities.modes.includes('dehumidify'),
+    hasFanModeSwitch: device.hasFanModeSwitch && !hasModeSelect && capabilities.modes.includes('fan'),
+    hasModeSelect,
     hasFanAutoSwitch: device.hasFanAutoSwitch && hasFanAuto(capabilities) && !hasFixedFanSpeed,
     hasSeparateFan: device.hasSeparateFan && device.fanControl !== 'hidden' && getFanSteps(capabilities.fanSpeeds).length > 0,
     specialModeSwitches: getSwitchableSpecialModes(capabilities).filter((mode) => device.specialModeSwitches.includes(mode)),
@@ -116,7 +120,7 @@ export function fitToCapabilities(device: DaikinDeviceConfig, capabilities: Expo
  * Matter for good, and shows no value while the unit gives none.
  */
 export interface ReportedSensors {
-  /** Whether the unit has given its indoor humidity, which the air conditioner or a sensor of its own shows. */
+  /** Whether the unit has given its indoor humidity, which the air conditioner shows, and a sensor of its own too when one is asked for. */
   hasHumidity: boolean;
   /** Whether the unit has given its outdoor temperature, which gets a sensor of its own when one is asked for. */
   hasOutdoorTemperature: boolean;

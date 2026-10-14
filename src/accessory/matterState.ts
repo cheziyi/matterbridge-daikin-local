@@ -23,10 +23,10 @@
 
 import type { DaikinSensors, DaikinState, FanSpeed, OperatingMode, SpecialMode } from 'daikin-local-control';
 import type { MatterbridgeEndpoint } from 'matterbridge';
-import { FanControl, OnOff, RelativeHumidityMeasurement, TemperatureMeasurement, Thermostat } from 'matterbridge/matter/clusters';
+import { FanControl, ModeSelect, OnOff, RelativeHumidityMeasurement, TemperatureMeasurement, Thermostat } from 'matterbridge/matter/clusters';
 import { isValidNumber } from 'matterbridge/utils';
 
-import { fanStepToPercent, getSwingAxes, percentToFanStep, toMatterTemperature, toSystemMode } from '../mapping.js';
+import { fanStepToPercent, getSwingAxes, modeSelectChoices, percentToFanStep, type SelectChoices, swingSelectChoices, toMatterTemperature, toSystemMode } from '../mapping.js';
 import type { AccessoryLayout } from './layout.js';
 
 /** The Matter endpoints that stand for one air conditioner. */
@@ -42,7 +42,9 @@ export interface AccessoryEndpoints {
   readonly fan: MatterbridgeEndpoint | undefined;
   /** The switch of each special mode that is exposed. */
   readonly specialModeSwitches: ReadonlyMap<SpecialMode, MatterbridgeEndpoint>;
-  /** The humidity sensor, when the humidity is not on the air conditioner. */
+  readonly modeSelect: MatterbridgeEndpoint | undefined;
+  readonly swingSelect: MatterbridgeEndpoint | undefined;
+  /** The humidity sensor, when the humidity is on a sensor of its own besides the air conditioner. */
   readonly humiditySensor: MatterbridgeEndpoint | undefined;
   readonly outdoorTemperatureSensor: MatterbridgeEndpoint | undefined;
 }
@@ -134,6 +136,22 @@ async function applyFanSpeed(endpoint: MatterbridgeEndpoint, layout: AccessoryLa
 }
 
 /**
+ * Write a value of the unit to its mode select
+ *
+ * Edge cases:
+ *  - a value the select does not list is not written: Matter refuses it
+ *
+ * @param {MatterbridgeEndpoint | undefined} endpoint The mode select, or undefined when the device has none.
+ * @param {SelectChoices<T>} choices The values the select picks from.
+ * @param {readonly T[]} supported The values the select lists.
+ * @param {T} value The value of the unit.
+ * @returns {Promise<void>} Resolves when the mode select is written.
+ */
+async function applySelect<T extends string>(endpoint: MatterbridgeEndpoint | undefined, choices: SelectChoices<T>, supported: readonly T[], value: T): Promise<void> {
+  if (endpoint !== undefined && supported.includes(value)) await endpoint.updateAttribute(ModeSelect, 'currentMode', choices.values.indexOf(value));
+}
+
+/**
  * Write the readings of a unit to the Matter endpoints of its device
  *
  * A reading the unit does not give is written as no value, never left at what it was.
@@ -150,7 +168,8 @@ export async function applySensors(endpoints: AccessoryEndpoints, layout: Access
   await endpoint.updateAttribute(Thermostat, 'localTemperature', indoor);
   // Matter counts both in hundredths: of a percent, and of a degree.
   const humidity = sensors.indoorHumidityInPercent === null ? null : Math.round(sensors.indoorHumidityInPercent * 100);
-  if (layout.hasHumidity) await (endpoints.humiditySensor ?? endpoint).updateAttribute(RelativeHumidityMeasurement, 'measuredValue', humidity);
+  if (layout.hasHumidity) await endpoint.updateAttribute(RelativeHumidityMeasurement, 'measuredValue', humidity);
+  await endpoints.humiditySensor?.updateAttribute(RelativeHumidityMeasurement, 'measuredValue', humidity);
   const outdoor = sensors.outdoorTemperatureInC === null ? null : toMatterTemperature(sensors.outdoorTemperatureInC);
   await endpoints.outdoorTemperatureSensor?.updateAttribute(TemperatureMeasurement, 'measuredValue', outdoor);
 }
@@ -179,4 +198,6 @@ export async function applyState(endpoints: AccessoryEndpoints, layout: Accessor
   await endpoints.fanModeSwitch?.updateAttribute(OnOff, 'onOff', state.power && state.mode === 'fan');
   await endpoints.fanAutoSwitch?.updateAttribute(OnOff, 'onOff', state.fanSpeed === 'auto');
   for (const [specialMode, specialModeSwitch] of endpoints.specialModeSwitches) await specialModeSwitch.updateAttribute(OnOff, 'onOff', state.specialModes.includes(specialMode));
+  await applySelect(endpoints.modeSelect, modeSelectChoices, layout.modeSelectModes, state.power ? state.mode : 'off');
+  await applySelect(endpoints.swingSelect, swingSelectChoices, layout.swingSelectModes, state.swingMode);
 }

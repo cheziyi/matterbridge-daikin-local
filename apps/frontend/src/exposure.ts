@@ -10,7 +10,7 @@ import type { Draft } from './state.js';
 
 /** Copy the choices of how a device appears in Matter, and nothing else. */
 export function pickExposure(source: Exposure): Exposure {
-  const { fanControl, fanSpeedWhenHidden, swingControl, swingModeWhenHidden, hasDryModeSwitch, hasFanModeSwitch, hasFanAutoSwitch, hasSeparateFan, specialModeSwitches, hasOutdoorTemperatureSensor, hasSeparateHumiditySensor, isComposed } =
+  const { fanControl, fanSpeedWhenHidden, swingControl, swingModeWhenHidden, hasDryModeSwitch, hasFanModeSwitch, hasFanAutoSwitch, hasModeSelect, hasSeparateFan, specialModeSwitches, hasOutdoorTemperatureSensor, hasSeparateHumiditySensor, isComposed } =
     source;
   return {
     fanControl,
@@ -20,6 +20,7 @@ export function pickExposure(source: Exposure): Exposure {
     hasDryModeSwitch,
     hasFanModeSwitch,
     hasFanAutoSwitch,
+    hasModeSelect,
     hasSeparateFan,
     specialModeSwitches: [...specialModeSwitches],
     hasOutdoorTemperatureSensor,
@@ -38,6 +39,7 @@ const defaultExposure: Exposure = {
   hasDryModeSwitch: false,
   hasFanModeSwitch: false,
   hasFanAutoSwitch: false,
+  hasModeSelect: false,
   hasSeparateFan: false,
   specialModeSwitches: [],
   hasOutdoorTemperatureSensor: false,

@@ -40,8 +40,8 @@ export const FAN_CONTROLS = ['steps', 'percent', 'hidden'] as const;
 
 export type FanControlOption = (typeof FAN_CONTROLS)[number];
 
-/** How the swing is exposed to Matter. */
-export const SWING_CONTROLS = ['switches', 'hidden'] as const;
+/** How the swing is exposed to Matter: a switch for each axis, a mode select of the swing modes, or nothing. */
+export const SWING_CONTROLS = ['switches', 'select', 'hidden'] as const;
 
 export type SwingControlOption = (typeof SWING_CONTROLS)[number];
 
@@ -83,13 +83,18 @@ export interface DaikinDeviceExposure {
   hasFanModeSwitch: boolean;
   /** Whether Matter gets an on/off switch that sets the fan speed to auto, for apps without an auto fan mode. */
   hasFanAutoSwitch: boolean;
+  /**
+   * Whether Matter gets a mode select of the modes of the unit, for apps that show a mode select but not every mode of
+   * an air conditioner. It takes the place of the dry and fan mode switches.
+   */
+  hasModeSelect: boolean;
   /** Whether the fan control is a fan of its own in Matter, instead of a part of the air conditioner. */
   hasSeparateFan: boolean;
   /** The special modes that each get an on/off switch in Matter. */
   specialModeSwitches: SpecialMode[];
   /** Whether Matter gets a sensor for the outdoor temperature, once the unit gives it. */
   hasOutdoorTemperatureSensor: boolean;
-  /** Whether the indoor humidity is on a sensor of its own in Matter, instead of on the air conditioner, once the unit gives it. */
+  /** Whether the indoor humidity is also on a sensor of its own in Matter, besides the air conditioner, once the unit gives it. */
   hasSeparateHumiditySensor: boolean;
   /**
    * Whether the fan of its own, the switches and the humidity sensor of its own are parts of the air conditioner in
@@ -278,6 +283,7 @@ export function parseDeviceConfig(value: unknown, report?: (message: string) => 
     hasDryModeSwitch: isValidBoolean(raw.hasDryModeSwitch) ? raw.hasDryModeSwitch : useDefault('hasDryModeSwitch', false),
     hasFanModeSwitch: isValidBoolean(raw.hasFanModeSwitch) ? raw.hasFanModeSwitch : useDefault('hasFanModeSwitch', false),
     hasFanAutoSwitch: isValidBoolean(raw.hasFanAutoSwitch) ? raw.hasFanAutoSwitch : useDefault('hasFanAutoSwitch', false),
+    hasModeSelect: isValidBoolean(raw.hasModeSelect) ? raw.hasModeSelect : useDefault('hasModeSelect', false),
     hasSeparateFan: isValidBoolean(raw.hasSeparateFan) ? raw.hasSeparateFan : useDefault('hasSeparateFan', false),
     specialModeSwitches: SPECIAL_MODES.filter((mode) => specialModeSwitches.includes(mode)),
     // Off although devices stored before the setting existed had the sensor: none of them was in use.
@@ -403,6 +409,7 @@ export function hasSameExposure(left: DaikinDeviceConfig, right: DaikinDeviceCon
     left.fanControl === right.fanControl &&
     left.swingControl === right.swingControl &&
     left.hasDryModeSwitch === right.hasDryModeSwitch &&
-    left.hasFanModeSwitch === right.hasFanModeSwitch
+    left.hasFanModeSwitch === right.hasFanModeSwitch &&
+    left.hasModeSelect === right.hasModeSelect
   );
 }

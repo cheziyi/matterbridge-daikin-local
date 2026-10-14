@@ -45,7 +45,17 @@ const glyphs = {
   hidden: '<svg viewBox="0 0 48 28" aria-hidden="true"><path class="stroke" d="M6 14 H42" stroke-dasharray="3 5"/></svg>',
   switches:
     '<svg viewBox="0 0 48 28" aria-hidden="true"><path class="stroke" d="M12 4 V24 M7 9 L12 4 L17 9 M7 19 L12 24 L17 19"/><path class="stroke" d="M26 14 H46 M31 9 L26 14 L31 19 M41 9 L46 14 L41 19"/></svg>',
+  select: '<svg viewBox="0 0 48 28" aria-hidden="true"><rect class="stroke" x="3" y="5" width="42" height="18" rx="4"/><path class="stroke" d="M31 12 L35 16 L39 12"/></svg>',
 };
+
+// Home Assistant is the one app known to show a mode select.
+const selectSupport = 'Few apps show a mode select: Home Assistant does, Apple Home does not.';
+
+// A part of the air conditioner has no name of its own in Matter: a switch or a mode select is tagged with what it is.
+function placement(draft: Draft, label: string, isTagged: boolean): string {
+  if (!draft.isComposed) return `It appears as "${draft.name} ${label}"`;
+  return isTagged ? `It appears as a part of "${draft.name}", tagged "${label}"` : `It appears as a part of "${draft.name}"`;
+}
 
 function update(draft: Draft, change: Partial<Exposure>): void {
   Object.assign(draft, change);
@@ -124,7 +134,7 @@ function fanSection(draft: Draft, controls: AvailableControls): HTMLElement {
           'separate-fan',
           draft.hasSeparateFan,
           'Show the fan as a device of its own',
-          `It appears as "${draft.name} Fan", and the air conditioner has no fan speed of its own. For apps that show no fan speed on an air conditioner. It always shows the speed the unit holds, also while the unit is off.`,
+          `${placement(draft, 'Fan', false)}, and the air conditioner has no fan speed of its own. For apps that show no fan speed on an air conditioner, or do not show it well. It always shows the speed the unit holds, also while the unit is off.`,
           (hasSeparateFan) => update(draft, { hasSeparateFan }),
         ),
     canSwitchFanAuto
@@ -132,7 +142,7 @@ function fanSection(draft: Draft, controls: AvailableControls): HTMLElement {
           'fan-auto-switch',
           draft.hasFanAutoSwitch,
           'Add a switch for auto fan speed',
-          `It appears as "${draft.name} Auto Fan". On sets the fan to auto, off puts it back at the speed it last ran at. For apps that show no auto fan mode.`,
+          `${placement(draft, 'Auto Fan', true)}. On sets the fan to auto, off puts it back at the speed it last ran at. For apps that show no auto fan mode.`,
           (hasFanAutoSwitch) => update(draft, { hasFanAutoSwitch }),
         )
       : null,
@@ -155,6 +165,15 @@ function swingSection(draft: Draft): HTMLElement {
       'div',
       { class: 'choices' },
       choice('swing', 'switches', draft.swingControl, 'Switches', switchText, glyphs.switches, (swingControl) => update(draft, { swingControl })),
+      choice(
+        'swing',
+        'select',
+        draft.swingControl,
+        'A mode select',
+        `${placement(draft, 'Swing', true)}, and picks one of: ${swingModes.map((mode) => swingModeLabels[mode].toLowerCase()).join(', ')}. ${selectSupport}`,
+        glyphs.select,
+        (swingControl) => update(draft, { swingControl }),
+      ),
       choice('swing', 'hidden', draft.swingControl, 'Not shown in Matter', 'No swing control. Pick below what the plugin does with the swing instead.', glyphs.hidden, (swingControl) =>
         update(draft, { swingControl }),
       ),
@@ -185,16 +204,24 @@ function modeSection(draft: Draft, controls: AvailableControls): Child {
     h(
       'p',
       { class: 'help' },
-      `These are always among the modes of the air conditioner in Matter, but some apps, such as Apple Home, only offer cool, heat and auto. A switch makes the mode reachable there: on puts the unit in that mode, off puts it back in ${modes.includes('cool') ? 'cool' : 'heat'}.`,
+      `These are always among the modes of the air conditioner in Matter, but some apps, such as Apple Home, only offer cool, heat and auto. A switch makes the mode reachable there: on puts the unit in that mode, off puts it back in ${modes.includes('cool') ? 'cool' : 'heat'}. A mode select instead offers every mode in one control.`,
     ),
     h(
       'div',
       { class: 'choices' },
-      controls.hasDryMode
-        ? toggle('dry-mode-switch', draft.hasDryModeSwitch, 'Add a switch for dry mode', `It appears as "${draft.name} Dry Mode".`, (hasDryModeSwitch) => update(draft, { hasDryModeSwitch }))
+      toggle(
+        'mode-select',
+        draft.hasModeSelect,
+        'Use a mode select instead of switches',
+        `${placement(draft, 'Mode', true)}, with Off and every mode of the unit, as the thermostat mode has them. Picking a mode turns the unit on in it. ${selectSupport}`,
+        // The select takes the place of the switches.
+        (hasModeSelect) => update(draft, hasModeSelect ? { hasModeSelect, hasDryModeSwitch: false, hasFanModeSwitch: false } : { hasModeSelect }),
+      ),
+      controls.hasDryMode && !draft.hasModeSelect
+        ? toggle('dry-mode-switch', draft.hasDryModeSwitch, 'Add a switch for dry mode', `${placement(draft, 'Dry Mode', true)}.`, (hasDryModeSwitch) => update(draft, { hasDryModeSwitch }))
         : null,
-      controls.hasFanMode
-        ? toggle('fan-mode-switch', draft.hasFanModeSwitch, 'Add a switch for fan mode', `It appears as "${draft.name} Fan Mode".`, (hasFanModeSwitch) => update(draft, { hasFanModeSwitch }))
+      controls.hasFanMode && !draft.hasModeSelect
+        ? toggle('fan-mode-switch', draft.hasFanModeSwitch, 'Add a switch for fan mode', `${placement(draft, 'Fan Mode', true)}.`, (hasFanModeSwitch) => update(draft, { hasFanModeSwitch }))
         : null,
     ),
   );
@@ -227,7 +254,7 @@ function sensorSection(draft: Draft): HTMLElement {
     h(
       'p',
       { class: 'help' },
-      'No adapter says which readings its unit has, so each of these takes effect once the unit gives that reading. The room temperature is always on the air conditioner.',
+      'No adapter says which readings its unit has, so each of these takes effect once the unit gives that reading. The room temperature and the humidity are always on the air conditioner.',
     ),
     h(
       'div',
@@ -235,8 +262,8 @@ function sensorSection(draft: Draft): HTMLElement {
       toggle(
         'separate-humidity',
         draft.hasSeparateHumiditySensor,
-        'Show the humidity on a sensor of its own',
-        `It appears as "${draft.name} Humidity", and the air conditioner has no humidity of its own. For apps that show no humidity on an air conditioner, which Apple Home is reported to be.`,
+        'Also show the humidity on a sensor of its own',
+        `${placement(draft, 'Humidity', false)}, and the air conditioner keeps its humidity. For apps that show no humidity on an air conditioner, which Apple Home is reported to be.`,
         (hasSeparateHumiditySensor) => update(draft, { hasSeparateHumiditySensor }),
       ),
       toggle(
