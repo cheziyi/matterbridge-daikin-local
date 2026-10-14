@@ -21,9 +21,9 @@
  * limitations under the License.
  */
 
-import type { DaikinCapabilities, FanSpeed, TemperatureRange } from 'daikin-local-control';
+import type { DaikinCapabilities, FanSpeed, OperatingMode, SwingMode, TemperatureRange } from 'daikin-local-control';
 
-import type { DaikinDeviceConfig } from '../config.js';
+import { type DaikinDeviceConfig, hasSwingSelect } from '../config.js';
 import type { ReportedSensors } from '../controls.js';
 import { getFanSteps, getTemperatureRange, getThermostatProfile, type ThermostatProfile } from '../mapping.js';
 
@@ -49,6 +49,10 @@ export interface AccessoryLayout {
   hasHumidity: boolean;
   /** Whether that humidity is on a sensor of its own, instead of on the air conditioner. */
   hasSeparateHumiditySensor: boolean;
+  /** The modes the mode select picks from, or none when the device has no mode select. */
+  modeSelectModes: readonly OperatingMode[];
+  /** The swing modes the swing select picks from, or none when the device has no swing select. */
+  swingSelectModes: readonly SwingMode[];
   /** Whether the device has a sensor for the outdoor temperature. */
   hasOutdoorTemperature: boolean;
   /** Whether the fan, the switches and the humidity sensor of the device are parts of its air conditioner, instead of devices of their own. */
@@ -83,6 +87,8 @@ export function getAccessoryLayout(config: DaikinDeviceConfig, capabilities: Dai
     coolLimits: profile === 'heatCool' ? { ...coolRange, max: Math.max(coolRange.max, heatRange.max) } : coolRange,
     hasHumidity: reportedSensors.hasHumidity,
     hasSeparateHumiditySensor: reportedSensors.hasHumidity && config.hasSeparateHumiditySensor,
+    modeSelectModes: config.hasModeSelect ? capabilities.modes : [],
+    swingSelectModes: hasSwingSelect(config.swingControl) ? capabilities.swingModes : [],
     hasOutdoorTemperature: reportedSensors.hasOutdoorTemperature && config.hasOutdoorTemperatureSensor,
     isComposed: config.isComposed,
   };

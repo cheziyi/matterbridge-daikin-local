@@ -27,6 +27,7 @@ import {
   fan,
   humiditySensor,
   MatterbridgeEndpoint,
+  modeSelect,
   onOffPlugInUnit,
   powerSource,
   roomAirConditioner,
@@ -34,7 +35,7 @@ import {
 } from 'matterbridge';
 import { MatterbridgeFanControlServer } from 'matterbridge/behaviors';
 import { CommonNumberTag } from 'matterbridge/matter';
-import { FanControl, OnOff } from 'matterbridge/matter/clusters';
+import { FanControl, ModeSelect, OnOff } from 'matterbridge/matter/clusters';
 import type { Semtag } from 'matterbridge/matter/types';
 
 import { clampTemperature, composeDeviceName, getFanModeSequence } from '../mapping.js';
@@ -145,20 +146,21 @@ function createPartEndpoint(airConditioner: MatterbridgeEndpoint, deviceType: De
 }
 
 /**
- * Tag the next switch that is a part of an air conditioner
+ * Tag the next switch or mode select that is a part of an air conditioner
  *
- * Matter wants the parts of one device that have the same device type told apart by their tags, so each switch gets a
- * number: its place among the switches, in the order they are created. The tag carries what the switch is as its
- * label, for the Matter apps that show it.
+ * Matter wants the parts of one device that have the same device type told apart by their tags, so each switch and each
+ * mode select gets a number: its place among the parts of its kind, in the order they are created. The tag carries what
+ * the part is as its label, for the Matter apps that show it.
  *
- * @param {MatterbridgeEndpoint} airConditioner The air conditioner the switch is a part of.
- * @param {string} label What the switch is, such as `Auto Fan`.
+ * @param {MatterbridgeEndpoint} airConditioner The air conditioner the part is a part of.
+ * @param {typeof OnOff | typeof ModeSelect} cluster The cluster that tells the parts of this kind: On/Off for a switch, Mode Select for a mode select.
+ * @param {string} label What the part is, such as `Auto Fan`.
  * @returns {Semtag} The tag.
  */
-function getSwitchTag(airConditioner: MatterbridgeEndpoint, label: string): Semtag {
-  const switchCount = airConditioner.getChildEndpoints().filter((part) => part.hasClusterServer(OnOff)).length;
+function getNumberTag(airConditioner: MatterbridgeEndpoint, cluster: typeof OnOff | typeof ModeSelect, label: string): Semtag {
+  const count = airConditioner.getChildEndpoints().filter((part) => part.hasClusterServer(cluster)).length;
   // In the namespace of the numbers, the tag of a number is the number itself.
-  return { ...CommonNumberTag.One, tag: switchCount + 1, label };
+  return { ...CommonNumberTag.One, tag: count + 1, label };
 }
 
 /**
@@ -177,8 +179,36 @@ export function createSwitchEndpoint(identity: EndpointIdentity, key: string, co
   const endpoint =
     airConditioner === undefined
       ? createExtraEndpoint(onOffPlugInUnit, identity, key, code, label)
-      : createPartEndpoint(airConditioner, onOffPlugInUnit, key, getSwitchTag(airConditioner, label));
+      : createPartEndpoint(airConditioner, onOffPlugInUnit, key, getNumberTag(airConditioner, OnOff, label));
   return endpoint.addRequiredClusters();
+}
+
+/**
+ * Create one mode select of a device
+ *
+ * @param {EndpointIdentity} identity The device the endpoint belongs to.
+ * @param {string} key What tells the select apart in the endpoint id, such as `swing-select`.
+ * @param {string} code What tells the select apart in the serial number: one letter.
+ * @param {string} label What the select picks, such as `Swing`. It follows the device name in the name of the select, and is the description of its cluster.
+ * @param {ModeSelect.ModeOption[]} supportedModes The modes it picks from: at least one.
+ * @param {MatterbridgeEndpoint} [airConditioner] The air conditioner the select is a part of. Left out, the select is a device of its own.
+ * @returns {MatterbridgeEndpoint} The endpoint, on its first mode until the first read, with nothing subscribed yet.
+ */
+export function createModeSelectEndpoint(
+  identity: EndpointIdentity,
+  key: string,
+  code: string,
+  label: string,
+  supportedModes: ModeSelect.ModeOption[],
+  airConditioner?: MatterbridgeEndpoint,
+): MatterbridgeEndpoint {
+  const endpoint =
+    airConditioner === undefined
+      ? createExtraEndpoint(modeSelect, identity, key, code, label)
+      : createPartEndpoint(airConditioner, modeSelect, key, getNumberTag(airConditioner, ModeSelect, label));
+  // Matter refuses a current or a start-up mode that is not one of the modes.
+  const { mode } = supportedModes[0];
+  return endpoint.createDefaultModeSelectClusterServer(label, supportedModes, mode, mode).addRequiredClusters();
 }
 
 /**

@@ -90,6 +90,7 @@ export function createDeviceConfig(overrides: Partial<DaikinDeviceConfig> = {}):
     hasDryModeSwitch: false,
     hasFanModeSwitch: false,
     hasFanAutoSwitch: false,
+    hasModeSelect: false,
     hasSeparateFan: false,
     specialModeSwitches: [],
     hasOutdoorTemperatureSensor: true,

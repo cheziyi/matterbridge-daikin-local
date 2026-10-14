@@ -21,8 +21,8 @@
  * limitations under the License.
  */
 
-import { type DaikinCapabilities, FAN_SPEEDS, type FanSpeed, type OperatingMode, type SwingMode, type TemperatureRange } from 'daikin-local-control';
-import { FanControl, Thermostat } from 'matterbridge/matter/clusters';
+import { type DaikinCapabilities, FAN_SPEEDS, type FanSpeed, type OperatingMode, SWING_MODES, type SwingMode, type TemperatureRange } from 'daikin-local-control';
+import { FanControl, type ModeSelect, Thermostat } from 'matterbridge/matter/clusters';
 
 import { maxDeviceNameLength } from './config.js';
 
@@ -31,6 +31,39 @@ export type ThermostatProfile = 'heatCool' | 'cool' | 'heat';
 
 /** The range used for a mode whose range the unit does not report, in °C. */
 export const fallbackTemperatureRange: TemperatureRange = { min: 16, max: 32, step: 1 };
+
+/**
+ * The values a mode select picks from, in the order it lists them, and what each is called there
+ *
+ * The mode number of a value is its place in `values`, so that it stays the same whatever the unit takes.
+ */
+export interface SelectChoices<T extends string> {
+  values: readonly T[];
+  labels: Readonly<Record<T, string>>;
+}
+
+/** The modes of the unit on its mode select. */
+export const modeSelectChoices: SelectChoices<OperatingMode> = {
+  values: ['auto', 'cool', 'heat', 'dehumidify', 'fan'],
+  labels: { auto: 'Auto', cool: 'Cool', heat: 'Heat', dehumidify: 'Dry', fan: 'Fan Only' },
+};
+
+/** The swing modes of the unit on its swing select. */
+export const swingSelectChoices: SelectChoices<SwingMode> = {
+  values: SWING_MODES,
+  labels: { off: 'Off', vertical: 'Vertical', horizontal: 'Horizontal', both: 'Both' },
+};
+
+/**
+ * List the modes of a mode select
+ *
+ * @param {SelectChoices<T>} choices The values the select picks from.
+ * @param {readonly T[]} supported The values the unit takes.
+ * @returns {ModeSelect.ModeOption[]} One mode for each value the unit takes, in the order of `choices`.
+ */
+export function toModeOptions<T extends string>(choices: SelectChoices<T>, supported: readonly T[]): ModeSelect.ModeOption[] {
+  return choices.values.flatMap((value, mode) => (supported.includes(value) ? [{ label: choices.labels[value], mode, semanticTags: [] }] : []));
+}
 
 /** A change to the swing: an axis left out keeps swinging or keeps still. */
 export interface SwingChange {

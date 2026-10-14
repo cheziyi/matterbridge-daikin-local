@@ -12,7 +12,16 @@
 import { DaikinError, type DaikinSensors } from 'daikin-local-control';
 import type { MatterbridgeEndpoint } from 'matterbridge';
 import { type ActionContext, CommonNumberTag } from 'matterbridge/matter';
-import { BridgedDeviceBasicInformation, Descriptor, FanControl, OnOff, RelativeHumidityMeasurement, TemperatureMeasurement, Thermostat } from 'matterbridge/matter/clusters';
+import {
+  BridgedDeviceBasicInformation,
+  Descriptor,
+  FanControl,
+  ModeSelect,
+  OnOff,
+  RelativeHumidityMeasurement,
+  TemperatureMeasurement,
+  Thermostat,
+} from 'matterbridge/matter/clusters';
 import { log, setupTest } from 'matterbridge/vitest-utils';
 import { addDevice, aggregator, createServerNode, createTestEnvironment, startServerNode, stopServerNode } from 'matterbridge/vitest-utils/matter';
 
@@ -807,6 +816,73 @@ describe('DaikinAccessory', () => {
       const known = new DaikinAccessory({ config: withoutOutdoor, capabilities: createCapabilities(), reportedSensors, client: createFakeClient(), log, vendorId });
       expect(known.outdoorTemperatureSensor).toBeUndefined();
       expect(known.humiditySensor).toBeUndefined();
+    });
+  });
+
+  describe('a unit with a mode select and a swing select', () => {
+    it('should show the mode and the swing of the unit, and send what a controller picks', async () => {
+      const config = createDeviceConfig({ name: 'Workshop', hasModeSelect: true, swingControl: 'select' });
+      const capabilities = createCapabilities({ modes: ['cool', 'heat', 'dehumidify'], swingModes: ['off', 'vertical'] });
+      const client = createFakeClient({ power: false, mode: 'heat', swingMode: 'vertical' });
+      const accessory = new DaikinAccessory({ config, capabilities, reportedSensors: { hasHumidity: false, hasOutdoorTemperature: false }, client, log, vendorId });
+      // The select takes the place of the swing switches.
+      expect(accessory.endpoints).toEqual([accessory.endpoint, accessory.modeSelect, accessory.swingSelect]);
+      expect(accessory.verticalSwitch).toBeUndefined();
+      expect(accessory.modeSelect?.deviceName).toBe('Workshop Mode');
+      expect(accessory.swingSelect?.deviceName).toBe('Workshop Swing');
+      await addAccessory(accessory);
+      // Only the modes the unit takes, each with the same number whatever the unit takes.
+      expect(accessory.modeSelect?.getAttribute(ModeSelect, 'description')).toBe('Mode');
+      expect(accessory.modeSelect?.getAttribute(ModeSelect, 'supportedModes')).toEqual([
+        { label: 'Cool', mode: 1, semanticTags: [] },
+        { label: 'Heat', mode: 2, semanticTags: [] },
+        { label: 'Dry', mode: 3, semanticTags: [] },
+      ]);
+      expect(accessory.swingSelect?.getAttribute(ModeSelect, 'supportedModes')).toEqual([
+        { label: 'Off', mode: 0, semanticTags: [] },
+        { label: 'Vertical', mode: 1, semanticTags: [] },
+      ]);
+
+      // The mode select shows the mode of a unit that is off.
+      await accessory.refresh();
+      expect(accessory.modeSelect?.getAttribute(ModeSelect, 'currentMode')).toBe(2);
+      expect(accessory.swingSelect?.getAttribute(ModeSelect, 'currentMode')).toBe(1);
+
+      if (accessory.modeSelect === undefined || accessory.swingSelect === undefined) throw new Error('A select is missing');
+      // Picking a mode turns the unit on in it.
+      await writeAsController(accessory.modeSelect, 'ModeSelect', 'currentMode', 3);
+      await accessory.flushCommands();
+      expect(client.setState).toHaveBeenLastCalledWith({ power: true, mode: 'dehumidify' });
+      expect(accessory.endpoint.getAttribute(Thermostat, 'systemMode')).toBe(Thermostat.SystemMode.Dry);
+      await writeAsController(accessory.swingSelect, 'ModeSelect', 'currentMode', 0);
+      await accessory.flushCommands();
+      expect(client.setState).toHaveBeenLastCalledWith({ swingMode: 'off' });
+      expect(accessory.swingSelect.getAttribute(ModeSelect, 'currentMode')).toBe(0);
+
+      // A swing mode the select does not list leaves it as it was.
+      client.state.swingMode = 'both';
+      await accessory.refresh();
+      expect(accessory.swingSelect.getAttribute(ModeSelect, 'currentMode')).toBe(0);
+      await accessory.close();
+    });
+
+    it('should tell the selects of a composed device apart by their tags, beside the swing switches', async () => {
+      const config = createDeviceConfig({ name: 'Atrium', hasModeSelect: true, swingControl: 'switchesAndSelect', isComposed: true });
+      const accessory = new DaikinAccessory({ config, capabilities: createCapabilities(), client: createFakeClient(), log, vendorId });
+      expect(accessory.endpoints).toEqual([accessory.endpoint]);
+      expect(accessory.endpoint.getChildEndpoints()).toEqual([accessory.verticalSwitch, accessory.horizontalSwitch, accessory.modeSelect, accessory.swingSelect]);
+      // The switches and the selects are numbered each on their own.
+      expect(accessory.verticalSwitch?.tagList).toEqual([{ ...CommonNumberTag.One, label: 'Vertical Swing' }]);
+      expect(accessory.modeSelect?.tagList).toEqual([{ ...CommonNumberTag.One, label: 'Mode' }]);
+      expect(accessory.swingSelect?.tagList).toEqual([{ ...CommonNumberTag.Two, label: 'Swing' }]);
+      expect(accessory.modeSelect?.deviceName).toBeUndefined();
+      await addAccessory(accessory);
+      expect(accessory.endpoint.getAttribute(Descriptor, 'partsList')).toHaveLength(4);
+      await accessory.refresh();
+      expect(accessory.modeSelect?.getAttribute(ModeSelect, 'currentMode')).toBe(1);
+      expect(accessory.swingSelect?.getAttribute(ModeSelect, 'currentMode')).toBe(1);
+      expect(accessory.verticalSwitch?.getAttribute(OnOff, 'onOff')).toBe(true);
+      await accessory.close();
     });
   });
 

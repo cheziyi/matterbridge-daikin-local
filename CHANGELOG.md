@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [0.5.0] - Unreleased
 
+### Added
+
+- [devices]: Add the option of a mode select for the mode, which picks any mode of the unit and turns it on in it, on a unit with a dry or a fan mode. The swing can be a mode select too, instead of the switches or beside them. The Full preset adds both. Few Matter apps show a mode select: Home Assistant does, Apple Home does not.
+
 ### Changed
 
 - [sensors]: Make the outdoor temperature sensor a device of its own even when the air conditioner is a composed device, so that it can be put in another room of a Matter app instead of reporting the outdoor temperature for the room of the air conditioner. On an air conditioner that had the sensor as a part, the sensor comes back as a new device.
