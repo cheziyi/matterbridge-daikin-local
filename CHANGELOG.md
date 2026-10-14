@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- [sensors]: Make the outdoor temperature sensor a device of its own even when the air conditioner is a composed device, so that it can be put in another room of a Matter app instead of reporting the outdoor temperature for the room of the air conditioner. On an air conditioner that had the sensor as a part, the sensor comes back as a new device.
+
 ## [0.4.0] - 2026-10-14
 
 ### Added

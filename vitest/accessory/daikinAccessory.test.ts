@@ -11,7 +11,7 @@
 
 import { DaikinError, type DaikinSensors } from 'daikin-local-control';
 import type { MatterbridgeEndpoint } from 'matterbridge';
-import { type ActionContext, CommonLocationTag, CommonNumberTag } from 'matterbridge/matter';
+import { type ActionContext, CommonNumberTag } from 'matterbridge/matter';
 import { BridgedDeviceBasicInformation, Descriptor, FanControl, OnOff, RelativeHumidityMeasurement, TemperatureMeasurement, Thermostat } from 'matterbridge/matter/clusters';
 import { log, setupTest } from 'matterbridge/vitest-utils';
 import { addDevice, aggregator, createServerNode, createTestEnvironment, startServerNode, stopServerNode } from 'matterbridge/vitest-utils/matter';
@@ -810,16 +810,17 @@ describe('DaikinAccessory', () => {
     });
   });
 
-  describe('a unit whose fan, switches and sensors are parts of the air conditioner', () => {
+  describe('a unit whose fan, switches and humidity sensor are parts of the air conditioner', () => {
     const config = createDeviceConfig({ name: 'Mezzanine', hasSeparateFan: true, hasDryModeSwitch: true, hasSeparateHumiditySensor: true, isComposed: true });
     const reportedSensors = { hasHumidity: true, hasOutdoorTemperature: true };
 
-    it('should register the air conditioner alone, and tell its parts apart by their tags', async () => {
+    it('should register the air conditioner and the outdoor sensor, and tell its parts apart by their tags', async () => {
       const client = createFakeClient();
       client.sensors = { indoorTemperatureInC: 26.5, outdoorTemperatureInC: 31, indoorHumidityInPercent: 60 };
       const accessory = new DaikinAccessory({ config, capabilities: createCapabilities(), reportedSensors, client, log, vendorId });
-      const parts = [accessory.fan, accessory.verticalSwitch, accessory.horizontalSwitch, accessory.dryModeSwitch, accessory.humiditySensor, accessory.outdoorTemperatureSensor];
-      expect(accessory.endpoints).toEqual([accessory.endpoint]);
+      const parts = [accessory.fan, accessory.verticalSwitch, accessory.horizontalSwitch, accessory.dryModeSwitch, accessory.humiditySensor];
+      // The outdoor sensor is a device of its own, which can be put in a room other than that of the air conditioner.
+      expect(accessory.endpoints).toEqual([accessory.endpoint, accessory.outdoorTemperatureSensor]);
       expect(accessory.endpoint.getChildEndpoints()).toEqual(parts);
       // A part has no name of its own. Each switch has a number, and says what it is in the label of that number.
       for (const part of parts) expect(part?.deviceName).toBeUndefined();
@@ -828,10 +829,10 @@ describe('DaikinAccessory', () => {
       expect(accessory.verticalSwitch?.tagList).toEqual([{ ...CommonNumberTag.One, label: 'Vertical Swing' }]);
       expect(accessory.horizontalSwitch?.tagList).toEqual([{ ...CommonNumberTag.Two, label: 'Horizontal Swing' }]);
       expect(accessory.dryModeSwitch?.tagList).toEqual([{ ...CommonNumberTag.Three, label: 'Dry Mode' }]);
-      expect(accessory.outdoorTemperatureSensor?.tagList).toEqual([CommonLocationTag.Outdoor]);
+      expect(accessory.outdoorTemperatureSensor?.deviceName).toBe('Mezzanine Outdoor Temperature');
 
       await addAccessory(accessory);
-      expect(accessory.endpoint.getAttribute(Descriptor, 'partsList')).toHaveLength(6);
+      expect(accessory.endpoint.getAttribute(Descriptor, 'partsList')).toHaveLength(5);
       expect(accessory.dryModeSwitch?.getAttribute(Descriptor, 'tagList')).toEqual([{ ...CommonNumberTag.Three, label: 'Dry Mode' }]);
       await accessory.refresh();
       expect(accessory.fan?.getAttribute(FanControl, 'percentSetting')).toBe(66);
@@ -840,8 +841,9 @@ describe('DaikinAccessory', () => {
       expect(accessory.outdoorTemperatureSensor?.getAttribute(TemperatureMeasurement, 'measuredValue')).toBe(3100);
       expect(accessory.humiditySensor?.getAttribute(RelativeHumidityMeasurement, 'measuredValue')).toBe(6000);
       expect(accessory.endpoint.hasClusterServer(RelativeHumidityMeasurement)).toBe(false);
-      // The air conditioner alone says whether the unit is reachable.
+      // The air conditioner says whether the unit is reachable for its parts, and the outdoor sensor for itself.
       expect(accessory.endpoint.getAttribute(BridgedDeviceBasicInformation, 'reachable')).toBe(true);
+      expect(accessory.outdoorTemperatureSensor?.getAttribute(BridgedDeviceBasicInformation, 'reachable')).toBe(true);
       for (const part of parts) expect(part?.hasClusterServer(BridgedDeviceBasicInformation)).toBe(false);
 
       if (accessory.dryModeSwitch === undefined || accessory.fan === undefined) throw new Error('A part is missing');
@@ -860,7 +862,7 @@ describe('DaikinAccessory', () => {
       const accessory = new DaikinAccessory({ config: other, capabilities: createCapabilities(), reportedSensors, client: createFakeClient(), log, vendorId });
       await addAccessory(accessory);
       await accessory.refresh();
-      expect(accessory.endpoint.getAttribute(Descriptor, 'partsList')).toHaveLength(6);
+      expect(accessory.endpoint.getAttribute(Descriptor, 'partsList')).toHaveLength(5);
       expect(accessory.verticalSwitch?.getAttribute(OnOff, 'onOff')).toBe(true);
       await accessory.close();
     });

@@ -108,8 +108,8 @@ function ignore(): void {
  * exposed, one on/off switch for each axis the unit swings on, for each of the dry and fan modes, for the auto fan speed
  * and for each special mode. The fan control is a fan of its own when it is exposed that way, and so is the humidity
  * of a unit that has given it. A unit that has given its outdoor temperature gets a sensor for it, unless none is asked
- * for. The fan, the switches and the sensors are each a device of their own in Matter, or parts of the air conditioner
- * when the device is exposed as a composed one.
+ * for. The fan, the switches and the humidity sensor are each a device of their own in Matter, or parts of the air
+ * conditioner when the device is exposed as a composed one. The outdoor temperature sensor is always a device of its own.
  *
  * The endpoints are built in `endpoints.ts`, what the controllers ask for is collected in `pendingCommand.ts` and what
  * the unit answers is written to Matter in `matterState.ts`. This class wires them together: it takes the writes of the
@@ -199,17 +199,17 @@ export class DaikinAccessory implements AccessoryEndpoints {
     }
     this.specialModeSwitches = specialModeSwitches;
     if (this.layout.hasSeparateHumiditySensor) this.humiditySensor = createHumidityEndpoint(this.identity, this.parent);
-    if (this.layout.hasOutdoorTemperature) this.outdoorTemperatureSensor = createOutdoorTemperatureEndpoint(this.identity, this.parent);
+    if (this.layout.hasOutdoorTemperature) this.outdoorTemperatureSensor = createOutdoorTemperatureEndpoint(this.identity);
   }
 
   /**
    * List the Matter endpoints of the device that are devices in Matter: the ones to register, which each say whether
    * the unit is reachable
    *
-   * @returns {MatterbridgeEndpoint[]} The air conditioner, then the fan, the switches and the sensors the device has, unless they are parts of the air conditioner.
+   * @returns {MatterbridgeEndpoint[]} The air conditioner, then the fan, the switches and the sensors the device has, unless they are parts of the air conditioner, which the outdoor temperature sensor never is.
    */
   get endpoints(): MatterbridgeEndpoint[] {
-    if (this.parent !== undefined) return [this.parent];
+    if (this.parent !== undefined) return [this.parent, this.outdoorTemperatureSensor].filter((endpoint) => endpoint !== undefined);
     const switches = [this.verticalSwitch, this.horizontalSwitch, this.dryModeSwitch, this.fanModeSwitch, this.fanAutoSwitch, ...this.specialModeSwitches.values()];
     return [this.endpoint, this.fan, ...switches, this.humiditySensor, this.outdoorTemperatureSensor].filter((endpoint) => endpoint !== undefined);
   }

@@ -51,7 +51,7 @@ export interface AccessoryLayout {
   hasSeparateHumiditySensor: boolean;
   /** Whether the device has a sensor for the outdoor temperature. */
   hasOutdoorTemperature: boolean;
-  /** Whether the fan, the switches and the sensors of the device are parts of its air conditioner, instead of devices of their own. */
+  /** Whether the fan, the switches and the humidity sensor of the device are parts of its air conditioner, instead of devices of their own. */
   isComposed: boolean;
 }
 

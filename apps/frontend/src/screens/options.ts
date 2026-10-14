@@ -258,7 +258,7 @@ function composedSection(draft: Draft): HTMLElement {
     h(
       'p',
       { class: 'help' },
-      'The switches, a fan of its own and the sensors can be parts of the air conditioner in Matter, or devices of their own beside it.',
+      'The switches, a fan of its own and a humidity sensor of its own can be parts of the air conditioner in Matter, or devices of their own beside it. The outdoor temperature sensor is always a device of its own, so that you can put it in another room than the air conditioner.',
     ),
     h(
       'div',

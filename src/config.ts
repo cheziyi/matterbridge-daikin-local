@@ -92,8 +92,9 @@ export interface DaikinDeviceExposure {
   /** Whether the indoor humidity is on a sensor of its own in Matter, instead of on the air conditioner, once the unit gives it. */
   hasSeparateHumiditySensor: boolean;
   /**
-   * Whether the fan of its own, the switches and the outdoor temperature sensor are parts of the air conditioner in
-   * Matter, instead of devices of their own: what Matter calls a composed device.
+   * Whether the fan of its own, the switches and the humidity sensor of its own are parts of the air conditioner in
+   * Matter, instead of devices of their own: what Matter calls a composed device. The outdoor temperature sensor is
+   * always a device of its own.
    */
   isComposed: boolean;
 }
