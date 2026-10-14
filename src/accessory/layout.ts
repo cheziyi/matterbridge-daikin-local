@@ -45,10 +45,14 @@ export interface AccessoryLayout {
   heatLimits: TemperatureRange;
   /** The limits of the cooling setpoint, in °C. */
   coolLimits: TemperatureRange;
-  /** Whether the air conditioner shows the indoor humidity. */
+  /** Whether the device shows the indoor humidity. */
   hasHumidity: boolean;
+  /** Whether that humidity is on a sensor of its own, instead of on the air conditioner. */
+  hasSeparateHumiditySensor: boolean;
   /** Whether the device has a sensor for the outdoor temperature. */
   hasOutdoorTemperature: boolean;
+  /** Whether the fan, the switches and the sensors of the device are parts of its air conditioner, instead of devices of their own. */
+  isComposed: boolean;
 }
 
 /**
@@ -78,6 +82,8 @@ export function getAccessoryLayout(config: DaikinDeviceConfig, capabilities: Dai
     heatLimits: profile === 'heatCool' ? { ...heatRange, min: Math.min(heatRange.min, coolRange.min) } : heatRange,
     coolLimits: profile === 'heatCool' ? { ...coolRange, max: Math.max(coolRange.max, heatRange.max) } : coolRange,
     hasHumidity: reportedSensors.hasHumidity,
-    hasOutdoorTemperature: reportedSensors.hasOutdoorTemperature,
+    hasSeparateHumiditySensor: reportedSensors.hasHumidity && config.hasSeparateHumiditySensor,
+    hasOutdoorTemperature: reportedSensors.hasOutdoorTemperature && config.hasOutdoorTemperatureSensor,
+    isComposed: config.isComposed,
   };
 }

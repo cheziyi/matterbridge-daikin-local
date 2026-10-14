@@ -21,9 +21,21 @@
  * limitations under the License.
  */
 
-import { bridgedNode, type DeviceTypeDefinition, fan, MatterbridgeEndpoint, onOffPlugInUnit, powerSource, roomAirConditioner, temperatureSensor } from 'matterbridge';
+import {
+  bridgedNode,
+  type DeviceTypeDefinition,
+  fan,
+  humiditySensor,
+  MatterbridgeEndpoint,
+  onOffPlugInUnit,
+  powerSource,
+  roomAirConditioner,
+  temperatureSensor,
+} from 'matterbridge';
 import { MatterbridgeFanControlServer } from 'matterbridge/behaviors';
-import { FanControl } from 'matterbridge/matter/clusters';
+import { CommonLocationTag, CommonNumberTag } from 'matterbridge/matter';
+import { FanControl, OnOff } from 'matterbridge/matter/clusters';
+import type { Semtag } from 'matterbridge/matter/types';
 
 import { clampTemperature, composeDeviceName, getFanModeSequence } from '../mapping.js';
 import type { AccessoryLayout } from './layout.js';
@@ -94,7 +106,7 @@ export function createAirConditionerEndpoint(identity: EndpointIdentity, layout:
   }
   if (layout.hasFan && !layout.hasSeparateFan) addFanControl(endpoint, layout);
   // No value until the first read.
-  if (layout.hasHumidity) endpoint.createDefaultRelativeHumidityMeasurementClusterServer(null);
+  if (layout.hasHumidity && !layout.hasSeparateHumiditySensor) endpoint.createDefaultRelativeHumidityMeasurementClusterServer(null);
   endpoint.addRequiredClusters();
   return endpoint;
 }
@@ -117,6 +129,39 @@ function createExtraEndpoint(deviceType: DeviceTypeDefinition, identity: Endpoin
 }
 
 /**
+ * Create an endpoint that is a part of the air conditioner of a device, without the clusters of its device type
+ *
+ * A part has no name and no serial number: in Matter those are of the device, which is the air conditioner. It moves
+ * between the rooms of a Matter app with the air conditioner, and is unreachable when the air conditioner is.
+ *
+ * @param {MatterbridgeEndpoint} airConditioner The air conditioner the endpoint is a part of.
+ * @param {DeviceTypeDefinition} deviceType What the endpoint is in Matter.
+ * @param {string} key What tells the endpoint apart in the endpoint id, such as `fan-auto`.
+ * @param {Semtag} [tag] What tells the endpoint apart for a Matter app.
+ * @returns {MatterbridgeEndpoint} The endpoint.
+ */
+function createPartEndpoint(airConditioner: MatterbridgeEndpoint, deviceType: DeviceTypeDefinition, key: string, tag?: Semtag): MatterbridgeEndpoint {
+  return airConditioner.addChildDeviceType(key, deviceType, tag === undefined ? {} : { tagList: [tag] }).createDefaultIdentifyClusterServer();
+}
+
+/**
+ * Tag the next switch that is a part of an air conditioner
+ *
+ * Matter wants the parts of one device that have the same device type told apart by their tags, so each switch gets a
+ * number: its place among the switches, in the order they are created. The tag carries what the switch is as its
+ * label, for the Matter apps that show it.
+ *
+ * @param {MatterbridgeEndpoint} airConditioner The air conditioner the switch is a part of.
+ * @param {string} label What the switch is, such as `Auto Fan`.
+ * @returns {Semtag} The tag.
+ */
+function getSwitchTag(airConditioner: MatterbridgeEndpoint, label: string): Semtag {
+  const switchCount = airConditioner.getChildEndpoints().filter((part) => part.hasClusterServer(OnOff)).length;
+  // In the namespace of the numbers, the tag of a number is the number itself.
+  return { ...CommonNumberTag.One, tag: switchCount + 1, label };
+}
+
+/**
  * Create one on/off switch of a device
  *
  * An outlet is the on/off device type every Matter app shows.
@@ -125,10 +170,15 @@ function createExtraEndpoint(deviceType: DeviceTypeDefinition, identity: Endpoin
  * @param {string} key What tells the switch apart in the endpoint id, such as `fan-auto`.
  * @param {string} code What tells the switch apart in the serial number: one letter.
  * @param {string} label What the switch is, such as `Auto Fan`. It follows the device name in the name of the switch.
+ * @param {MatterbridgeEndpoint} [airConditioner] The air conditioner the switch is a part of. Left out, the switch is a device of its own.
  * @returns {MatterbridgeEndpoint} The endpoint, with its clusters and nothing subscribed yet.
  */
-export function createSwitchEndpoint(identity: EndpointIdentity, key: string, code: string, label: string): MatterbridgeEndpoint {
-  return createExtraEndpoint(onOffPlugInUnit, identity, key, code, label).addRequiredClusters();
+export function createSwitchEndpoint(identity: EndpointIdentity, key: string, code: string, label: string, airConditioner?: MatterbridgeEndpoint): MatterbridgeEndpoint {
+  const endpoint =
+    airConditioner === undefined
+      ? createExtraEndpoint(onOffPlugInUnit, identity, key, code, label)
+      : createPartEndpoint(airConditioner, onOffPlugInUnit, key, getSwitchTag(airConditioner, label));
+  return endpoint.addRequiredClusters();
 }
 
 /**
@@ -136,12 +186,26 @@ export function createSwitchEndpoint(identity: EndpointIdentity, key: string, co
  *
  * @param {EndpointIdentity} identity The device the endpoint belongs to.
  * @param {AccessoryLayout} layout How the controls of the device are laid out.
+ * @param {MatterbridgeEndpoint} [airConditioner] The air conditioner the fan is a part of. Left out, the fan is a device of its own.
  * @returns {MatterbridgeEndpoint} The endpoint, with its clusters and nothing subscribed yet.
  */
-export function createFanEndpoint(identity: EndpointIdentity, layout: AccessoryLayout): MatterbridgeEndpoint {
-  const endpoint = createExtraEndpoint(fan, identity, 'fan', 'N', 'Fan');
+export function createFanEndpoint(identity: EndpointIdentity, layout: AccessoryLayout, airConditioner?: MatterbridgeEndpoint): MatterbridgeEndpoint {
+  const endpoint = airConditioner === undefined ? createExtraEndpoint(fan, identity, 'fan', 'N', 'Fan') : createPartEndpoint(airConditioner, fan, 'fan');
   addFanControl(endpoint, layout);
   return endpoint.addRequiredClusters();
+}
+
+/**
+ * Create the humidity sensor of a device whose humidity is not on its air conditioner
+ *
+ * @param {EndpointIdentity} identity The device the endpoint belongs to.
+ * @param {MatterbridgeEndpoint} [airConditioner] The air conditioner the sensor is a part of. Left out, the sensor is a device of its own.
+ * @returns {MatterbridgeEndpoint} The endpoint, with no value until the first read.
+ */
+export function createHumidityEndpoint(identity: EndpointIdentity, airConditioner?: MatterbridgeEndpoint): MatterbridgeEndpoint {
+  const endpoint =
+    airConditioner === undefined ? createExtraEndpoint(humiditySensor, identity, 'humidity', 'R', 'Humidity') : createPartEndpoint(airConditioner, humiditySensor, 'humidity');
+  return endpoint.createDefaultRelativeHumidityMeasurementClusterServer(null).addRequiredClusters();
 }
 
 /**
@@ -150,10 +214,13 @@ export function createFanEndpoint(identity: EndpointIdentity, layout: AccessoryL
  * The air conditioner cannot show it: a second temperature there would be taken for that of the room.
  *
  * @param {EndpointIdentity} identity The device the endpoint belongs to.
+ * @param {MatterbridgeEndpoint} [airConditioner] The air conditioner the sensor is a part of. Left out, the sensor is a device of its own.
  * @returns {MatterbridgeEndpoint} The endpoint, with no value until the first read.
  */
-export function createOutdoorTemperatureEndpoint(identity: EndpointIdentity): MatterbridgeEndpoint {
-  return createExtraEndpoint(temperatureSensor, identity, 'outdoor-temperature', 'O', 'Outdoor Temperature')
-    .createDefaultTemperatureMeasurementClusterServer(null)
-    .addRequiredClusters();
+export function createOutdoorTemperatureEndpoint(identity: EndpointIdentity, airConditioner?: MatterbridgeEndpoint): MatterbridgeEndpoint {
+  const endpoint =
+    airConditioner === undefined
+      ? createExtraEndpoint(temperatureSensor, identity, 'outdoor-temperature', 'O', 'Outdoor Temperature')
+      : createPartEndpoint(airConditioner, temperatureSensor, 'outdoor-temperature', CommonLocationTag.Outdoor);
+  return endpoint.createDefaultTemperatureMeasurementClusterServer(null).addRequiredClusters();
 }

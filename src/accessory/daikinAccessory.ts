@@ -40,7 +40,14 @@ import type { DaikinDeviceConfig } from '../config.js';
 import { addReportedSensors, getSwitchableSpecialModes, hasFanAuto, noReportedSensors, type ReportedSensors } from '../controls.js';
 import { getErrorMessage } from '../errors.js';
 import { toOperatingMode } from '../mapping.js';
-import { createAirConditionerEndpoint, createFanEndpoint, createOutdoorTemperatureEndpoint, createSwitchEndpoint, type EndpointIdentity } from './endpoints.js';
+import {
+  createAirConditionerEndpoint,
+  createFanEndpoint,
+  createHumidityEndpoint,
+  createOutdoorTemperatureEndpoint,
+  createSwitchEndpoint,
+  type EndpointIdentity,
+} from './endpoints.js';
 import { type AccessoryLayout, getAccessoryLayout } from './layout.js';
 import { type AccessoryEndpoints, applySensors, applyState, readFanSpeed } from './matterState.js';
 import { addHiddenSettings, PendingCommand, type SetpointKind, type SwingAxis } from './pendingCommand.js';
@@ -99,8 +106,10 @@ function ignore(): void {
 /**
  * One Daikin air conditioner and the Matter endpoints that stand for it: a room air conditioner and, when they are
  * exposed, one on/off switch for each axis the unit swings on, for each of the dry and fan modes, for the auto fan speed
- * and for each special mode. The fan control is a fan of its own when it is exposed that way, and a unit that has given
- * its outdoor temperature gets a sensor for it.
+ * and for each special mode. The fan control is a fan of its own when it is exposed that way, and so is the humidity
+ * of a unit that has given it. A unit that has given its outdoor temperature gets a sensor for it, unless none is asked
+ * for. The fan, the switches and the sensors are each a device of their own in Matter, or parts of the air conditioner
+ * when the device is exposed as a composed one.
  *
  * The endpoints are built in `endpoints.ts`, what the controllers ask for is collected in `pendingCommand.ts` and what
  * the unit answers is written to Matter in `matterState.ts`. This class wires them together: it takes the writes of the
@@ -118,6 +127,8 @@ export class DaikinAccessory implements AccessoryEndpoints {
   readonly fan: MatterbridgeEndpoint | undefined;
   /** The switch of each special mode that is exposed. */
   readonly specialModeSwitches: ReadonlyMap<SpecialMode, MatterbridgeEndpoint>;
+  /** The humidity sensor, when the humidity is not on the air conditioner. */
+  readonly humiditySensor: MatterbridgeEndpoint | undefined;
   readonly outdoorTemperatureSensor: MatterbridgeEndpoint | undefined;
   /** What the unit accepted when the endpoints were built. */
   readonly capabilities: DaikinCapabilities;
@@ -130,6 +141,8 @@ export class DaikinAccessory implements AccessoryEndpoints {
   private readonly commandDelayInMs: number;
   private readonly identity: EndpointIdentity;
   private readonly layout: AccessoryLayout;
+  /** The air conditioner, when the other endpoints of the device are its parts. */
+  private readonly parent: MatterbridgeEndpoint | undefined;
 
   private state: DaikinState | undefined;
   private sensors: DaikinSensors | undefined;
@@ -165,7 +178,8 @@ export class DaikinAccessory implements AccessoryEndpoints {
     this.layout = getAccessoryLayout(this.config, this.capabilities, this.reportedSensors);
 
     this.endpoint = this.createAirConditioner();
-    if (this.layout.hasSeparateFan) this.fan = createFanEndpoint(this.identity, this.layout);
+    if (this.layout.isComposed) this.parent = this.endpoint;
+    if (this.layout.hasSeparateFan) this.fan = createFanEndpoint(this.identity, this.layout, this.parent);
     if (this.layout.hasFan) this.subscribeFan(this.fan ?? this.endpoint);
     if (this.config.swingControl === 'switches') {
       if (this.capabilities.swingModes.includes('vertical')) this.verticalSwitch = this.createSwingSwitch('vertical');
@@ -184,27 +198,34 @@ export class DaikinAccessory implements AccessoryEndpoints {
       if (this.config.specialModeSwitches.includes(specialMode)) specialModeSwitches.set(specialMode, this.createSpecialModeSwitch(specialMode));
     }
     this.specialModeSwitches = specialModeSwitches;
-    if (this.layout.hasOutdoorTemperature) this.outdoorTemperatureSensor = createOutdoorTemperatureEndpoint(this.identity);
+    if (this.layout.hasSeparateHumiditySensor) this.humiditySensor = createHumidityEndpoint(this.identity, this.parent);
+    if (this.layout.hasOutdoorTemperature) this.outdoorTemperatureSensor = createOutdoorTemperatureEndpoint(this.identity, this.parent);
   }
 
   /**
-   * List the Matter endpoints of the device
+   * List the Matter endpoints of the device that are devices in Matter: the ones to register, which each say whether
+   * the unit is reachable
    *
-   * @returns {MatterbridgeEndpoint[]} The air conditioner, then the fan, the switches and the sensor the device has.
+   * @returns {MatterbridgeEndpoint[]} The air conditioner, then the fan, the switches and the sensors the device has, unless they are parts of the air conditioner.
    */
   get endpoints(): MatterbridgeEndpoint[] {
+    if (this.parent !== undefined) return [this.parent];
     const switches = [this.verticalSwitch, this.horizontalSwitch, this.dryModeSwitch, this.fanModeSwitch, this.fanAutoSwitch, ...this.specialModeSwitches.values()];
-    return [this.endpoint, this.fan, ...switches, this.outdoorTemperatureSensor].filter((endpoint) => endpoint !== undefined);
+    return [this.endpoint, this.fan, ...switches, this.humiditySensor, this.outdoorTemperatureSensor].filter((endpoint) => endpoint !== undefined);
   }
 
   /**
    * Tell which readings the unit gives, when the last read gave one the endpoints were not built for
    *
+   * An outdoor temperature no sensor is asked for is left out: there is nothing to build for it. It counts from the
+   * first read after its sensor is asked for.
+   *
    * @returns {ReportedSensors | undefined} Every reading the unit has given, or undefined when the endpoints show them all.
    */
   getNewlyReportedSensors(): ReportedSensors | undefined {
     if (this.sensors === undefined) return undefined;
-    const reported = addReportedSensors(this.reportedSensors, this.sensors);
+    const sensors = this.config.hasOutdoorTemperatureSensor ? this.sensors : { ...this.sensors, outdoorTemperatureInC: null };
+    const reported = addReportedSensors(this.reportedSensors, sensors);
     return reported === this.reportedSensors ? undefined : reported;
   }
 
@@ -330,7 +351,7 @@ export class DaikinAccessory implements AccessoryEndpoints {
 
   // The code tells the switches of one device apart in their serial numbers.
   private createSwitch(key: string, code: string, label: string, onWrite: (isOn: boolean) => void): MatterbridgeEndpoint {
-    const endpoint = createSwitchEndpoint(this.identity, key, code, label);
+    const endpoint = createSwitchEndpoint(this.identity, key, code, label, this.parent);
     endpoint.subscribeAttribute(OnOff, 'onOff', (isOn: boolean, _wasOn: boolean, context: ActionContext) => {
       if (isControllerWrite(context)) onWrite(isOn);
     });

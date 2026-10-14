@@ -102,21 +102,62 @@ The plugin presents itself to every adapter with a **Terminal ID**, which it gen
 | Thermostat mode     | Off, Cool, Heat, Auto, Dry (dehumidify) and Fan only, for the modes the unit has. Not every Matter app offers Dry and Fan only                                             |
 | Target temperature  | The setpoint of the current mode, within the limits and the step the unit reports. In Auto the unit has one setpoint, which both the heating and the cooling setpoint show |
 | Current temperature | The indoor temperature the unit measures                                                                                                                                   |
-| Humidity            | The indoor humidity, on the air conditioner itself, for a unit that gives it: see below                                                                                    |
-| Outdoor temperature | A temperature sensor named `<name> Outdoor Temperature`, for a unit that gives it: see below                                                                               |
+| Humidity            | The indoor humidity, on the air conditioner or on a sensor of its own, for a unit that gives it: see below                                                                 |
+| Outdoor temperature | A temperature sensor named `<name> Outdoor Temperature`, when you turn it on, for a unit that gives it: see below                                                          |
 | Fan speed           | Your choice: see below                                                                                                                                                     |
 | Swing               | Your choice: see below                                                                                                                                                     |
 
 The adapter does not report whether the compressor is running, so a unit that is on is shown as cooling or heating according to its mode.
 
+### How it is built in Matter
+
+Matter describes a device as endpoints. Each endpoint has one or more device types, which say what it is, and clusters, which hold its attributes and commands. Each air conditioner is one device: an endpoint for the air conditioner, with every control or sensor that has no place on it as a part of it, on an endpoint of its own:
+
+```mermaid
+flowchart TD
+    bridge["Matterbridge<br/>Aggregator"]
+    subgraph device["One device in a Matter app"]
+        ac["<b>Living Room</b><br/>Room Air Conditioner, Bridged Node, Power Source<br/>On/Off, Thermostat<br/>and Fan Control, Relative Humidity when they are here"]
+        fan["Fan<br/>Fan Control"]
+        switches["On/Off Plug-in Unit, one for each switch<br/>tagged 1 Vertical Swing, 2 Horizontal Swing and so on<br/>On/Off"]
+        humidity["Humidity Sensor<br/>Relative Humidity"]
+        outdoor["Temperature Sensor, tagged Outdoor<br/>Temperature Measurement"]
+    end
+    bridge --> ac
+    ac -.-> fan
+    ac -.-> switches
+    ac -.-> humidity
+    ac -.-> outdoor
+```
+
+A solid line is always there. A dashed one is there when you choose it in the setup, and for a sensor once the unit gives its reading. The air conditioner also has the Bridged Node and Power Source device types, with the Identify, Bridged Device Basic Information and Power Source clusters: the name and the serial number of the device, whether it is reachable, and that it runs on mains power. Its parts have none of these, because in Matter they belong to the device.
+
+| Device type          | ID     | Stands for                                            |
+| -------------------- | ------ | ----------------------------------------------------- |
+| Aggregator           | 0x000E | Matterbridge, which holds the devices it bridges      |
+| Bridged Node         | 0x0013 | Each device: its name, serial number and reachability |
+| Power Source         | 0x0011 | Each device: mains powered                            |
+| Room Air Conditioner | 0x0072 | The air conditioner                                   |
+| Fan                  | 0x002B | A fan of its own                                      |
+| On/Off Plug-in Unit  | 0x010A | Each switch                                           |
+| Humidity Sensor      | 0x0307 | A humidity sensor of its own                          |
+| Temperature Sensor   | 0x0302 | The outdoor temperature                               |
+
+The setup can also make each part a device of its own: see [One device or several](#one-device-or-several).
+
 ### Room temperature, humidity and outdoor temperature
 
-The three readings are not settings: each appears when the unit gives it.
+The room temperature is always on the air conditioner. You choose where the other two go, and each appears once the unit gives it.
 
-- **No adapter says which readings its unit has**, so the plugin goes by what the unit reads. The humidity and the outdoor temperature get their place in Matter the first time the unit gives them: at once for a unit that gave them during setup, and otherwise the air conditioner is built again in Matter when the reading first comes.
+| Reading             | In Matter                                                                                                                                                                                                                                                                                                                  |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Humidity            | On the air conditioner, beside the room temperature, where it adds no device. Or on a humidity sensor of its own, named `<name> Humidity`, for Matter apps that show no humidity on an air conditioner                                                                                                                     |
+| Outdoor temperature | None, unless you turn on a temperature sensor named `<name> Outdoor Temperature`. It is off by default because a Matter app may take a temperature sensor beside or inside an air conditioner for the temperature of the room. It is never on the air conditioner itself, where it would be taken for the room temperature |
+
+- **No adapter says which readings its unit has**, so the plugin goes by what the unit reads. The humidity and the outdoor temperature get their place in Matter the first time the unit gives them: at once for a unit that gave them during setup, and otherwise the air conditioner is built again in Matter when the reading first comes. An outdoor temperature with its sensor turned off builds nothing.
 - **A reading keeps its place from then on.** Some units give no outdoor temperature while they are idle, and a sensor that came and went would be a device that comes and goes in your Matter apps.
 - **A reading the unit does not give right now shows no value**, instead of the last one it gave. This holds for all three, the room temperature included.
-- **The humidity is on the air conditioner**, like the room temperature, so it adds no device. A Matter app that does not read the humidity of an air conditioner does not show it.
+- **Apple Home is reported to show a humidity only on a sensor of its own**, and not on an air conditioner: see the [Home Assistant Matter Hub notes](https://riddix.github.io/home-assistant-matter-hub/devices/temperature-humidity-sensor). The Apple Home preset puts the humidity there for that reason. It has not been tested with this plugin.
 
 ### Fan speed
 
@@ -163,14 +204,44 @@ Matter has no control for Powerful, Econo and Streamer, so the setup can add a s
 
 In the Options step, a preset fills in every choice above for what the unit can do. You can change any of them afterwards.
 
-| Preset      | Fan speed  | Swing     | Dry mode switch | Fan mode switch | Auto fan switch | Special mode switches |
-| ----------- | ---------- | --------- | --------------- | --------------- | --------------- | --------------------- |
-| Apple Home  | Percentage | Switches  | Yes             | Yes             | Yes             | None                  |
-| Google Home | Steps      | Switches  | Yes             | No              | No              | None                  |
-| Full        | Steps      | Switches  | Yes             | Yes             | Yes             | All                   |
-| Minimal     | Not shown  | Not shown | No              | No              | No              | None                  |
+| Preset      | Fan speed  | Swing     | Dry mode switch | Fan mode switch | Auto fan switch | Special mode switches | Humidity               | Outdoor sensor |
+| ----------- | ---------- | --------- | --------------- | --------------- | --------------- | --------------------- | ---------------------- | -------------- |
+| Apple Home  | Percentage | Switches  | Yes             | Yes             | Yes             | None                  | On a sensor of its own | No             |
+| Google Home | Steps      | Switches  | Yes             | No              | No              | None                  | On the air conditioner | No             |
+| Full        | Steps      | Switches  | Yes             | Yes             | Yes             | All                   | On the air conditioner | Yes            |
+| Minimal     | Not shown  | Not shown | No              | No              | No              | None                  | On the air conditioner | No             |
 
-The Apple Home and Google Home presets are starting points, not tested recommendations. They add switches for what each app is not known to offer: Home's climate controls have Off, Heat, Cool and Auto only, and Google Home is reported to show Fan only but not Dry.
+The Apple Home and Google Home presets are starting points, not tested recommendations. They add switches and sensors for what each app is not known to show: Home's climate controls have Off, Heat, Cool and Auto only and are reported to show no humidity, and Google Home is reported to show Fan only but not Dry.
+
+### One device or several
+
+The switches, a fan of its own and the sensors are parts of the air conditioner, which Matter calls a composed device, so they move between rooms with it. The setup can make each of them a device of its own instead, beside the air conditioner. A Matter app then does not know that they belong together, so each is put in a room by itself: moving the air conditioner to another room leaves them where they were. A new device starts as one composed device, and no preset changes the choice.
+
+```mermaid
+flowchart TD
+    bridge["Matterbridge<br/>Aggregator"]
+    ac["<b>Living Room</b><br/>Room Air Conditioner<br/>On/Off, Thermostat<br/>and Fan Control, Relative Humidity when they are here"]
+    fan["<b>Living Room Fan</b><br/>Fan<br/>Fan Control"]
+    switches["<b>Living Room Vertical Swing</b>, and the other switches<br/>On/Off Plug-in Unit, one for each switch<br/>On/Off"]
+    humidity["<b>Living Room Humidity</b><br/>Humidity Sensor<br/>Relative Humidity"]
+    outdoor["<b>Living Room Outdoor Temperature</b><br/>Temperature Sensor<br/>Temperature Measurement"]
+    bridge --> ac
+    bridge -.-> fan
+    bridge -.-> switches
+    bridge -.-> humidity
+    bridge -.-> outdoor
+```
+
+|                 | Parts of the air conditioner                                                                                                                                   | Devices of their own                                               |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| In a Matter app | One device                                                                                                                                                     | One device for the air conditioner, and one for each of the others |
+| Rooms           | The parts move with the air conditioner                                                                                                                        | Each is put in a room by itself                                    |
+| Names           | The air conditioner alone has one. Each switch is tagged with a number and with what it is, such as `Vertical Swing`, and the outdoor sensor is tagged outdoor | Each has its own, such as `<name> Vertical Swing`                  |
+| Unreachable     | The air conditioner says so for all of them                                                                                                                    | Each says so itself                                                |
+
+Matter names a device, not its parts, so what a part is called is up to the Matter app. One that reads the tags can show `Vertical Swing`, one that does not shows numbered outlets to rename yourself, and one that shows no parts at all shows the air conditioner alone. This has not been tested in each Matter app: try it in yours, and turn it off if the parts do not show as you want.
+
+Changing the choice builds the air conditioner again in Matter. The switches, the fan and the sensors are removed and added in their new place, so a Matter app takes them for new devices: they lose the rooms, the names and the automations they had there.
 
 ## Compared with other Daikin plugins
 
@@ -190,7 +261,7 @@ This plugin is the only one of the four that finds the adapters itself, that spe
 | Swing                        | A switch for each axis, or not shown with the mode you fix                                                                                             | No                                                                                                               | The airflow direction of each axis, through a mode select                                         | No                                                                                            |
 | Powerful, Econo and Streamer | An optional switch for each                                                                                                                            | No                                                                                                               | No                                                                                                | A switch for Powerful                                                                         |
 | Humidity                     | Shown on the air conditioner, when the unit gives it                                                                                                   | No                                                                                                               | Target humidity and ventilation as fans, and a humidity sensor                                    | A humidity sensor, on units that report it                                                    |
-| Outdoor temperature          | A sensor, when the unit gives it                                                                                                                       | No                                                                                                               | Yes                                                                                               | Yes                                                                                           |
+| Outdoor temperature          | A sensor you turn on, when the unit gives it                                                                                                           | No                                                                                                               | Yes                                                                                               | Yes                                                                                           |
 | Other devices                | None                                                                                                                                                   | None                                                                                                             | The ACK70Z air purifier, with its humidifier, its water tank and its air quality sensors          | None                                                                                          |
 | How often a unit is read     | Every 5 seconds, or what you set from 2 to 3600                                                                                                        | Every 3 seconds, or what you set from 2                                                                          | No setting                                                                                        | Every 10 minutes by day and 30 by night, or what you set. Daikin allows 200 calls a day       |
 | Node.js                      | 22.19 or later, 24 and 26                                                                                                                              | 24 and 26                                                                                                        | 20, 22 and 24                                                                                     | 20.19 or later, 22.13 or later, 24 and 26                                                     |
@@ -229,7 +300,7 @@ A stored device that this version of the plugin cannot read, for example one sto
 - **Requests to one adapter go one at a time.** The reads and the commands of a device wait for each other, and different devices are read at the same time. A check from the setup page uses a connection of its own, so it can overlap with a read.
 - **A command is built from the last poll** instead of reading the unit again first, when that poll is no older than the poll interval, or than 30 seconds when the interval is longer. In that window, a change made on the unit's own remote control since the last poll is undone by the command. Set a shorter poll interval to narrow it.
 - **A device is reported as unreachable** after two reads in a row fail, and as reachable again on the first read that works.
-- **Changing how the fan, the swing or any switch appears** rebuilds the air conditioner in Matter. Some Matter apps take a moment to show the change, or need the accessory page reopened.
+- **Changing how the fan, the swing, any switch or any sensor appears** rebuilds the air conditioner in Matter. Some Matter apps take a moment to show the change, or need the accessory page reopened.
 - **The settings and the setup page do not overlap.** The Terminal ID and the poll interval are set in the plugin's settings in Matterbridge, and the air conditioners in the setup page. A save of the settings never changes the air conditioners.
 - **The setup page is as open as Matterbridge itself.** Anyone who can reach the Matterbridge frontend can use it. It never returns a stored child lock code.
 - **A ducted unit on an Airbase adapter** gets the controls of any other unit: power, mode, target temperature, fan speed and swing. Its zones, its fan auto and its airside are not in Matter. A unit with zones reports no auto fan speed and no swing, so it gets neither, and an Airbase adapter asks for no KEY and no child lock code.

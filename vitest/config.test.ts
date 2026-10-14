@@ -77,7 +77,11 @@ describe('config', () => {
 
   it('should parse a device stored with only a name, an address, a protocol and a MAC address', () => {
     const device = createDeviceConfig();
-    expect(parseDeviceConfig({ name: 'Living Room', host: '192.168.1.50', protocol: 'classic', macAddress: device.macAddress.toLowerCase() })).toEqual(device);
+    expect(parseDeviceConfig({ name: 'Living Room', host: '192.168.1.50', protocol: 'classic', macAddress: device.macAddress.toLowerCase() })).toEqual({
+      ...device,
+      hasOutdoorTemperatureSensor: false,
+      isComposed: true,
+    });
   });
 
   it('should keep every valid field of a stored device', () => {
@@ -98,6 +102,9 @@ describe('config', () => {
       hasFanAutoSwitch: true,
       hasSeparateFan: true,
       specialModeSwitches: ['powerful', 'streamer'],
+      hasOutdoorTemperatureSensor: true,
+      hasSeparateHumiditySensor: true,
+      isComposed: true,
       macAddress: 'A4:08:EA:CC:91:D4',
     };
     expect(parseDeviceConfig(stored)).toEqual(stored);
@@ -107,7 +114,7 @@ describe('config', () => {
   });
 
   it('should fall back to the defaults for fields that are not valid, and report each', () => {
-    const device = createDeviceConfig({ name: 'A', host: 'h' });
+    const device = createDeviceConfig({ name: 'A', host: 'h', hasOutdoorTemperatureSensor: false, isComposed: true });
     const stored = {
       name: 'A',
       host: 'h',
@@ -215,6 +222,9 @@ describe('config', () => {
     expect(hasSameExposure(device, createDeviceConfig({ hasFanAutoSwitch: true }))).toBe(false);
     expect(hasSameExposure(device, createDeviceConfig({ hasSeparateFan: true }))).toBe(false);
     expect(hasSameExposure(device, createDeviceConfig({ specialModeSwitches: ['econo'] }))).toBe(false);
+    expect(hasSameExposure(device, createDeviceConfig({ hasOutdoorTemperatureSensor: false }))).toBe(false);
+    expect(hasSameExposure(device, createDeviceConfig({ hasSeparateHumiditySensor: true }))).toBe(false);
+    expect(hasSameExposure(device, createDeviceConfig({ isComposed: true }))).toBe(false);
     // A new name is a new name in Matter, so the device is built again.
     expect(hasSameExposure(device, createDeviceConfig({ name: 'Lounge' }))).toBe(false);
   });
