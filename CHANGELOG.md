@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- [devices]: Give a fan of its own an on/off that follows the power of the air conditioner, so that a Matter app does not show the fan running while the unit is off. Turning the fan on or off turns the air conditioner on or off, and the fan keeps showing the speed the unit holds. A command that turns the unit off leaves its fan speed as it is, since an app that turns a fan off sets its speed to 0 as well.
+
+### Fixed
+
+- [devices]: Keep taking the commands of a Matter app after the bridge is removed from the last app it was in and paired again. Matter resets the bridge to factory defaults when its last app leaves, which dropped what the plugin listens to on each endpoint, so that commands reached nothing until Matterbridge was restarted. The plugin now listens again once each endpoint is back, and writes the state of the unit to it.
+
 ## [0.6.0] - 2026-10-14
 
 ### Added

@@ -160,6 +160,8 @@ export class DaikinAccessory implements AccessoryEndpoints {
   private commandTimer: NodeJS.Timeout | undefined;
   // Reads and commands run one after the other, so a read never overwrites what a command is about to send.
   private queue: Promise<void> = Promise.resolve();
+  // What is subscribed on each endpoint, to subscribe it again after a factory reset of the Matter node.
+  private readonly subscriptions = new Map<MatterbridgeEndpoint, (() => void)[]>();
 
   /**
    * Create the endpoints of a device from what it accepts and how it is configured
@@ -180,7 +182,7 @@ export class DaikinAccessory implements AccessoryEndpoints {
 
     this.endpoint = this.createAirConditioner();
     if (this.layout.isComposed) this.parent = this.endpoint;
-    if (this.layout.hasSeparateFan) this.fan = createFanEndpoint(this.identity, this.layout, this.parent);
+    if (this.layout.hasSeparateFan) this.fan = this.createFan();
     if (this.layout.hasFan) this.subscribeFan(this.fan ?? this.endpoint);
     if (this.config.swingControl === 'switches') {
       if (this.capabilities.swingModes.includes('vertical')) this.verticalSwitch = this.createSwingSwitch('vertical');
@@ -338,39 +340,95 @@ export class DaikinAccessory implements AccessoryEndpoints {
   private createAirConditioner(): MatterbridgeEndpoint {
     const endpoint = createAirConditionerEndpoint(this.identity, this.layout);
     const { profile } = this.layout;
-    endpoint.subscribeAttribute(OnOff, 'onOff', (isOn: boolean, _wasOn: boolean, context: ActionContext) => {
-      if (isControllerWrite(context)) this.queueControl({ power: isOn }, `power ${isOn ? 'on' : 'off'}`);
-    });
-    endpoint.subscribeAttribute(Thermostat, 'systemMode', (systemMode: Thermostat.SystemMode, _previous: Thermostat.SystemMode, context: ActionContext) => {
-      if (isControllerWrite(context)) this.handleSystemMode(systemMode);
-    });
+    this.listen(endpoint, () =>
+      endpoint.subscribeAttribute(OnOff, 'onOff', (isOn: boolean, _wasOn: boolean, context: ActionContext) => {
+        if (isControllerWrite(context)) this.queueControl({ power: isOn }, `power ${isOn ? 'on' : 'off'}`);
+      }),
+    );
+    this.listen(endpoint, () =>
+      endpoint.subscribeAttribute(Thermostat, 'systemMode', (systemMode: Thermostat.SystemMode, _previous: Thermostat.SystemMode, context: ActionContext) => {
+        if (isControllerWrite(context)) this.handleSystemMode(systemMode);
+      }),
+    );
     if (profile !== 'heat') {
-      endpoint.subscribeAttribute(Thermostat, 'occupiedCoolingSetpoint', (setpoint: number, _previous: number, context: ActionContext) => {
-        if (isControllerWrite(context)) this.queueSetpoint('cool', setpoint);
-      });
+      this.listen(endpoint, () =>
+        endpoint.subscribeAttribute(Thermostat, 'occupiedCoolingSetpoint', (setpoint: number, _previous: number, context: ActionContext) => {
+          if (isControllerWrite(context)) this.queueSetpoint('cool', setpoint);
+        }),
+      );
     }
     if (profile !== 'cool') {
-      endpoint.subscribeAttribute(Thermostat, 'occupiedHeatingSetpoint', (setpoint: number, _previous: number, context: ActionContext) => {
-        if (isControllerWrite(context)) this.queueSetpoint('heat', setpoint);
-      });
+      this.listen(endpoint, () =>
+        endpoint.subscribeAttribute(Thermostat, 'occupiedHeatingSetpoint', (setpoint: number, _previous: number, context: ActionContext) => {
+          if (isControllerWrite(context)) this.queueSetpoint('heat', setpoint);
+        }),
+      );
     }
     return endpoint;
+  }
+
+  // The fan of a unit runs only while the unit is on, so its on/off is the power of the air conditioner.
+  private createFan(): MatterbridgeEndpoint {
+    const endpoint = createFanEndpoint(this.identity, this.layout, this.parent);
+    this.listen(endpoint, () =>
+      endpoint.subscribeAttribute(OnOff, 'onOff', (isOn: boolean, _wasOn: boolean, context: ActionContext) => {
+        if (isControllerWrite(context)) this.queueControl({ power: isOn }, `fan power ${isOn ? 'on' : 'off'}`);
+      }),
+    );
+    return endpoint;
+  }
+
+  /**
+   * Subscribe to an attribute of an endpoint, and again whenever the endpoint comes back from a factory reset
+   *
+   * Matter resets the node to factory defaults when its last fabric leaves, such as when the bridge is removed from the
+   * last app it was in. The reset drops what was subscribed on each endpoint, so that the writes of the next app it is
+   * paired with would reach nothing.
+   *
+   * @param {MatterbridgeEndpoint} endpoint The endpoint.
+   * @param {() => void} subscribe Subscribes to the attribute, now and after each reset.
+   * @returns {void}
+   */
+  private listen(endpoint: MatterbridgeEndpoint, subscribe: () => void): void {
+    subscribe();
+    const known = this.subscriptions.get(endpoint);
+    if (known !== undefined) {
+      known.push(subscribe);
+      return;
+    }
+    const subscriptions = [subscribe];
+    this.subscriptions.set(endpoint, subscriptions);
+    let wasReset = false;
+    endpoint.lifecycle.reset.on(() => {
+      wasReset = true;
+    });
+    endpoint.lifecycle.ready.on(() => {
+      if (!wasReset) return;
+      wasReset = false;
+      for (const again of subscriptions) again();
+      if (endpoint === this.endpoint) this.log.info(`"${this.name}" is subscribed again after the Matter node was reset`);
+      // The reset put every attribute back to its default, and the endpoints come back one by one: the state of the
+      // unit replaces the defaults of each as it comes back, and does nothing once the device is closed.
+      void this.refresh();
+    });
   }
 
   private subscribeFan(endpoint: MatterbridgeEndpoint): void {
     const onFanWrite = (_value: unknown, _previous: unknown, context: ActionContext): void => {
       if (isControllerWrite(context)) this.queueFan();
     };
-    endpoint.subscribeAttribute(FanControl, 'fanMode', onFanWrite);
-    endpoint.subscribeAttribute(FanControl, 'percentSetting', onFanWrite);
+    this.listen(endpoint, () => endpoint.subscribeAttribute(FanControl, 'fanMode', onFanWrite));
+    this.listen(endpoint, () => endpoint.subscribeAttribute(FanControl, 'percentSetting', onFanWrite));
   }
 
   // The code tells the switches of one device apart in their serial numbers.
   private createSwitch(key: string, code: string, label: string, onWrite: (isOn: boolean) => void): MatterbridgeEndpoint {
     const endpoint = createSwitchEndpoint(this.identity, key, code, label, this.parent);
-    endpoint.subscribeAttribute(OnOff, 'onOff', (isOn: boolean, _wasOn: boolean, context: ActionContext) => {
-      if (isControllerWrite(context)) onWrite(isOn);
-    });
+    this.listen(endpoint, () =>
+      endpoint.subscribeAttribute(OnOff, 'onOff', (isOn: boolean, _wasOn: boolean, context: ActionContext) => {
+        if (isControllerWrite(context)) onWrite(isOn);
+      }),
+    );
     return endpoint;
   }
 
@@ -384,9 +442,11 @@ export class DaikinAccessory implements AccessoryEndpoints {
     onPick: (value: T) => void,
   ): MatterbridgeEndpoint {
     const endpoint = createModeSelectEndpoint(this.identity, key, code, label, toModeOptions(choices, supported), this.parent);
-    endpoint.subscribeAttribute(ModeSelect, 'currentMode', (mode: number, _previous: number, context: ActionContext) => {
-      if (isControllerWrite(context)) onPick(choices.values[mode]);
-    });
+    this.listen(endpoint, () =>
+      endpoint.subscribeAttribute(ModeSelect, 'currentMode', (mode: number, _previous: number, context: ActionContext) => {
+        if (isControllerWrite(context)) onPick(choices.values[mode]);
+      }),
+    );
     return endpoint;
   }
 
