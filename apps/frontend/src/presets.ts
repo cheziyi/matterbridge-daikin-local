@@ -38,7 +38,7 @@ export function presetExposure(name: PresetName, controls: AvailableControls): O
     // No preset takes the fan off the air conditioner: that is for an app that shows no fan speed there.
     hasSeparateFan: false,
     specialModeSwitches: name === 'full' ? [...controls.specialModes] : [],
-    // An app may take a temperature sensor beside an air conditioner for the room temperature.
+    // An app may show the outdoor temperature as that of the room it puts the sensor in, until the sensor is moved.
     hasOutdoorTemperatureSensor: name === 'full',
     // Home is reported to show a humidity on a sensor of its own only.
     hasSeparateHumiditySensor: name === 'apple',
