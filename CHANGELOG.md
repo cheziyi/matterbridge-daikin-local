@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- [devices]: Add the option to make the auto fan speed the first or the last step of the fan speed, for Matter apps that show no auto fan mode. First is step 1 or the bottom of the slider, last is the top step or 100 %, and the speeds of the unit share the rest.
+
+### Changed
+
+- [devices]: A Matter app turning the fan to off or 0 sets the first step of the fan speed, the slowest speed or auto when auto is the first step, instead of being ignored. Every Matter fan control has an off position below its first step, and an air conditioner has no fan-off.
+- [setup]: Choose where auto is in Matter in one place in the setup page: the native Auto fan mode, a switch beside it, or the first or the last step of the fan speed in place of it. The Apple Home and Google Home presets pick the switch.
+- [setup]: Choose how the dry and fan modes appear in one place in the setup page: the native Matter modes of the air conditioner only, a mode select, or a switch for each picked mode.
+- [config]: **Breaking:** the `hasDryModeSwitch`, `hasFanModeSwitch` and `hasModeSelect` settings of a stored device are replaced by `modeControl`, which is `native`, `select` or `switches`, and `modeSwitches`, which lists `dehumidify`, `fan` or both while `modeControl` is `switches`. A device stored with a mode switch or a mode select comes back with the native modes only: choose them again in the setup page.
+- [config]: **Breaking:** the `hasFanAutoSwitch` setting of a stored device is replaced by `fanAutoControl`, which is `native`, `switch`, `firstStep` or `lastStep`. A device stored with the auto fan switch comes back with the native Auto fan mode instead: choose the switch again in the setup page.
+- [setup]: Make the parts of the air conditioner a choice of the presets. The Full Matter support preset makes the switches, a fan of its own and a humidity sensor of its own parts of one composed device, and the Apple Home and Google Home presets make each of them a device of its own, since neither app is known to show the parts of a composed device well. A preset now shows as chosen only while that choice matches too.
+- [setup]: Replace the Full and Minimal presets with a Full Matter support preset, for apps that show every Matter control: fan speed as steps with its auto mode, the swing as a mode select, a switch for each special mode and the outdoor temperature sensor, all as one composed device. The Apple Home and Google Home presets no longer add the dry and fan mode switches, and the Google Home preset adds the humidity sensor of its own, as the Apple Home preset does. Both leave the swing out of Matter and as it is, instead of adding a switch for each axis.
+
 ## [0.5.0] - 2026-10-14
 
 ### Added

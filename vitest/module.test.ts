@@ -705,7 +705,7 @@ describe('DaikinPlatform', () => {
     await platform.unregisterAllDevices();
     const terminalUuid = platform.getTerminalUuid();
     const devices = [
-      { ...livingRoom, host: '192.168.1.77', hasFanModeSwitch: true },
+      { ...livingRoom, host: '192.168.1.77', modeControl: 'switches', modeSwitches: ['fan'] },
       { ...bedroom, host: '192.168.1.52' },
     ];
     const living = unitAt('192.168.1.77');
@@ -732,7 +732,9 @@ describe('DaikinPlatform', () => {
     // The bedroom unit answered from the start, so it was asked twice: the first question failed.
     expect(bed.getCapabilities).toHaveBeenCalledTimes(2);
     expect(log.notice).toHaveBeenCalledWith('"Living Room" accepts other settings than when it was set up: it is built again in Matter');
-    expect(saveConfig).toHaveBeenCalledWith(expect.objectContaining({ devices: [expect.objectContaining({ name: 'Living Room', hasFanModeSwitch: false }), expect.anything()] }));
+    expect(saveConfig).toHaveBeenCalledWith(
+      expect.objectContaining({ devices: [expect.objectContaining({ name: 'Living Room', modeControl: 'native', modeSwitches: [] }), expect.anything()] }),
+    );
     // The air conditioner and its one swing switch, and the bedroom.
     expect(again.getDevices()).toHaveLength(3);
 

@@ -97,10 +97,9 @@ describe('config', () => {
       fanSpeedWhenHidden: 'silent',
       swingControl: 'select',
       swingModeWhenHidden: 'both',
-      hasDryModeSwitch: true,
-      hasFanModeSwitch: true,
-      hasFanAutoSwitch: true,
-      hasModeSelect: true,
+      modeControl: 'switches',
+      modeSwitches: ['dehumidify', 'fan'],
+      fanAutoControl: 'lastStep',
       hasSeparateFan: true,
       specialModeSwitches: ['powerful', 'streamer'],
       hasOutdoorTemperatureSensor: true,
@@ -127,14 +126,19 @@ describe('config', () => {
       fanSpeedWhenHidden: 'level9',
       swingControl: 1,
       swingModeWhenHidden: null,
-      hasModeSelect: 'yes',
+      modeControl: 'yes',
+      modeSwitches: ['heat'],
+      fanAutoControl: 'middleStep',
       specialModeSwitches: ['turbo'],
     };
     expect(parseDeviceConfig(stored)).toEqual(device);
 
     const report = vi.fn();
     expect(parseDeviceConfig(stored, report)).toEqual(device);
-    expect(report).toHaveBeenCalledTimes(8);
+    expect(report).toHaveBeenCalledTimes(10);
+    expect(report).toHaveBeenCalledWith('"A" has the fanAutoControl "middleStep", which is not valid: "native" is used instead');
+    expect(report).toHaveBeenCalledWith('"A" has the modeControl "yes", which is not valid: "native" is used instead');
+    expect(report).toHaveBeenCalledWith('"A" has mode switches this version does not know, which are dropped: ["heat"]');
     expect(report).toHaveBeenCalledWith('"A" has the usesHttps "yes", which is not valid: false is used instead');
     expect(report).toHaveBeenCalledWith('"A" has the fanControl "fast", which is not valid: "steps" is used instead');
     expect(report).toHaveBeenCalledWith('"A" has the swingModeWhenHidden null, which is not valid: "keep" is used instead');
@@ -219,10 +223,11 @@ describe('config', () => {
     expect(hasSameExposure(device, createDeviceConfig({ host: '192.168.1.51', fanSpeedWhenHidden: 'auto' }))).toBe(true);
     expect(hasSameExposure(device, createDeviceConfig({ fanControl: 'percent' }))).toBe(false);
     expect(hasSameExposure(device, createDeviceConfig({ swingControl: 'hidden' }))).toBe(false);
-    expect(hasSameExposure(device, createDeviceConfig({ hasDryModeSwitch: true }))).toBe(false);
-    expect(hasSameExposure(device, createDeviceConfig({ hasFanModeSwitch: true }))).toBe(false);
-    expect(hasSameExposure(device, createDeviceConfig({ hasFanAutoSwitch: true }))).toBe(false);
-    expect(hasSameExposure(device, createDeviceConfig({ hasModeSelect: true }))).toBe(false);
+    expect(hasSameExposure(device, createDeviceConfig({ modeControl: 'switches' }))).toBe(false);
+    expect(hasSameExposure(device, createDeviceConfig({ modeSwitches: ['fan'] }))).toBe(false);
+    expect(hasSameExposure(device, createDeviceConfig({ fanAutoControl: 'switch' }))).toBe(false);
+    expect(hasSameExposure(device, createDeviceConfig({ fanAutoControl: 'firstStep' }))).toBe(false);
+    expect(hasSameExposure(device, createDeviceConfig({ modeControl: 'select' }))).toBe(false);
     expect(hasSameExposure(device, createDeviceConfig({ swingControl: 'select' }))).toBe(false);
     expect(hasSameExposure(device, createDeviceConfig({ hasSeparateFan: true }))).toBe(false);
     expect(hasSameExposure(device, createDeviceConfig({ specialModeSwitches: ['econo'] }))).toBe(false);

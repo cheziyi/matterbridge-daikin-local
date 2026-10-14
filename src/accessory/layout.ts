@@ -24,7 +24,7 @@
 import type { DaikinCapabilities, FanSpeed, SwingMode, TemperatureRange } from 'daikin-local-control';
 
 import type { DaikinDeviceConfig } from '../config.js';
-import type { ReportedSensors } from '../controls.js';
+import { hasFanAuto, type ReportedSensors } from '../controls.js';
 import { getFanSteps, getTemperatureRange, getThermostatProfile, type ModeSelectValue, type ThermostatProfile } from '../mapping.js';
 
 /** How the controls of a device are laid out in Matter, worked out once from what its unit accepts and how it is configured. */
@@ -33,12 +33,18 @@ export interface AccessoryLayout {
   profile: ThermostatProfile;
   /** The fan speeds a controller can pick, slowest first, without `auto`. */
   fanSteps: FanSpeed[];
+  /** The fan speeds on the scale of the fan control, from its first step: the fan steps, with `auto` below or above them when it is a step. */
+  fanPositions: FanSpeed[];
   /** Whether the device has a fan control in Matter. */
   hasFan: boolean;
   /** Whether that fan control is a fan of its own, instead of a part of the air conditioner. */
   hasSeparateFan: boolean;
-  /** Whether the unit takes the `auto` fan speed. */
+  /** Whether the fan control has the Matter fan mode Auto: the unit takes the `auto` fan speed, and it is no step. */
   hasFanAuto: boolean;
+  /** Whether the `auto` fan speed is a step of the fan control. */
+  hasFanAutoStep: boolean;
+  /** Whether the device has an on/off switch for the `auto` fan speed. */
+  hasFanAutoSwitch: boolean;
   /** Whether the fan control offers its speeds as steps, besides the percent. */
   hasFanSteps: boolean;
   /** The limits of the heating setpoint, in °C. */
@@ -76,18 +82,26 @@ export function getAccessoryLayout(config: DaikinDeviceConfig, capabilities: Dai
   const heatRange = getTemperatureRange(capabilities, 'heat');
   const coolRange = getTemperatureRange(capabilities, 'cool');
   const hasFan = config.fanControl !== 'hidden' && fanSteps.length > 0;
+  const hasAutoStep = hasFan && capabilities.fanSpeeds.includes('auto') && (config.fanAutoControl === 'firstStep' || config.fanAutoControl === 'lastStep');
+  const hasAutoSwitch = config.fanAutoControl === 'switch' && hasFanAuto(capabilities);
+  let fanPositions = fanSteps;
+  if (hasAutoStep) fanPositions = config.fanAutoControl === 'firstStep' ? ['auto', ...fanSteps] : [...fanSteps, 'auto'];
   return {
     profile,
     fanSteps,
+    fanPositions,
     hasFan,
     hasSeparateFan: hasFan && config.hasSeparateFan,
-    hasFanAuto: capabilities.fanSpeeds.includes('auto'),
+    // A step takes the place of the fan mode Auto, which holds no percent: the two cannot show at once. A switch is an endpoint of its own beside it.
+    hasFanAuto: capabilities.fanSpeeds.includes('auto') && !hasAutoStep,
+    hasFanAutoStep: hasAutoStep,
+    hasFanAutoSwitch: hasAutoSwitch,
     hasFanSteps: config.fanControl === 'steps',
     heatLimits: profile === 'heatCool' ? { ...heatRange, min: Math.min(heatRange.min, coolRange.min) } : heatRange,
     coolLimits: profile === 'heatCool' ? { ...coolRange, max: Math.max(coolRange.max, heatRange.max) } : coolRange,
     hasHumidity: reportedSensors.hasHumidity,
     hasSeparateHumiditySensor: reportedSensors.hasHumidity && config.hasSeparateHumiditySensor,
-    modeSelectModes: config.hasModeSelect ? ['off', ...capabilities.modes] : [],
+    modeSelectModes: config.modeControl === 'select' ? ['off', ...capabilities.modes] : [],
     swingSelectModes: config.swingControl === 'select' ? capabilities.swingModes : [],
     hasOutdoorTemperature: reportedSensors.hasOutdoorTemperature && config.hasOutdoorTemperatureSensor,
     isComposed: config.isComposed,

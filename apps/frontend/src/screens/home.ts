@@ -18,13 +18,15 @@ function describeExposure(device: StoredDevice): string {
   const hasFan = device.controls === undefined || device.controls.fanSteps.length > 0;
   const hasSwing = device.controls === undefined || device.controls.hasSwing;
   const fanPlace = device.hasSeparateFan ? ' on a fan of its own' : '';
-  const fan = device.fanControl === 'hidden' ? 'fan speed not shown' : `fan speed as ${device.fanControl === 'steps' ? 'steps' : 'a percentage'}${fanPlace}`;
+  const autoStep = { native: '', switch: '', firstStep: ' with auto first', lastStep: ' with auto last' }[device.fanAutoControl];
+  const fan = device.fanControl === 'hidden' ? 'fan speed not shown' : `fan speed as ${device.fanControl === 'steps' ? 'steps' : 'a percentage'}${autoStep}${fanPlace}`;
   const swing = { switches: 'swing as switches', select: 'swing as a mode select', hidden: 'swing not shown' }[device.swingControl];
   const controls = [hasFan ? fan : '', hasSwing ? swing : ''].filter((text) => text !== '').join(', ');
-  const switches = [device.hasDryModeSwitch ? 'dry mode' : '', device.hasFanModeSwitch ? 'fan mode' : '', device.hasFanAutoSwitch ? 'auto fan' : '', ...device.specialModeSwitches].filter(
+  const modeSwitches = device.modeControl === 'switches' ? device.modeSwitches.map((mode) => (mode === 'dehumidify' ? 'dry mode' : 'fan mode')) : [];
+  const switches = [...modeSwitches, device.fanAutoControl === 'switch' ? 'auto fan' : '', ...device.specialModeSwitches].filter(
     (name) => name !== '',
   );
-  const extra = [switches.length === 0 ? '' : `a switch for ${switches.join(', ')}`, device.hasModeSelect ? 'a mode select' : ''].filter((text) => text !== '').join(' and ');
+  const extra = [switches.length === 0 ? '' : `a switch for ${switches.join(', ')}`, device.modeControl === 'select' ? 'a mode select' : ''].filter((text) => text !== '').join(' and ');
   const place = device.isComposed ? ', all as one device' : '';
   if (controls === '') return `${extra === '' ? 'power, mode and temperature' : extra}${place}`;
   return `${extra === '' ? controls : `${controls}, and ${extra}`}${place}`;

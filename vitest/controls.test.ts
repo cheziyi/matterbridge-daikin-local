@@ -15,22 +15,25 @@ describe('controls', () => {
     expect(fitToCapabilities(createDeviceConfig(), unit)).toEqual(createDeviceConfig());
     expect(fitToCapabilities(createDeviceConfig({ fanSpeedWhenHidden: 'level5', swingModeWhenHidden: 'both' }), unit)).toEqual(createDeviceConfig());
     // The unit has a fan mode and no dry mode.
-    expect(fitToCapabilities(createDeviceConfig({ hasDryModeSwitch: true, hasFanModeSwitch: true }), unit)).toEqual(createDeviceConfig({ hasFanModeSwitch: true }));
+    const switches = createDeviceConfig({ modeControl: 'switches', modeSwitches: ['dehumidify', 'fan'] });
+    expect(fitToCapabilities(switches, unit)).toEqual(createDeviceConfig({ modeControl: 'switches', modeSwitches: ['fan'] }));
+    // With none of the switches left, the thermostat alone remains.
+    expect(fitToCapabilities({ ...switches, modeSwitches: ['dehumidify'] }, unit)).toEqual(createDeviceConfig());
   });
 
   it('should keep the mode select of a unit with a dry or a fan mode', () => {
-    const wanted = createDeviceConfig({ hasModeSelect: true });
-    expect(fitToCapabilities(wanted, createCapabilities({ modes: ['cool', 'dehumidify'] })).hasModeSelect).toBe(true);
-    expect(fitToCapabilities(wanted, createCapabilities({ modes: ['cool', 'fan'] })).hasModeSelect).toBe(true);
+    const wanted = createDeviceConfig({ modeControl: 'select' });
+    expect(fitToCapabilities(wanted, createCapabilities({ modes: ['cool', 'dehumidify'] })).modeControl).toBe('select');
+    expect(fitToCapabilities(wanted, createCapabilities({ modes: ['cool', 'fan'] })).modeControl).toBe('select');
     // The thermostat mode offers every other mode.
-    expect(fitToCapabilities(wanted, createCapabilities({ modes: ['auto', 'cool', 'heat'] })).hasModeSelect).toBe(false);
+    expect(fitToCapabilities(wanted, createCapabilities({ modes: ['auto', 'cool', 'heat'] })).modeControl).toBe('native');
   });
 
-  it('should drop the switches of the modes for the mode select that takes their place', () => {
-    const both = createDeviceConfig({ hasModeSelect: true, hasDryModeSwitch: true, hasFanModeSwitch: true });
-    expect(fitToCapabilities(both, createCapabilities())).toEqual(createDeviceConfig({ hasModeSelect: true }));
+  it('should keep the mode switches only while switches are chosen', () => {
+    const select = createDeviceConfig({ modeControl: 'select', modeSwitches: ['dehumidify', 'fan'] });
+    expect(fitToCapabilities(select, createCapabilities())).toEqual(createDeviceConfig({ modeControl: 'select' }));
     // Without a dry or a fan mode there is no mode select, and nothing for the switches either.
-    expect(fitToCapabilities(both, createCapabilities({ modes: ['auto', 'cool', 'heat'] }))).toEqual(createDeviceConfig());
+    expect(fitToCapabilities(select, createCapabilities({ modes: ['auto', 'cool', 'heat'] }))).toEqual(createDeviceConfig());
   });
 
   it('should keep the switch for the auto fan speed only where it can hold', () => {
@@ -38,12 +41,21 @@ describe('controls', () => {
     expect(hasFanAuto(unit)).toBe(true);
     expect(hasFanAuto({ fanSpeeds: ['auto'] })).toBe(false);
     expect(hasFanAuto({ fanSpeeds: ['level1', 'level2'] })).toBe(false);
-    const wanted = createDeviceConfig({ hasFanAutoSwitch: true });
-    expect(fitToCapabilities(wanted, unit).hasFanAutoSwitch).toBe(true);
-    expect(fitToCapabilities({ ...wanted, fanControl: 'hidden' }, unit).hasFanAutoSwitch).toBe(true);
+    const wanted = createDeviceConfig({ fanAutoControl: 'switch' });
+    expect(fitToCapabilities(wanted, unit).fanAutoControl).toBe('switch');
+    expect(fitToCapabilities({ ...wanted, fanControl: 'hidden' }, unit).fanAutoControl).toBe('switch');
     // A fixed fan speed is sent with every command, so auto would not last.
-    expect(fitToCapabilities({ ...wanted, fanControl: 'hidden', fanSpeedWhenHidden: 'level1' }, unit).hasFanAutoSwitch).toBe(false);
-    expect(fitToCapabilities(wanted, createCapabilities({ fanSpeeds: ['level1', 'level2'] })).hasFanAutoSwitch).toBe(false);
+    expect(fitToCapabilities({ ...wanted, fanControl: 'hidden', fanSpeedWhenHidden: 'level1' }, unit).fanAutoControl).toBe('native');
+    expect(fitToCapabilities(wanted, createCapabilities({ fanSpeeds: ['level1', 'level2'] })).fanAutoControl).toBe('native');
+  });
+
+  it('should keep the auto fan step only on a fan control that is shown', () => {
+    const unit = createCapabilities();
+    const wanted = createDeviceConfig({ fanAutoControl: 'firstStep' });
+    expect(fitToCapabilities(wanted, unit).fanAutoControl).toBe('firstStep');
+    expect(fitToCapabilities({ ...wanted, fanAutoControl: 'lastStep', fanControl: 'percent' }, unit).fanAutoControl).toBe('lastStep');
+    expect(fitToCapabilities({ ...wanted, fanControl: 'hidden' }, unit).fanAutoControl).toBe('native');
+    expect(fitToCapabilities(wanted, createCapabilities({ fanSpeeds: ['level1', 'level2'] })).fanAutoControl).toBe('native');
   });
 
   it('should keep a fan of its own for a device that shows a fan speed', () => {

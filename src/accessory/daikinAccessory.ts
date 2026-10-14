@@ -36,8 +36,8 @@ import type { AnsiLogger } from 'matterbridge/logger';
 import type { ActionContext } from 'matterbridge/matter';
 import { BridgedDeviceBasicInformation, FanControl, ModeSelect, OnOff, Thermostat } from 'matterbridge/matter/clusters';
 
-import type { DaikinDeviceConfig } from '../config.js';
-import { addReportedSensors, getSwitchableSpecialModes, hasFanAuto, noReportedSensors, type ReportedSensors } from '../controls.js';
+import type { DaikinDeviceConfig, SwitchedMode } from '../config.js';
+import { addReportedSensors, getSwitchableSpecialModes, noReportedSensors, type ReportedSensors } from '../controls.js';
 import { getErrorMessage } from '../errors.js';
 import { modeSelectChoices, type SelectChoices, swingSelectChoices, toModeOptions, toOperatingMode } from '../mapping.js';
 import {
@@ -61,9 +61,6 @@ const unreachableAfterFailures = 2;
 
 /** What each special mode is called in Matter and in the log: Daikin's own names. */
 const specialModeLabels: Readonly<Record<SpecialMode, string>> = { powerful: 'Powerful', econo: 'Econo', streamer: 'Streamer' };
-
-/** The modes some Matter apps cannot select, which can each get a switch of their own. */
-type SwitchedMode = 'dehumidify' | 'fan';
 
 export interface DaikinAccessoryOptions {
   config: DaikinDeviceConfig;
@@ -189,9 +186,11 @@ export class DaikinAccessory implements AccessoryEndpoints {
       if (this.capabilities.swingModes.includes('vertical')) this.verticalSwitch = this.createSwingSwitch('vertical');
       if (this.capabilities.swingModes.includes('horizontal')) this.horizontalSwitch = this.createSwingSwitch('horizontal');
     }
-    if (this.config.hasDryModeSwitch && this.capabilities.modes.includes('dehumidify')) this.dryModeSwitch = this.createModeSwitch('dehumidify');
-    if (this.config.hasFanModeSwitch && this.capabilities.modes.includes('fan')) this.fanModeSwitch = this.createModeSwitch('fan');
-    if (this.config.hasFanAutoSwitch && hasFanAuto(this.capabilities)) {
+    const hasModeSwitch = (mode: SwitchedMode): boolean =>
+      this.config.modeControl === 'switches' && this.config.modeSwitches.includes(mode) && this.capabilities.modes.includes(mode);
+    if (hasModeSwitch('dehumidify')) this.dryModeSwitch = this.createModeSwitch('dehumidify');
+    if (hasModeSwitch('fan')) this.fanModeSwitch = this.createModeSwitch('fan');
+    if (this.layout.hasFanAutoSwitch) {
       this.fanAutoSwitch = this.createSwitch('fan-auto', 'A', 'Auto Fan', (isOn) => {
         this.pending.requestFanAuto(isOn);
         this.scheduleCommand(`auto fan ${isOn ? 'on' : 'off'}`);
@@ -494,7 +493,7 @@ export class DaikinAccessory implements AccessoryEndpoints {
     if (!this.hasPendingCommand) return;
     this.hasPendingCommand = false;
     const unit = { state: this.state, capabilities: this.capabilities, fanSteps: this.layout.fanSteps, lastManualFanSpeed: this.lastManualFanSpeed };
-    const { control, specialModes } = this.pending.take(unit, () => readFanSpeed(this.fan ?? this.endpoint, this.layout.fanSteps));
+    const { control, specialModes } = this.pending.take(unit, () => readFanSpeed(this.fan ?? this.endpoint, this.layout.fanPositions));
     const mode = control.mode ?? this.state?.mode;
     if (Object.keys(control).length > 0) {
       addHiddenSettings(control, this.config, this.capabilities);

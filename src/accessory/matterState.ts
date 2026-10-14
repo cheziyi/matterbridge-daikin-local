@@ -53,17 +53,17 @@ export interface AccessoryEndpoints {
  * Read the fan speed a controller set on the fan control
  *
  * @param {MatterbridgeEndpoint} endpoint The endpoint that has the fan control.
- * @param {readonly FanSpeed[]} fanSteps The fan speeds a controller can pick, slowest first.
+ * @param {readonly FanSpeed[]} fanPositions The fan speeds on the scale of the fan control, from its first step.
  * @returns {FanSpeed | undefined} The fan speed, or undefined when the fan control holds none the unit takes.
  */
-export function readFanSpeed(endpoint: MatterbridgeEndpoint, fanSteps: readonly FanSpeed[]): FanSpeed | undefined {
+export function readFanSpeed(endpoint: MatterbridgeEndpoint, fanPositions: readonly FanSpeed[]): FanSpeed | undefined {
   const fanMode: unknown = endpoint.getAttribute(FanControl, 'fanMode');
   const percent: unknown = endpoint.getAttribute(FanControl, 'percentSetting');
   // Matter refuses the fan mode Auto on a unit without it, so a unit that reaches here takes `auto`.
   if (fanMode === FanControl.FanMode.Auto) return 'auto';
-  // Off has no meaning for the fan of an air conditioner: the next read puts the unit's own speed back.
-  if (!isValidNumber(percent, 1, 100)) return undefined;
-  return fanSteps[percentToFanStep(fanSteps.length, percent) - 1];
+  // The fan of an air conditioner has no off, so off and 0 are the first step.
+  if (!isValidNumber(percent, 0, 100)) return undefined;
+  return fanPositions[percentToFanStep(fanPositions.length, percent) - 1];
 }
 
 /**
@@ -126,9 +126,9 @@ async function applyFanSpeed(endpoint: MatterbridgeEndpoint, layout: AccessoryLa
     await endpoint.updateAttribute(FanControl, 'fanMode', FanControl.FanMode.Auto);
     return;
   }
-  const step = layout.fanSteps.indexOf(fanSpeed) + 1;
+  const step = layout.fanPositions.indexOf(fanSpeed) + 1;
   if (step === 0) return;
-  const percent = fanStepToPercent(layout.fanSteps.length, step);
+  const percent = fanStepToPercent(layout.fanPositions.length, step);
   // Writing the percent makes the fan control server derive the fan mode and the speed setting.
   await endpoint.updateAttribute(FanControl, 'percentSetting', percent);
   await endpoint.updateAttribute(FanControl, 'percentCurrent', percent);

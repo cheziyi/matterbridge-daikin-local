@@ -45,6 +45,29 @@ export const SWING_CONTROLS = ['switches', 'select', 'hidden'] as const;
 
 export type SwingControlOption = (typeof SWING_CONTROLS)[number];
 
+/**
+ * How the auto fan speed is exposed to Matter: natively, as the fan mode Auto of the fan control, as an on/off switch
+ * beside that fan mode, or as a step of the fan control below the slowest speed of the unit or above its fastest, in
+ * place of the fan mode. Each but the native fan mode alone is for apps that show no fan mode Auto.
+ */
+export const FAN_AUTO_CONTROLS = ['native', 'switch', 'firstStep', 'lastStep'] as const;
+
+export type FanAutoControlOption = (typeof FAN_AUTO_CONTROLS)[number];
+
+/**
+ * How the dry and fan modes are exposed to Matter: natively alone, as modes of the thermostat of the air conditioner,
+ * or also as a mode select of every mode of the unit, or as an on/off switch for each mode in `modeSwitches`. Each but
+ * the native modes alone is for apps whose climate controls lack those modes.
+ */
+export const MODE_CONTROLS = ['native', 'select', 'switches'] as const;
+
+export type ModeControlOption = (typeof MODE_CONTROLS)[number];
+
+/** The modes that can each get an on/off switch: the two the thermostat of some apps lacks. */
+export const SWITCHED_MODES = ['dehumidify', 'fan'] as const;
+
+export type SwitchedMode = (typeof SWITCHED_MODES)[number];
+
 /** The value of a hidden setting that leaves the unit as it is. */
 export const KEEP_SETTING = 'keep';
 
@@ -77,17 +100,12 @@ export interface DaikinDeviceExposure {
   swingControl: SwingControlOption;
   /** The swing mode sent with every command while the swing is hidden, or `keep`. */
   swingModeWhenHidden: HiddenSwingMode;
-  /** Whether Matter gets an on/off switch that puts the unit in dehumidify mode, for apps without a dry mode. */
-  hasDryModeSwitch: boolean;
-  /** Whether Matter gets an on/off switch that puts the unit in fan mode, for apps without a fan mode. */
-  hasFanModeSwitch: boolean;
-  /** Whether Matter gets an on/off switch that sets the fan speed to auto, for apps without an auto fan mode. */
-  hasFanAutoSwitch: boolean;
-  /**
-   * Whether Matter gets a mode select of the modes of the unit, for apps that show a mode select but not every mode of
-   * an air conditioner. It takes the place of the dry and fan mode switches.
-   */
-  hasModeSelect: boolean;
+  /** How the dry and fan modes are exposed besides the thermostat: see `MODE_CONTROLS`. */
+  modeControl: ModeControlOption;
+  /** The modes that each get an on/off switch while `modeControl` is `switches`. */
+  modeSwitches: SwitchedMode[];
+  /** How the auto fan speed is exposed: see `FAN_AUTO_CONTROLS`. */
+  fanAutoControl: FanAutoControlOption;
   /** Whether the fan control is a fan of its own in Matter, instead of a part of the air conditioner. */
   hasSeparateFan: boolean;
   /** The special modes that each get an on/off switch in Matter. */
@@ -268,6 +286,9 @@ export function parseDeviceConfig(value: unknown, report?: (message: string) => 
   const specialModeSwitches: unknown[] = Array.isArray(raw.specialModeSwitches) ? raw.specialModeSwitches : useDefault('specialModeSwitches', []);
   const unknownSwitches = specialModeSwitches.filter((mode) => !isMember(SPECIAL_MODES, mode));
   if (unknownSwitches.length > 0) report?.(`"${name}" has special mode switches this version does not know, which are dropped: ${JSON.stringify(unknownSwitches)}`);
+  const modeSwitches: unknown[] = Array.isArray(raw.modeSwitches) ? raw.modeSwitches : useDefault('modeSwitches', []);
+  const unknownModeSwitches = modeSwitches.filter((mode) => !isMember(SWITCHED_MODES, mode));
+  if (unknownModeSwitches.length > 0) report?.(`"${name}" has mode switches this version does not know, which are dropped: ${JSON.stringify(unknownModeSwitches)}`);
   const device: DaikinDeviceConfig = {
     name,
     macAddress,
@@ -280,10 +301,9 @@ export function parseDeviceConfig(value: unknown, report?: (message: string) => 
     fanSpeedWhenHidden: isMember(hiddenFanSpeeds, raw.fanSpeedWhenHidden) ? raw.fanSpeedWhenHidden : useDefault('fanSpeedWhenHidden', KEEP_SETTING),
     swingControl: isMember(SWING_CONTROLS, raw.swingControl) ? raw.swingControl : useDefault('swingControl', 'switches'),
     swingModeWhenHidden: isMember(hiddenSwingModes, raw.swingModeWhenHidden) ? raw.swingModeWhenHidden : useDefault('swingModeWhenHidden', KEEP_SETTING),
-    hasDryModeSwitch: isValidBoolean(raw.hasDryModeSwitch) ? raw.hasDryModeSwitch : useDefault('hasDryModeSwitch', false),
-    hasFanModeSwitch: isValidBoolean(raw.hasFanModeSwitch) ? raw.hasFanModeSwitch : useDefault('hasFanModeSwitch', false),
-    hasFanAutoSwitch: isValidBoolean(raw.hasFanAutoSwitch) ? raw.hasFanAutoSwitch : useDefault('hasFanAutoSwitch', false),
-    hasModeSelect: isValidBoolean(raw.hasModeSelect) ? raw.hasModeSelect : useDefault('hasModeSelect', false),
+    modeControl: isMember(MODE_CONTROLS, raw.modeControl) ? raw.modeControl : useDefault('modeControl', 'native'),
+    modeSwitches: SWITCHED_MODES.filter((mode) => modeSwitches.includes(mode)),
+    fanAutoControl: isMember(FAN_AUTO_CONTROLS, raw.fanAutoControl) ? raw.fanAutoControl : useDefault('fanAutoControl', 'native'),
     hasSeparateFan: isValidBoolean(raw.hasSeparateFan) ? raw.hasSeparateFan : useDefault('hasSeparateFan', false),
     specialModeSwitches: SPECIAL_MODES.filter((mode) => specialModeSwitches.includes(mode)),
     // Off although devices stored before the setting existed had the sensor: none of them was in use.
@@ -400,7 +420,7 @@ export function hasSameConnection(left: DaikinDeviceConfig, right: DaikinDeviceC
 export function hasSameExposure(left: DaikinDeviceConfig, right: DaikinDeviceConfig): boolean {
   return (
     left.name === right.name &&
-    left.hasFanAutoSwitch === right.hasFanAutoSwitch &&
+    left.fanAutoControl === right.fanAutoControl &&
     left.hasSeparateFan === right.hasSeparateFan &&
     left.hasOutdoorTemperatureSensor === right.hasOutdoorTemperatureSensor &&
     left.hasSeparateHumiditySensor === right.hasSeparateHumiditySensor &&
@@ -408,8 +428,7 @@ export function hasSameExposure(left: DaikinDeviceConfig, right: DaikinDeviceCon
     left.specialModeSwitches.join() === right.specialModeSwitches.join() &&
     left.fanControl === right.fanControl &&
     left.swingControl === right.swingControl &&
-    left.hasDryModeSwitch === right.hasDryModeSwitch &&
-    left.hasFanModeSwitch === right.hasFanModeSwitch &&
-    left.hasModeSelect === right.hasModeSelect
+    left.modeControl === right.modeControl &&
+    left.modeSwitches.join() === right.modeSwitches.join()
   );
 }

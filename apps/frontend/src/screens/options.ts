@@ -6,7 +6,7 @@
  */
 
 import { goHome, saveDraft } from '../actions.js';
-import type { AvailableControls, Exposure, FanSpeed, SpecialMode, SwingMode } from '../api.js';
+import type { AvailableControls, Exposure, FanSpeed, SpecialMode, SwingMode, SwitchedMode } from '../api.js';
 import { button, notice, steps, unitHeader, unitStrip } from '../components.js';
 import { type Child, h } from '../dom.js';
 import { noControls } from '../exposure.js';
@@ -68,6 +68,12 @@ function choice<T extends string>(group: string, value: T, current: T, title: st
   return h('label', { class: 'choice pictured', for: id }, input, h('span', { class: 'glyph', html: glyph }), h('span', {}, h('strong', {}, title), h('span', { class: 'meta' }, text)));
 }
 
+function radio<T extends string>(group: string, value: T, current: T, title: string, text: string, onpick: (value: T) => void): HTMLElement {
+  const id = `${group}-${value}`;
+  const input = h('input', { type: 'radio', name: group, id, checked: value === current, onchange: () => onpick(value) });
+  return h('label', { class: 'choice', for: id }, input, h('span', {}, h('strong', {}, title), h('span', { class: 'meta' }, text)));
+}
+
 function toggle(id: string, isOn: boolean, title: string, text: string, onpick: (isOn: boolean) => void): HTMLElement {
   const input = h('input', { type: 'checkbox', id, checked: isOn, onchange: () => onpick(input.checked) });
   return h('label', { class: 'choice', for: id }, input, h('span', {}, h('strong', {}, title), h('span', { class: 'meta' }, text)));
@@ -94,12 +100,57 @@ function presetSection(draft: Draft, controls: AvailableControls): HTMLElement {
   );
 }
 
+// Such as "Silent, Level 1 and Level 2".
+function listSpeeds(speeds: readonly FanSpeed[]): string {
+  const labels = speeds.map((speed) => fanSpeedLabels[speed]);
+  return labels.length === 1 ? labels[0] : `${labels.slice(0, -1).join(', ')} and ${labels[labels.length - 1]}`;
+}
+
+type FanAutoControl = Exposure['fanAutoControl'];
+
+function fanAutoSection(draft: Draft, controls: AvailableControls, current: FanAutoControl): Child {
+  // A fixed fan speed is sent with every command, so auto would not hold.
+  if (!controls.hasFanAuto || (draft.fanControl === 'hidden' && draft.fanSpeedWhenHidden !== 'keep')) return null;
+  const pick = (fanAutoControl: FanAutoControl): void => update(draft, { fanAutoControl });
+  const isFanHidden = draft.fanControl === 'hidden';
+  const switchText = `${placement(draft, 'Auto Fan', true)}. On sets the fan to auto, off puts it back at the speed it last ran at.`;
+  const slowest = fanSpeedLabels[controls.fanSteps[0]];
+  const fastest = fanSpeedLabels[controls.fanSteps[controls.fanSteps.length - 1]];
+  const choices = isFanHidden
+    ? [
+        radio('fan-auto', 'native', current, 'Not shown in Matter', 'Without a fan speed in Matter, auto has no place there either.', pick),
+        radio('fan-auto', 'switch', current, 'A switch', switchText, pick),
+      ]
+    : [
+        radio('fan-auto', 'native', current, 'Native fan mode only', 'Auto is a mode of the fan speed, beside its speeds, as Matter has it.', pick),
+        radio('fan-auto', 'switch', current, 'A switch', `${switchText} Auto stays a fan mode as well.`, pick),
+        radio('fan-auto', 'firstStep', current, 'The first step', `Auto comes below ${slowest}: step 1, or the bottom of the slider.`, pick),
+        radio('fan-auto', 'lastStep', current, 'The last step', `Auto comes above ${fastest}: the top step, or 100 %.`, pick),
+      ];
+  return h(
+    'div',
+    { class: 'field' },
+    h('h3', { id: 'fan-auto-title' }, 'Auto fan speed'),
+    isFanHidden ? null : h('p', { class: 'help' }, 'Matter has auto as a fan mode, which not every app shows. A switch makes it reachable there too, and a step takes its place.'),
+    h('div', { 'class': 'choices', 'role': 'radiogroup', 'aria-labelledby': 'fan-auto-title' }, ...choices),
+  );
+}
+
 function fanSection(draft: Draft, controls: AvailableControls): HTMLElement {
   const fanSpeeds = draft.capabilities?.fanSpeeds ?? [];
   const stepCount = controls.fanSteps.length;
   if (stepCount === 0) return h('section', {}, h('h2', {}, 'Fan speed'), h('p', { class: 'help' }, 'This unit does not let apps set its fan speed, so there is nothing to choose.'));
-  // A fixed fan speed is sent with every command, so a switch for auto would not hold.
-  const canSwitchFanAuto = controls.hasFanAuto && !(draft.fanControl === 'hidden' && draft.fanSpeedWhenHidden !== 'keep');
+  const isFanHidden = draft.fanControl === 'hidden';
+  // Auto is a step only of a fan control that is shown, and the step takes the place of the switch.
+  const hasAutoStep = controls.hasFanAuto && !isFanHidden && (draft.fanAutoControl === 'firstStep' || draft.fanAutoControl === 'lastStep');
+  const hasAutoSwitch = controls.hasFanAuto && draft.fanAutoControl === 'switch';
+  let positions = controls.fanSteps;
+  if (hasAutoStep) positions = draft.fanAutoControl === 'firstStep' ? ['auto', ...controls.fanSteps] : [...controls.fanSteps, 'auto'];
+  // A step takes the place of the fan mode Auto.
+  const hasAutoMode = controls.hasFanAuto && !hasAutoStep;
+  const autoMode = hasAutoMode ? ' Auto is not among them: it is a fan mode of its own.' : '';
+  // Such as "6 speeds, slowest first: Silent, Level 1 … and Level 5. Auto is not among them: it is a fan mode of its own."
+  const speedList = `${positions.length} ${positions.length === 1 ? 'speed' : 'speeds'}, ${hasAutoStep ? 'in order' : 'slowest first'}: ${listSpeeds(positions)}.${autoMode}`;
   return h(
     'section',
     {},
@@ -107,10 +158,8 @@ function fanSection(draft: Draft, controls: AvailableControls): HTMLElement {
     h(
       'div',
       { class: 'choices' },
-      choice('fan', 'steps', draft.fanControl, 'Steps', `${stepCount} speeds, one for each speed of the unit${fanSpeeds.includes('auto') ? ', and auto' : ''}.`, glyphs.steps, (fanControl) =>
-        update(draft, { fanControl }),
-      ),
-      choice('fan', 'percent', draft.fanControl, 'Percentage', 'A slider from 0 to 100, which the plugin rounds to the nearest speed of the unit.', glyphs.percent, (fanControl) => update(draft, { fanControl })),
+      choice('fan', 'steps', draft.fanControl, 'Steps', speedList, glyphs.steps, (fanControl) => update(draft, { fanControl })),
+      choice('fan', 'percent', draft.fanControl, 'Percentage', `A slider from 0 to 100, which the plugin rounds to the nearest of ${speedList}`, glyphs.percent, (fanControl) => update(draft, { fanControl })),
       choice('fan', 'hidden', draft.fanControl, 'Not shown in Matter', 'No fan control. Pick below what the plugin does with the fan speed instead.', glyphs.hidden, (fanControl) =>
         update(draft, { fanControl }),
       ),
@@ -137,15 +186,8 @@ function fanSection(draft: Draft, controls: AvailableControls): HTMLElement {
           `${placement(draft, 'Fan', false)}, and the air conditioner has no fan speed of its own. For apps that show no fan speed on an air conditioner, or do not show it well. It always shows the speed the unit holds, also while the unit is off.`,
           (hasSeparateFan) => update(draft, { hasSeparateFan }),
         ),
-    canSwitchFanAuto
-      ? toggle(
-          'fan-auto-switch',
-          draft.hasFanAutoSwitch,
-          'Add a switch for auto fan speed',
-          `${placement(draft, 'Auto Fan', true)}. On sets the fan to auto, off puts it back at the speed it last ran at. For apps that show no auto fan mode.`,
-          (hasFanAutoSwitch) => update(draft, { hasFanAutoSwitch }),
-        )
-      : null,
+    // A step of a fan that is hidden is no step.
+    fanAutoSection(draft, controls, isFanHidden && !hasAutoSwitch ? 'native' : draft.fanAutoControl),
   );
 }
 
@@ -197,33 +239,43 @@ function swingSection(draft: Draft): HTMLElement {
 function modeSection(draft: Draft, controls: AvailableControls): Child {
   if (!controls.hasDryMode && !controls.hasFanMode) return null;
   const modes = draft.capabilities?.modes ?? [];
+  const switchable: SwitchedMode[] = [...(controls.hasDryMode ? ['dehumidify' as const] : []), ...(controls.hasFanMode ? ['fan' as const] : [])];
+  const labels: Record<SwitchedMode, string> = { dehumidify: 'Dry Mode', fan: 'Fan Mode' };
+  const modeSwitches = switchable.filter((mode) => draft.modeSwitches.includes(mode));
+  // Switches with none picked would add nothing, so picking them starts with one for each mode.
+  const pick = (modeControl: Exposure['modeControl']): void =>
+    update(draft, modeControl === 'switches' && modeSwitches.length === 0 ? { modeControl, modeSwitches: switchable } : { modeControl });
   return h(
     'section',
     {},
     h('h2', {}, 'Dry and fan modes'),
-    h(
-      'p',
-      { class: 'help' },
-      `These are always among the modes of the air conditioner in Matter, but some apps, such as Apple Home, only offer cool, heat and auto. A switch makes the mode reachable there: on puts the unit in that mode, off puts it back in ${modes.includes('cool') ? 'cool' : 'heat'}. A mode select instead offers every mode in one control.`,
-    ),
+    h('p', { class: 'help' }, 'These are among the modes of the air conditioner in Matter, but some apps, such as Apple Home, only offer cool, heat and auto.'),
     h(
       'div',
-      { class: 'choices' },
-      toggle(
-        'mode-select',
-        draft.hasModeSelect,
-        'Use a mode select instead of switches',
-        `${placement(draft, 'Mode', true)}, with Off and every mode of the unit, as the thermostat mode has them. Picking a mode turns the unit on in it. ${selectSupport}`,
-        // The select takes the place of the switches.
-        (hasModeSelect) => update(draft, hasModeSelect ? { hasModeSelect, hasDryModeSwitch: false, hasFanModeSwitch: false } : { hasModeSelect }),
+      { 'class': 'choices', 'role': 'radiogroup', 'aria-label': 'Dry and fan modes' },
+      radio('mode-control', 'native', draft.modeControl, 'Native modes only', 'Dry and fan are modes of the air conditioner, as Matter has them, and nothing more is added.', pick),
+      radio('mode-control', 'select', draft.modeControl, 'A mode select', `${placement(draft, 'Mode', true)}, with Off and every mode of the unit, as the air conditioner has them. Picking a mode turns the unit on in it. ${selectSupport}`, pick),
+      // Last, so that the switches picked below it stay with it.
+      radio(
+        'mode-control',
+        'switches',
+        draft.modeControl,
+        'Switches',
+        `A switch for each mode picked below. On puts the unit in that mode, off puts it back in ${modes.includes('cool') ? 'cool' : 'heat'}.`,
+        pick,
       ),
-      controls.hasDryMode && !draft.hasModeSelect
-        ? toggle('dry-mode-switch', draft.hasDryModeSwitch, 'Add a switch for dry mode', `${placement(draft, 'Dry Mode', true)}.`, (hasDryModeSwitch) => update(draft, { hasDryModeSwitch }))
-        : null,
-      controls.hasFanMode && !draft.hasModeSelect
-        ? toggle('fan-mode-switch', draft.hasFanModeSwitch, 'Add a switch for fan mode', `${placement(draft, 'Fan Mode', true)}.`, (hasFanModeSwitch) => update(draft, { hasFanModeSwitch }))
-        : null,
     ),
+    draft.modeControl === 'switches'
+      ? h(
+          'div',
+          { class: 'choices' },
+          ...switchable.map((mode) =>
+            toggle(`mode-switch-${mode}`, modeSwitches.includes(mode), `Add a switch for ${labels[mode].toLowerCase()}`, `${placement(draft, labels[mode], true)}.`, (isOn) =>
+              update(draft, { modeSwitches: switchable.filter((other) => (other === mode ? isOn : modeSwitches.includes(other))) }),
+            ),
+          ),
+        )
+      : null,
   );
 }
 
