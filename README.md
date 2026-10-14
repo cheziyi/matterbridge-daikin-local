@@ -146,7 +146,7 @@ A solid line is always there. A dashed one is there when you choose it in the se
 | Humidity Sensor      | 0x0307 | A humidity sensor of its own                          |
 | Temperature Sensor   | 0x0302 | The outdoor temperature                               |
 
-The setup can also make each part a device of its own: see [One device or several](#one-device-or-several).
+The setup can also make each part a device of its own: see [One device or several](#one-device-or-several). The names below, such as `<name> Fan`, are those of the parts as devices of their own. As parts they have no name in Matter: a switch or a mode select is tagged with what it is, such as `Vertical Swing`, and a Matter app shows each part in its own way.
 
 ### Room temperature, humidity and outdoor temperature
 
@@ -172,7 +172,7 @@ The room temperature and the humidity are always on the air conditioner. You cho
 
 An air conditioner has no fan-off of its own, so a Matter app turning the fan to off or 0 is ignored and the fan control goes back to the speed the unit holds. To let the unit pick the speed, choose the Auto fan mode.
 
-The fan speed is a control of the air conditioner itself. For Matter apps that show no fan speed on an air conditioner, the setup can show it on a fan of its own instead, named `<name> Fan`, as steps or as a percentage. No preset does this. The fan behaves the same in either place: it shows the speed the unit holds, also while the unit is off, and it cannot be turned off.
+The fan speed is a control of the air conditioner itself. For Matter apps that show no fan speed on an air conditioner, or do not show it well, the setup can move it to a fan of its own instead, named `<name> Fan`, as steps or as a percentage. The air conditioner then has no fan speed, so an app does not show two. No preset does this. The fan behaves the same in either place: it shows the speed the unit holds, also while the unit is off, and it cannot be turned off.
 
 For Matter apps that show no Auto fan mode, the setup can add a switch named `<name> Auto Fan` on a unit that has an auto fan speed. On sets the fan to auto. Off puts it back at the speed it last ran at, or at a middle speed when the plugin never saw it at one. The switch is not offered while the fan is hidden with a fixed speed, because that speed is sent with every command.
 
