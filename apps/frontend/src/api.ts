@@ -13,7 +13,7 @@ import type { DiscoveredDevice, SetupDevice, SetupReplies, SetupReply } from '..
 // The types are the plugin's own, so the page and the plugin cannot drift apart. They are only types: nothing of the
 // plugin is loaded in the browser. The page has its own words for some of them.
 export type { FanSpeed, SpecialMode, SwingMode } from 'daikin-local-control';
-export type { SwitchedMode } from '../../../src/config.js';
+export type { ModeReplacements, SwitchedMode } from '../../../src/config.js';
 export type { AvailableControls } from '../../../src/controls.js';
 export type { ProbeResult } from '../../../src/setup/probe.js';
 export type { SetupState } from '../../../src/setup/setupApi.js';

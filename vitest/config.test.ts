@@ -98,7 +98,8 @@ describe('config', () => {
       swingControl: 'select',
       swingModeWhenHidden: 'both',
       modeControl: 'switches',
-      modeSwitches: ['dehumidify', 'fan'],
+      modeSwitches: ['cool', 'dehumidify', 'fan'],
+      modeReplacements: { dehumidify: 'heat', fan: 'auto' },
       fanAutoControl: 'lastStep',
       hasSeparateFan: true,
       specialModeSwitches: ['powerful', 'streamer'],
@@ -111,6 +112,25 @@ describe('config', () => {
     // The MAC address is stored in one form, and the special modes in one order.
     expect(parseDeviceConfig({ ...stored, macAddress: 'a408eacc91d4', specialModeSwitches: ['streamer', 'turbo', 'powerful'] })).toEqual(stored);
     expect(parseDeviceConfig({ ...stored, specialModeSwitches: 'powerful' })).toEqual({ ...stored, specialModeSwitches: [] });
+    // The mode switches are stored in one order too.
+    expect(parseDeviceConfig({ ...stored, modeSwitches: ['fan', 'cool', 'dehumidify'] })).toEqual(stored);
+  });
+
+  it('should keep the mode replacements that are valid, and report the others', () => {
+    const device = createDeviceConfig({ name: 'A', host: 'h', modeControl: 'replacements', modeReplacements: { dehumidify: 'cool' } });
+    const report = vi.fn();
+    // A thermostat mode stands for one mode at most: the first to take it keeps it.
+    const stored = { ...device, modeReplacements: { dehumidify: 'cool', fan: 'cool', turbo: 'auto' } };
+    expect(parseDeviceConfig(stored, report)).toEqual(device);
+    expect(report).toHaveBeenCalledExactlyOnceWith('"A" has mode replacements this version does not take, which are dropped: {"fan":"cool","turbo":"auto"}');
+
+    report.mockClear();
+    expect(parseDeviceConfig({ ...device, modeReplacements: { dehumidify: 'dehumidify', fan: 'dry' } }, report)).toEqual({ ...device, modeReplacements: {} });
+    expect(report).toHaveBeenCalledExactlyOnceWith('"A" has mode replacements this version does not take, which are dropped: {"dehumidify":"dehumidify","fan":"dry"}');
+
+    report.mockClear();
+    expect(parseDeviceConfig({ ...device, modeReplacements: ['cool'] }, report)).toEqual({ ...device, modeReplacements: {} });
+    expect(report).toHaveBeenCalledExactlyOnceWith('"A" has the modeReplacements ["cool"], which is not valid: {} is used instead');
   });
 
   it('should fall back to the defaults for fields that are not valid, and report each', () => {
@@ -127,7 +147,7 @@ describe('config', () => {
       swingControl: 1,
       swingModeWhenHidden: null,
       modeControl: 'yes',
-      modeSwitches: ['heat'],
+      modeSwitches: ['dry'],
       fanAutoControl: 'middleStep',
       specialModeSwitches: ['turbo'],
     };
@@ -138,7 +158,7 @@ describe('config', () => {
     expect(report).toHaveBeenCalledTimes(10);
     expect(report).toHaveBeenCalledWith('"A" has the fanAutoControl "middleStep", which is not valid: "native" is used instead');
     expect(report).toHaveBeenCalledWith('"A" has the modeControl "yes", which is not valid: "native" is used instead');
-    expect(report).toHaveBeenCalledWith('"A" has mode switches this version does not know, which are dropped: ["heat"]');
+    expect(report).toHaveBeenCalledWith('"A" has mode switches this version does not know, which are dropped: ["dry"]');
     expect(report).toHaveBeenCalledWith('"A" has the usesHttps "yes", which is not valid: false is used instead');
     expect(report).toHaveBeenCalledWith('"A" has the fanControl "fast", which is not valid: "steps" is used instead');
     expect(report).toHaveBeenCalledWith('"A" has the swingModeWhenHidden null, which is not valid: "keep" is used instead');
@@ -225,6 +245,8 @@ describe('config', () => {
     expect(hasSameExposure(device, createDeviceConfig({ swingControl: 'hidden' }))).toBe(false);
     expect(hasSameExposure(device, createDeviceConfig({ modeControl: 'switches' }))).toBe(false);
     expect(hasSameExposure(device, createDeviceConfig({ modeSwitches: ['fan'] }))).toBe(false);
+    expect(hasSameExposure(device, createDeviceConfig({ modeReplacements: { fan: 'auto' } }))).toBe(false);
+    expect(hasSameExposure(createDeviceConfig({ modeReplacements: { fan: 'auto' } }), createDeviceConfig({ modeReplacements: { fan: 'auto' } }))).toBe(true);
     expect(hasSameExposure(device, createDeviceConfig({ fanAutoControl: 'switch' }))).toBe(false);
     expect(hasSameExposure(device, createDeviceConfig({ fanAutoControl: 'firstStep' }))).toBe(false);
     expect(hasSameExposure(device, createDeviceConfig({ modeControl: 'select' }))).toBe(false);

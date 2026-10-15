@@ -1,15 +1,15 @@
 /**
  * @file apps/frontend/src/screens/options.ts
- * @description The Options step: how the fan, the swing, the extra modes and the readings of a unit appear in Matter, one section each, and whether as one device.
+ * @description The Options step: how the fan, the swing, the modes and the readings of a unit appear in Matter, one section each, and whether as one device.
  * @author Calvin Che
  * @license Apache-2.0
  */
 
 import { goHome, saveDraft } from '../actions.js';
-import type { AvailableControls, Exposure, FanSpeed, SpecialMode, SwingMode, SwitchedMode } from '../api.js';
+import type { AvailableControls, Exposure, FanSpeed, ModeReplacements, SpecialMode, SwingMode, SwitchedMode } from '../api.js';
 import { button, notice, steps, unitHeader, unitStrip } from '../components.js';
 import { type Child, h } from '../dom.js';
-import { noControls } from '../exposure.js';
+import { canReplace, fitModeReplacements, noControls } from '../exposure.js';
 import { matchesPreset, presetExposure, type PresetName, presets } from '../presets.js';
 import { render } from '../render.js';
 import { currentDraft, type Draft } from '../state.js';
@@ -30,6 +30,8 @@ const swingModeLabels: Record<SwingMode, string> = {
   horizontal: 'Left and right',
   both: 'Up, down, left and right',
 };
+
+const modeLabels: Record<SwitchedMode, string> = { auto: 'Auto', cool: 'Cool', heat: 'Heat', dehumidify: 'Dry', fan: 'Fan' };
 
 const specialModeTexts: Record<SpecialMode, { title: string; text: string }> = {
   powerful: { title: 'Powerful', text: 'Runs the unit at full power for a while.' },
@@ -77,6 +79,19 @@ function radio<T extends string>(group: string, value: T, current: T, title: str
 function toggle(id: string, isOn: boolean, title: string, text: string, onpick: (isOn: boolean) => void): HTMLElement {
   const input = h('input', { type: 'checkbox', id, checked: isOn, onchange: () => onpick(input.checked) });
   return h('label', { class: 'choice', for: id }, input, h('span', {}, h('strong', {}, title), h('span', { class: 'meta' }, text)));
+}
+
+// A compact multi-select, one chip for each value: for a list that full sized choices would make too long.
+function chips<T extends string>(group: string, label: string, values: readonly T[], picked: readonly T[], labels: Record<T, string>, onpick: (picked: T[]) => void): HTMLElement {
+  return h(
+    'div',
+    { 'class': 'chips', 'role': 'group', 'aria-label': label },
+    ...values.map((value) => {
+      const id = `${group}-${value}`;
+      const input = h('input', { type: 'checkbox', id, checked: picked.includes(value), onchange: () => onpick(values.filter((other) => (other === value ? input.checked : picked.includes(other)))) });
+      return h('label', { class: 'chip', for: id }, input, labels[value]);
+    }),
+  );
 }
 
 function presetSection(draft: Draft, controls: AvailableControls): HTMLElement {
@@ -236,46 +251,110 @@ function swingSection(draft: Draft): HTMLElement {
   );
 }
 
+// What the replacements start with: dry, then fan, shown as each of cool, heat and auto the unit lacks, as far as they go.
+function startReplacements(controls: AvailableControls): ModeReplacements {
+  const replacements: ModeReplacements = {};
+  for (const shown of ['cool', 'heat', 'auto'] as const) {
+    const mode = (['dehumidify', 'fan'] as const).find((source) => replacements[source] === undefined && canReplace(source, shown, replacements, controls));
+    if (mode !== undefined) replacements[mode] = shown;
+  }
+  return replacements;
+}
+
+// One row for each thermostat mode the unit lacks: which of its modes, if any, an app picking that mode runs.
+function replacementFields(draft: Draft, controls: AvailableControls): HTMLElement {
+  const replacements = fitModeReplacements(draft.modeReplacements, controls);
+  return h(
+    'div',
+    { class: 'replacements' },
+    ...controls.lackingModes.flatMap((shown) => {
+      const id = `mode-replacement-${shown}`;
+      const current = controls.switchableModes.find((mode) => replacements[mode] === shown);
+      // What the other rows hold, which this one picks among.
+      const others: ModeReplacements = Object.fromEntries(Object.entries(replacements).filter(([, replacement]) => replacement !== shown));
+      const onchange = (event: Event): void => {
+        const value = (event.target as HTMLSelectElement).value as SwitchedMode | '';
+        const next: ModeReplacements = { ...others };
+        if (value !== '') next[value] = shown;
+        update(draft, { modeReplacements: fitModeReplacements(next, controls) });
+      };
+      return [
+        h('label', { for: id }, modeLabels[shown]),
+        h(
+          'select',
+          { id, onchange },
+          h('option', { value: '', selected: current === undefined }, 'is not offered'),
+          ...controls.switchableModes.map((mode) =>
+            h(
+              'option',
+              { value: mode, selected: current === mode, disabled: others[mode] !== undefined || !canReplace(mode, shown, others, controls) },
+              `runs ${modeLabels[mode].toLowerCase()}`,
+            ),
+          ),
+        ),
+      ];
+    }),
+  );
+}
+
 function modeSection(draft: Draft, controls: AvailableControls): Child {
-  if (!controls.hasDryMode && !controls.hasFanMode) return null;
-  const modes = draft.capabilities?.modes ?? [];
-  const switchable: SwitchedMode[] = [...(controls.hasDryMode ? ['dehumidify' as const] : []), ...(controls.hasFanMode ? ['fan' as const] : [])];
-  const labels: Record<SwitchedMode, string> = { dehumidify: 'Dry Mode', fan: 'Fan Mode' };
-  const modeSwitches = switchable.filter((mode) => draft.modeSwitches.includes(mode));
-  // Switches with none picked would add nothing, so picking them starts with one for each mode.
-  const pick = (modeControl: Exposure['modeControl']): void =>
-    update(draft, modeControl === 'switches' && modeSwitches.length === 0 ? { modeControl, modeSwitches: switchable } : { modeControl });
+  const { switchableModes, lackingModes } = controls;
+  if (switchableModes.length === 0) return null;
+  const modeSwitches = switchableModes.filter((mode) => draft.modeSwitches.includes(mode));
+  const replacements = fitModeReplacements(draft.modeReplacements, controls);
+  const extraModes = switchableModes.filter((mode) => mode === 'dehumidify' || mode === 'fan');
+  const hasSelect = extraModes.length > 0;
+  const hasReplacements = lackingModes.length > 0;
+  let current = draft.modeControl;
+  if ((current === 'select' && !hasSelect) || (current === 'replacements' && !hasReplacements)) current = 'native';
+  // Switches with none picked would add nothing, so picking them starts with one for each of dry and fan, and
+  // replacements start with dry and fan shown as the modes the unit lacks.
+  const pick = (modeControl: Exposure['modeControl']): void => {
+    if (modeControl === 'switches' && modeSwitches.length === 0) update(draft, { modeControl, modeSwitches: hasSelect ? extraModes : [...switchableModes] });
+    else if (modeControl === 'replacements' && Object.keys(replacements).length === 0) update(draft, { modeControl, modeReplacements: startReplacements(controls) });
+    else update(draft, { modeControl });
+  };
+  const fallback = switchableModes.includes('cool') ? 'cool' : 'heat';
+  const extra = extraModes.map((mode) => modeLabels[mode].toLowerCase()).join(' and ');
+  const switchOff = hasSelect ? `Off turns the unit off, or from ${extra} puts it back in ${fallback}.` : 'Off turns the unit off.';
+  const example = `${modeLabels[modeSwitches.length > 0 ? modeSwitches[0] : switchableModes[0]]} Mode`;
+  const switchPlace = draft.isComposed ? `Each appears as a part of "${draft.name}", tagged with its mode, such as "${example}".` : `Each appears as "${draft.name} ${example}", and so on.`;
+  // Such as "auto, dry or heat".
+  const lackingLabels = lackingModes.map((mode) => modeLabels[mode].toLowerCase());
+  const lacking = lackingLabels.length === 1 ? lackingLabels[0] : `${lackingLabels.slice(0, -1).join(', ')} or ${lackingLabels[lackingLabels.length - 1]}`;
   return h(
     'section',
     {},
-    h('h2', {}, 'Dry and fan modes'),
-    h('p', { class: 'help' }, 'These are among the modes of the air conditioner in Matter, but some apps, such as Apple Home, only offer cool, heat and auto.'),
+    h('h2', {}, 'Modes'),
+    h('p', { class: 'help' }, 'Every mode of the unit is a mode of the air conditioner in Matter, but some apps, such as Apple Home and Google Home, only offer off, cool, heat and auto.'),
     h(
       'div',
-      { 'class': 'choices', 'role': 'radiogroup', 'aria-label': 'Dry and fan modes' },
-      radio('mode-control', 'native', draft.modeControl, 'Native modes only', 'Dry and fan are modes of the air conditioner, as Matter has them, and nothing more is added.', pick),
-      radio('mode-control', 'select', draft.modeControl, 'A mode select', `${placement(draft, 'Mode', true)}, with Off and every mode of the unit, as the air conditioner has them. Picking a mode turns the unit on in it. ${selectSupport}`, pick),
-      // Last, so that the switches picked below it stay with it.
-      radio(
-        'mode-control',
-        'switches',
-        draft.modeControl,
-        'Switches',
-        `A switch for each mode picked below. On puts the unit in that mode, off puts it back in ${modes.includes('cool') ? 'cool' : 'heat'}.`,
-        pick,
-      ),
+      { 'class': 'choices', 'role': 'radiogroup', 'aria-label': 'Modes' },
+      radio('mode-control', 'native', current, 'Native modes only', 'The modes of the unit are those of the air conditioner, as Matter has them, and nothing more is added.', pick),
+      hasSelect
+        ? radio('mode-control', 'select', current, 'A mode select', `${placement(draft, 'Mode', true)}, with Off and every mode of the unit, as the air conditioner has them. Picking a mode turns the unit on in it. ${selectSupport}`, pick)
+        : null,
+      hasReplacements
+        ? radio(
+            'mode-control',
+            'replacements',
+            current,
+            'Modes the unit lacks run others',
+            `This unit has no ${lacking}. Pick below which of its modes each of those runs, such as heat running dry on a unit that only cools: an app then reaches that mode from the modes it offers, and nothing is added to Matter. The air conditioner shows the mode picked while the unit is in it, with its setpoint. Auto is offered once the air conditioner both cools and heats, counting these.`,
+            pick,
+          )
+        : null,
+      current === 'replacements' ? replacementFields(draft, controls) : null,
+      radio('mode-control', 'switches', current, 'Switches', `A switch for each mode picked below. On turns the unit on in that mode. ${switchOff}`, pick),
+      current === 'switches'
+        ? h(
+            'div',
+            { class: 'sub' },
+            chips('mode-switch', 'Modes that get a switch', switchableModes, modeSwitches, modeLabels, (picked) => update(draft, { modeSwitches: picked })),
+            h('p', { class: 'help' }, switchPlace),
+          )
+        : null,
     ),
-    draft.modeControl === 'switches'
-      ? h(
-          'div',
-          { class: 'choices' },
-          ...switchable.map((mode) =>
-            toggle(`mode-switch-${mode}`, modeSwitches.includes(mode), `Add a switch for ${labels[mode].toLowerCase()}`, `${placement(draft, labels[mode], true)}.`, (isOn) =>
-              update(draft, { modeSwitches: switchable.filter((other) => (other === mode ? isOn : modeSwitches.includes(other))) }),
-            ),
-          ),
-        )
-      : null,
   );
 }
 

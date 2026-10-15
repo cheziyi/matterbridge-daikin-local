@@ -23,7 +23,7 @@
 
 import type { DaikinCapabilities, DaikinControl, DaikinState, FanSpeed, OperatingMode, SpecialMode } from 'daikin-local-control';
 
-import { type DaikinDeviceConfig, KEEP_SETTING } from '../config.js';
+import { type DaikinDeviceConfig, KEEP_SETTING, type ModeReplacements } from '../config.js';
 import { clampTemperature, getTemperatureRange, resolveSwingMode, type SwingChange } from '../mapping.js';
 
 export type SwingAxis = keyof SwingChange;
@@ -39,6 +39,8 @@ export interface UnitSnapshot {
   fanSteps: readonly FanSpeed[];
   /** The speed the fan last ran at when it was not on auto, which turning auto off goes back to. */
   lastManualFanSpeed: FanSpeed | undefined;
+  /** The thermostat mode each mode of the unit is shown as, whose setpoints it takes. */
+  modeReplacements: ModeReplacements;
 }
 
 /** What a command sends: one change of state, then one request for each special mode. */
@@ -164,7 +166,7 @@ export class PendingCommand {
   take(unit: UnitSnapshot, readFanSpeed: () => FanSpeed | undefined): CommandRequests {
     const { control, specialModes } = this;
     const mode = control.mode ?? unit.state?.mode;
-    const target = this.resolveSetpoint(mode, unit.state);
+    const target = this.resolveSetpoint(mode, unit);
     if (mode !== undefined && target !== undefined) control.targetTemperatureInC = clampTemperature(target, getTemperatureRange(unit.capabilities, mode));
     // An app turns a fan off by setting it to off or 0 as well: turning the unit off keeps the speed it holds.
     if (this.isFanSpeedRequested && control.power !== false) {
@@ -188,13 +190,16 @@ export class PendingCommand {
     return { control, specialModes };
   }
 
+  // A mode takes the setpoint of the thermostat mode it is shown as. Dry and fan take none, whatever they are shown as.
   // In auto the unit has one setpoint for Matter's two, so the one that moved away from the unit's own wins.
-  private resolveSetpoint(mode: OperatingMode | undefined, state: DaikinState | undefined): number | undefined {
+  private resolveSetpoint(mode: OperatingMode | undefined, unit: UnitSnapshot): number | undefined {
+    if (mode === undefined || mode === 'dehumidify' || mode === 'fan') return undefined;
     const { cool, heat } = this.setpoints;
-    if (mode === 'cool') return cool;
-    if (mode === 'heat') return heat;
-    if (mode !== 'auto') return undefined;
-    const current = state?.targetTemperatureInC;
+    const shown = unit.modeReplacements[mode] ?? mode;
+    if (shown === 'cool') return cool;
+    if (shown === 'heat') return heat;
+    if (shown !== 'auto') return undefined;
+    const current = unit.state?.targetTemperatureInC;
     return [cool, heat].find((setpoint) => setpoint !== undefined && setpoint !== current);
   }
 }

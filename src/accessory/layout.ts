@@ -21,16 +21,18 @@
  * limitations under the License.
  */
 
-import type { DaikinCapabilities, FanSpeed, SwingMode, TemperatureRange } from 'daikin-local-control';
+import type { DaikinCapabilities, FanSpeed, OperatingMode, SwingMode, TemperatureRange } from 'daikin-local-control';
 
-import type { DaikinDeviceConfig } from '../config.js';
-import { hasFanAuto, type ReportedSensors } from '../controls.js';
+import { type DaikinDeviceConfig, type ModeReplacements, THERMOSTAT_MODES } from '../config.js';
+import { getModeReplacements, hasFanAuto, type ReportedSensors } from '../controls.js';
 import { getFanSteps, getTemperatureRange, getThermostatProfile, type ModeSelectValue, type ThermostatProfile } from '../mapping.js';
 
 /** How the controls of a device are laid out in Matter, worked out once from what its unit accepts and how it is configured. */
 export interface AccessoryLayout {
-  /** Which Thermostat features the unit takes. */
+  /** Which Thermostat features the device has: those of the unit, and those of the mode replacements. */
   profile: ThermostatProfile;
+  /** The thermostat mode each mode of the unit is shown as, or none when the device has no mode replacements. */
+  modeReplacements: ModeReplacements;
   /** The fan speeds a controller can pick, slowest first, without `auto`. */
   fanSteps: FanSpeed[];
   /** The fan speeds on the scale of the fan control, from its first step: the fan steps, with `auto` below or above them when it is a step. */
@@ -47,9 +49,9 @@ export interface AccessoryLayout {
   hasFanAutoSwitch: boolean;
   /** Whether the fan control offers its speeds as steps, besides the percent. */
   hasFanSteps: boolean;
-  /** The limits of the heating setpoint, in °C. */
+  /** The limits of the heating setpoint, in °C: those of the mode shown as Heat. */
   heatLimits: TemperatureRange;
-  /** The limits of the cooling setpoint, in °C. */
+  /** The limits of the cooling setpoint, in °C: those of the mode shown as Cool. */
   coolLimits: TemperatureRange;
   /** Whether the device shows the indoor humidity. */
   hasHumidity: boolean;
@@ -75,12 +77,16 @@ export interface AccessoryLayout {
  * @throws {Error} When the unit neither cools nor heats, so no Matter thermostat can stand for it.
  */
 export function getAccessoryLayout(config: DaikinDeviceConfig, capabilities: DaikinCapabilities, reportedSensors: ReportedSensors): AccessoryLayout {
-  const profile = getThermostatProfile(capabilities.modes);
+  const modeReplacements = config.modeControl === 'replacements' ? getModeReplacements(config.modeReplacements, capabilities.modes) : {};
+  // A replacement can give the thermostat a mode the unit lacks, such as Heat on a unit that only cools.
+  const profile = getThermostatProfile([...capabilities.modes, ...Object.values(modeReplacements)]);
   if (profile === undefined) throw new Error(`"${config.name}" neither cools nor heats and cannot be exposed as an air conditioner`);
   const fanSteps = getFanSteps(capabilities.fanSpeeds);
+  // The setpoint of a thermostat mode is that of the mode of the unit shown as it.
+  const shownAs = (shown: 'cool' | 'heat'): OperatingMode => THERMOSTAT_MODES.find((mode) => modeReplacements[mode] === shown) ?? shown;
   // With both heating and cooling, Matter wants the cooling limits at or above the heating limits.
-  const heatRange = getTemperatureRange(capabilities, 'heat');
-  const coolRange = getTemperatureRange(capabilities, 'cool');
+  const heatRange = getTemperatureRange(capabilities, shownAs('heat'));
+  const coolRange = getTemperatureRange(capabilities, shownAs('cool'));
   const hasFan = config.fanControl !== 'hidden' && fanSteps.length > 0;
   const hasAutoStep = hasFan && capabilities.fanSpeeds.includes('auto') && (config.fanAutoControl === 'firstStep' || config.fanAutoControl === 'lastStep');
   const hasAutoSwitch = config.fanAutoControl === 'switch' && hasFanAuto(capabilities);
@@ -88,6 +94,7 @@ export function getAccessoryLayout(config: DaikinDeviceConfig, capabilities: Dai
   if (hasAutoStep) fanPositions = config.fanAutoControl === 'firstStep' ? ['auto', ...fanSteps] : [...fanSteps, 'auto'];
   return {
     profile,
+    modeReplacements,
     fanSteps,
     fanPositions,
     hasFan,

@@ -6,12 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [0.6.1]
 
+### Added
+
+- [devices]: Add the option to have a Matter mode the unit lacks run one of its modes, for Matter apps that offer only some of them, with nothing more added to Matter: Heat running dry on a unit that only cools, or Auto running fan. The air conditioner shows that mode, with its setpoint, while the unit is in the mode it runs. It is the `replacements` value of `modeControl`, with `modeReplacements` from each mode of the unit to the mode it is shown as, such as `{ "dehumidify": "heat", "fan": "auto" }`.
+- [devices]: Add a switch for any mode of the unit, Auto, Cool and Heat among them, not only for dry and fan. Turning one of those three off turns the unit off. The setup page picks the switches with a compact list.
+
 ### Changed
 
+- [setup]: Start a new air conditioner with the Apple Home preset in the setup page, instead of choices that matched no preset.
+- [setup]: The Apple Home and Google Home presets add a switch for each of the dry and fan modes the unit has, since both apps are reported to offer only off, cool, heat and auto.
 - [devices]: Give a fan of its own an on/off that follows the power of the air conditioner, so that a Matter app does not show the fan running while the unit is off. Turning the fan on or off turns the air conditioner on or off, and the fan keeps showing the speed the unit holds. A command that turns the unit off leaves its fan speed as it is, since an app that turns a fan off sets its speed to 0 as well.
 
 ### Fixed
 
+- [devices]: Put a setpoint a Matter app changes while the unit is in dry or fan back to what it showed, since neither mode takes one, instead of leaving the app showing a setpoint the unit never took.
 - [devices]: Keep taking the commands of a Matter app after the bridge is removed from the last app it was in and paired again. Matter resets the bridge to factory defaults when its last app leaves, which dropped what the plugin listens to on each endpoint, so that commands reached nothing until Matterbridge was restarted. The plugin now listens again once each endpoint is back, and writes the state of the unit to it.
 
 ## [0.6.0] - 2026-10-14

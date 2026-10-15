@@ -36,7 +36,7 @@ import type { AnsiLogger } from 'matterbridge/logger';
 import type { ActionContext } from 'matterbridge/matter';
 import { BridgedDeviceBasicInformation, FanControl, ModeSelect, OnOff, Thermostat } from 'matterbridge/matter/clusters';
 
-import type { DaikinDeviceConfig, SwitchedMode } from '../config.js';
+import { type DaikinDeviceConfig, SWITCHED_MODES, type SwitchedMode } from '../config.js';
 import { addReportedSensors, getSwitchableSpecialModes, noReportedSensors, type ReportedSensors } from '../controls.js';
 import { getErrorMessage } from '../errors.js';
 import { modeSelectChoices, type SelectChoices, swingSelectChoices, toModeOptions, toOperatingMode } from '../mapping.js';
@@ -58,6 +58,18 @@ export const defaultCommandDelayInMs = 300;
 
 /** How many reads in a row have to fail before the device is reported as unreachable. */
 const unreachableAfterFailures = 2;
+
+/**
+ * What tells the switch of each mode apart, and what it is called in Matter. The first letters of Auto and Heat are
+ * taken by the auto fan switch and the horizontal swing switch.
+ */
+const modeSwitchNames: Readonly<Record<SwitchedMode, { key: string; code: string; label: string }>> = {
+  auto: { key: 'auto-mode', code: 'U', label: 'Auto Mode' },
+  cool: { key: 'cool-mode', code: 'C', label: 'Cool Mode' },
+  heat: { key: 'heat-mode', code: 'T', label: 'Heat Mode' },
+  dehumidify: { key: 'dry-mode', code: 'D', label: 'Dry Mode' },
+  fan: { key: 'fan-mode', code: 'F', label: 'Fan Mode' },
+};
 
 /** What each special mode is called in Matter and in the log: Daikin's own names. */
 const specialModeLabels: Readonly<Record<SpecialMode, string>> = { powerful: 'Powerful', econo: 'Econo', streamer: 'Streamer' };
@@ -103,7 +115,7 @@ function ignore(): void {
 
 /**
  * One Daikin air conditioner and the Matter endpoints that stand for it: a room air conditioner and, when they are
- * exposed, one on/off switch for each axis the unit swings on, for each of the dry and fan modes, for the auto fan speed
+ * exposed, one on/off switch for each axis the unit swings on, for each mode, for the auto fan speed
  * and for each special mode, and a mode select for the mode and one for the swing. The fan control is a fan of its own
  * when it is exposed that way. The humidity of a unit that has given it is on the air conditioner, and on a sensor of
  * its own too when one is asked for. A unit that has given its outdoor temperature gets a sensor for it, unless none is
@@ -119,8 +131,8 @@ export class DaikinAccessory implements AccessoryEndpoints {
   readonly endpoint: MatterbridgeEndpoint;
   readonly verticalSwitch: MatterbridgeEndpoint | undefined;
   readonly horizontalSwitch: MatterbridgeEndpoint | undefined;
-  readonly dryModeSwitch: MatterbridgeEndpoint | undefined;
-  readonly fanModeSwitch: MatterbridgeEndpoint | undefined;
+  /** The switch of each mode that is exposed. */
+  readonly modeSwitches: ReadonlyMap<SwitchedMode, MatterbridgeEndpoint>;
   readonly fanAutoSwitch: MatterbridgeEndpoint | undefined;
   /** The fan, when the fan control is not a part of the air conditioner. */
   readonly fan: MatterbridgeEndpoint | undefined;
@@ -156,6 +168,8 @@ export class DaikinAccessory implements AccessoryEndpoints {
 
   // What the controllers asked for since the last command was sent.
   private readonly pending = new PendingCommand();
+  // What the setpoints showed before the controllers wrote them since the last command, in the Matter encoding.
+  private setpointsBefore: Partial<Record<SetpointKind, number>> = {};
   private hasPendingCommand = false;
   private commandTimer: NodeJS.Timeout | undefined;
   // Reads and commands run one after the other, so a read never overwrites what a command is about to send.
@@ -188,10 +202,12 @@ export class DaikinAccessory implements AccessoryEndpoints {
       if (this.capabilities.swingModes.includes('vertical')) this.verticalSwitch = this.createSwingSwitch('vertical');
       if (this.capabilities.swingModes.includes('horizontal')) this.horizontalSwitch = this.createSwingSwitch('horizontal');
     }
-    const hasModeSwitch = (mode: SwitchedMode): boolean =>
-      this.config.modeControl === 'switches' && this.config.modeSwitches.includes(mode) && this.capabilities.modes.includes(mode);
-    if (hasModeSwitch('dehumidify')) this.dryModeSwitch = this.createModeSwitch('dehumidify');
-    if (hasModeSwitch('fan')) this.fanModeSwitch = this.createModeSwitch('fan');
+    const modeSwitches = new Map<SwitchedMode, MatterbridgeEndpoint>();
+    for (const mode of SWITCHED_MODES) {
+      const hasModeSwitch = this.config.modeControl === 'switches' && this.config.modeSwitches.includes(mode) && this.capabilities.modes.includes(mode);
+      if (hasModeSwitch) modeSwitches.set(mode, this.createModeSwitch(mode));
+    }
+    this.modeSwitches = modeSwitches;
     if (this.layout.hasFanAutoSwitch) {
       this.fanAutoSwitch = this.createSwitch('fan-auto', 'A', 'Auto Fan', (isOn) => {
         this.pending.requestFanAuto(isOn);
@@ -226,7 +242,7 @@ export class DaikinAccessory implements AccessoryEndpoints {
    */
   get endpoints(): MatterbridgeEndpoint[] {
     if (this.parent !== undefined) return [this.parent, this.outdoorTemperatureSensor].filter((endpoint) => endpoint !== undefined);
-    const switches = [this.verticalSwitch, this.horizontalSwitch, this.dryModeSwitch, this.fanModeSwitch, this.fanAutoSwitch, ...this.specialModeSwitches.values()];
+    const switches = [this.verticalSwitch, this.horizontalSwitch, ...this.modeSwitches.values(), this.fanAutoSwitch, ...this.specialModeSwitches.values()];
     return [this.endpoint, this.fan, ...switches, this.modeSelect, this.swingSelect, this.humiditySensor, this.outdoorTemperatureSensor].filter(
       (endpoint) => endpoint !== undefined,
     );
@@ -352,15 +368,15 @@ export class DaikinAccessory implements AccessoryEndpoints {
     );
     if (profile !== 'heat') {
       this.listen(endpoint, () =>
-        endpoint.subscribeAttribute(Thermostat, 'occupiedCoolingSetpoint', (setpoint: number, _previous: number, context: ActionContext) => {
-          if (isControllerWrite(context)) this.queueSetpoint('cool', setpoint);
+        endpoint.subscribeAttribute(Thermostat, 'occupiedCoolingSetpoint', (setpoint: number, previous: number, context: ActionContext) => {
+          if (isControllerWrite(context)) this.queueSetpoint('cool', setpoint, previous);
         }),
       );
     }
     if (profile !== 'cool') {
       this.listen(endpoint, () =>
-        endpoint.subscribeAttribute(Thermostat, 'occupiedHeatingSetpoint', (setpoint: number, _previous: number, context: ActionContext) => {
-          if (isControllerWrite(context)) this.queueSetpoint('heat', setpoint);
+        endpoint.subscribeAttribute(Thermostat, 'occupiedHeatingSetpoint', (setpoint: number, previous: number, context: ActionContext) => {
+          if (isControllerWrite(context)) this.queueSetpoint('heat', setpoint, previous);
         }),
       );
     }
@@ -459,8 +475,8 @@ export class DaikinAccessory implements AccessoryEndpoints {
   }
 
   private createModeSwitch(mode: SwitchedMode): MatterbridgeEndpoint {
-    const isDry = mode === 'dehumidify';
-    return this.createSwitch(isDry ? 'dry-mode' : 'fan-mode', isDry ? 'D' : 'F', isDry ? 'Dry Mode' : 'Fan Mode', (isOn) => this.handleModeSwitch(mode, isOn));
+    const { key, code, label } = modeSwitchNames[mode];
+    return this.createSwitch(key, code, label, (isOn) => this.handleModeSwitch(mode, isOn));
   }
 
   private createSpecialModeSwitch(specialMode: SpecialMode): MatterbridgeEndpoint {
@@ -476,11 +492,13 @@ export class DaikinAccessory implements AccessoryEndpoints {
       this.queueControl({ power: true, mode }, `${mode} mode switch on`);
       return;
     }
-    // Leaving the mode goes back to cooling, or to heating on a unit that only heats. A switch turned off after the
-    // unit already left the mode sends nothing: the read that follows shows where the unit is.
+    // A switch turned off after the unit already left the mode sends nothing: the read that follows shows where the unit is.
     const isInMode = (this.pending.mode ?? this.state?.mode) === mode;
-    if (isInMode) this.queueControl({ mode: this.layout.profile === 'heat' ? 'heat' : 'cool' }, `${mode} mode switch off`);
-    else this.scheduleCommand(`${mode} mode switch off`);
+    if (!isInMode) this.scheduleCommand(`${mode} mode switch off`);
+    // Leaving dry or fan goes back to cooling, or to heating on a unit that only heats. Leaving any other mode turns the
+    // unit off, as there is no mode to go back to.
+    else if (mode === 'dehumidify' || mode === 'fan') this.queueControl({ mode: this.layout.profile === 'heat' ? 'heat' : 'cool' }, `${mode} mode switch off`);
+    else this.queueControl({ power: false }, `${mode} mode switch off`);
   }
 
   private handleSystemMode(systemMode: Thermostat.SystemMode): void {
@@ -488,14 +506,14 @@ export class DaikinAccessory implements AccessoryEndpoints {
       this.queueControl({ power: false }, 'mode off');
       return;
     }
-    const mode = toOperatingMode(systemMode, this.capabilities.modes);
+    const mode = toOperatingMode(systemMode, this.capabilities.modes, this.layout.modeReplacements);
     if (mode === undefined) {
       this.log.warn(`"${this.name}" has no mode for the Matter system mode ${Thermostat.SystemMode[systemMode]}: the request is ignored`);
       // Nothing is sent, but the read that follows puts the unit's own mode back.
       this.scheduleCommand('a mode it does not have');
       return;
     }
-    this.queueControl({ power: true, mode }, `mode ${mode}`);
+    this.queueControl({ power: true, mode }, `mode ${mode} for the Matter system mode ${Thermostat.SystemMode[systemMode]}`);
   }
 
   private queueControl(control: DaikinControl, description: string): void {
@@ -503,7 +521,9 @@ export class DaikinAccessory implements AccessoryEndpoints {
     this.scheduleCommand(description);
   }
 
-  private queueSetpoint(kind: SetpointKind, setpoint: number): void {
+  private queueSetpoint(kind: SetpointKind, setpoint: number, previous: number): void {
+    // The first write since the last command holds what the setpoint showed before any of them.
+    this.setpointsBefore[kind] ??= previous;
     this.pending.requestSetpoint(kind, setpoint / 100);
     this.scheduleCommand(`${kind} setpoint ${setpoint / 100} °C`);
   }
@@ -552,7 +572,15 @@ export class DaikinAccessory implements AccessoryEndpoints {
   private async sendPendingCommand(): Promise<void> {
     if (!this.hasPendingCommand) return;
     this.hasPendingCommand = false;
-    const unit = { state: this.state, capabilities: this.capabilities, fanSteps: this.layout.fanSteps, lastManualFanSpeed: this.lastManualFanSpeed };
+    const setpointsBefore = this.setpointsBefore;
+    this.setpointsBefore = {};
+    const unit = {
+      state: this.state,
+      capabilities: this.capabilities,
+      fanSteps: this.layout.fanSteps,
+      lastManualFanSpeed: this.lastManualFanSpeed,
+      modeReplacements: this.layout.modeReplacements,
+    };
     const { control, specialModes } = this.pending.take(unit, () => readFanSpeed(this.fan ?? this.endpoint, this.layout.fanPositions));
     const mode = control.mode ?? this.state?.mode;
     if (Object.keys(control).length > 0) {
@@ -567,10 +595,17 @@ export class DaikinAccessory implements AccessoryEndpoints {
     await this.sendSpecialModes(specialModes, mode);
     // Read back what the unit holds, which also undoes a request it did not take. The readings of the last poll are
     // recent enough to go with it.
-    await this.readAndApply(false);
+    await this.readAndApply(false, setpointsBefore);
   }
 
-  private async readAndApply(shouldReadSensors: boolean): Promise<boolean> {
+  /**
+   * Read the unit and write what it holds to Matter
+   *
+   * @param {boolean} shouldReadSensors Whether to read the sensors too, instead of keeping the readings of the last poll.
+   * @param {Partial<Record<SetpointKind, number>>} [setpointsBefore] What the setpoints showed before the command just sent, which are put back while the unit is in a mode that takes none.
+   * @returns {Promise<boolean>} True when the unit answered.
+   */
+  private async readAndApply(shouldReadSensors: boolean, setpointsBefore: Partial<Record<SetpointKind, number>> = {}): Promise<boolean> {
     if (this.isClosed) return false;
     let state: DaikinState;
     let sensors = this.sensors;
@@ -591,10 +626,17 @@ export class DaikinAccessory implements AccessoryEndpoints {
     try {
       await this.setReachable(true);
       await applyState(this, this.layout, state, sensors);
+      // Dry and fan take no setpoint, so a setpoint a controller wrote in them would stay at what it wrote.
+      if (state.mode === 'dehumidify' || state.mode === 'fan') await this.restoreSetpoints(setpointsBefore);
     } catch (error) {
       this.log.warn(`"${this.name}" state could not be written to Matter: ${getErrorMessage(error)}`);
     }
     return true;
+  }
+
+  private async restoreSetpoints(setpoints: Partial<Record<SetpointKind, number>>): Promise<void> {
+    if (setpoints.cool !== undefined) await this.endpoint.updateAttribute(Thermostat, 'occupiedCoolingSetpoint', setpoints.cool);
+    if (setpoints.heat !== undefined) await this.endpoint.updateAttribute(Thermostat, 'occupiedHeatingSetpoint', setpoints.heat);
   }
 
   private async handleReadFailure(error: unknown): Promise<void> {

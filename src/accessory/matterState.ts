@@ -26,6 +26,7 @@ import type { MatterbridgeEndpoint } from 'matterbridge';
 import { FanControl, ModeSelect, OnOff, RelativeHumidityMeasurement, TemperatureMeasurement, Thermostat } from 'matterbridge/matter/clusters';
 import { isValidNumber } from 'matterbridge/utils';
 
+import type { SwitchedMode } from '../config.js';
 import { fanStepToPercent, getSwingAxes, modeSelectChoices, percentToFanStep, type SelectChoices, swingSelectChoices, toMatterTemperature, toSystemMode } from '../mapping.js';
 import type { AccessoryLayout } from './layout.js';
 
@@ -35,8 +36,8 @@ export interface AccessoryEndpoints {
   readonly endpoint: MatterbridgeEndpoint;
   readonly verticalSwitch: MatterbridgeEndpoint | undefined;
   readonly horizontalSwitch: MatterbridgeEndpoint | undefined;
-  readonly dryModeSwitch: MatterbridgeEndpoint | undefined;
-  readonly fanModeSwitch: MatterbridgeEndpoint | undefined;
+  /** The switch of each mode that is exposed. */
+  readonly modeSwitches: ReadonlyMap<SwitchedMode, MatterbridgeEndpoint>;
   readonly fanAutoSwitch: MatterbridgeEndpoint | undefined;
   /** The fan, when the fan control is not a part of the air conditioner. */
   readonly fan: MatterbridgeEndpoint | undefined;
@@ -92,7 +93,7 @@ function getRunningState(state: DaikinState, sensors: DaikinSensors): Record<str
 }
 
 /**
- * Write the setpoint of a unit to the Thermostat setpoints its mode uses
+ * Write the setpoint of a unit to the Thermostat setpoints of the mode it is shown in
  *
  * @param {MatterbridgeEndpoint} endpoint The air conditioner.
  * @param {AccessoryLayout} layout How the controls of the device are laid out.
@@ -106,8 +107,10 @@ async function applySetpoint(endpoint: MatterbridgeEndpoint, layout: AccessoryLa
   const hasHeating = profile !== 'cool';
   const cool = toMatterTemperature(Math.min(Math.max(targetTemperatureInC, coolLimits.min), coolLimits.max));
   const heat = toMatterTemperature(Math.min(Math.max(targetTemperatureInC, heatLimits.min), heatLimits.max));
-  if (hasCooling && (mode === 'cool' || mode === 'auto')) await endpoint.updateAttribute(Thermostat, 'occupiedCoolingSetpoint', cool);
-  if (hasHeating && (mode === 'heat' || mode === 'auto')) await endpoint.updateAttribute(Thermostat, 'occupiedHeatingSetpoint', heat);
+  // The setpoints are those of the mode the thermostat shows.
+  const shown = layout.modeReplacements[mode] ?? mode;
+  if (hasCooling && (shown === 'cool' || shown === 'auto')) await endpoint.updateAttribute(Thermostat, 'occupiedCoolingSetpoint', cool);
+  if (hasHeating && (shown === 'heat' || shown === 'auto')) await endpoint.updateAttribute(Thermostat, 'occupiedHeatingSetpoint', heat);
 }
 
 /**
@@ -186,7 +189,7 @@ export async function applySensors(endpoints: AccessoryEndpoints, layout: Access
 export async function applyState(endpoints: AccessoryEndpoints, layout: AccessoryLayout, state: DaikinState, sensors: DaikinSensors): Promise<void> {
   const { endpoint } = endpoints;
   await endpoint.updateAttribute(OnOff, 'onOff', state.power);
-  await endpoint.updateAttribute(Thermostat, 'systemMode', state.power ? toSystemMode(state.mode, layout.profile) : Thermostat.SystemMode.Off);
+  await endpoint.updateAttribute(Thermostat, 'systemMode', state.power ? toSystemMode(state.mode, layout.profile, layout.modeReplacements) : Thermostat.SystemMode.Off);
   if (state.targetTemperatureInC !== null) await applySetpoint(endpoint, layout, state.mode, state.targetTemperatureInC);
   await applySensors(endpoints, layout, sensors);
   await endpoint.updateAttribute(Thermostat, 'thermostatRunningState', getRunningState(state, sensors));
@@ -196,8 +199,7 @@ export async function applyState(endpoints: AccessoryEndpoints, layout: Accessor
   const axes = getSwingAxes(state.swingMode);
   await endpoints.verticalSwitch?.updateAttribute(OnOff, 'onOff', axes.vertical);
   await endpoints.horizontalSwitch?.updateAttribute(OnOff, 'onOff', axes.horizontal);
-  await endpoints.dryModeSwitch?.updateAttribute(OnOff, 'onOff', state.power && state.mode === 'dehumidify');
-  await endpoints.fanModeSwitch?.updateAttribute(OnOff, 'onOff', state.power && state.mode === 'fan');
+  for (const [mode, modeSwitch] of endpoints.modeSwitches) await modeSwitch.updateAttribute(OnOff, 'onOff', state.power && state.mode === mode);
   await endpoints.fanAutoSwitch?.updateAttribute(OnOff, 'onOff', state.fanSpeed === 'auto');
   for (const [specialMode, specialModeSwitch] of endpoints.specialModeSwitches) await specialModeSwitch.updateAttribute(OnOff, 'onOff', state.specialModes.includes(specialMode));
   await applySelect(endpoints.modeSelect, modeSelectChoices, layout.modeSelectModes, state.power ? state.mode : 'off');

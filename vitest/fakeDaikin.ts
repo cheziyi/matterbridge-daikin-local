@@ -89,6 +89,7 @@ export function createDeviceConfig(overrides: Partial<DaikinDeviceConfig> = {}):
     swingModeWhenHidden: 'keep',
     modeControl: 'native',
     modeSwitches: [],
+    modeReplacements: {},
     fanAutoControl: 'native',
     hasSeparateFan: false,
     specialModeSwitches: [],

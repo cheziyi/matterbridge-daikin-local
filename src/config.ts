@@ -27,6 +27,7 @@ import {
   type DaikinProtocol,
   FAN_SPEEDS,
   type FanSpeed,
+  type OperatingMode,
   SPECIAL_MODES,
   type SpecialMode,
   SWING_MODES,
@@ -55,18 +56,28 @@ export const FAN_AUTO_CONTROLS = ['native', 'switch', 'firstStep', 'lastStep'] a
 export type FanAutoControlOption = (typeof FAN_AUTO_CONTROLS)[number];
 
 /**
- * How the dry and fan modes are exposed to Matter: natively alone, as modes of the thermostat of the air conditioner,
- * or also as a mode select of every mode of the unit, or as an on/off switch for each mode in `modeSwitches`. Each but
- * the native modes alone is for apps whose climate controls lack those modes.
+ * How the modes are exposed to Matter besides the thermostat of the air conditioner: natively alone, as modes of the
+ * thermostat, or also as a mode select of every mode of the unit, or as an on/off switch for each mode in
+ * `modeSwitches`, or with modes of the unit shown as the thermostat modes `modeReplacements` puts them in. Each but the
+ * native modes alone is for apps whose climate controls lack some of the modes.
  */
-export const MODE_CONTROLS = ['native', 'select', 'switches'] as const;
+export const MODE_CONTROLS = ['native', 'select', 'switches', 'replacements'] as const;
 
 export type ModeControlOption = (typeof MODE_CONTROLS)[number];
 
-/** The modes that can each get an on/off switch: the two the thermostat of some apps lacks. */
-export const SWITCHED_MODES = ['dehumidify', 'fan'] as const;
+/** Every mode, in the order of the Thermostat system modes. */
+export const THERMOSTAT_MODES = ['auto', 'cool', 'heat', 'dehumidify', 'fan'] as const satisfies readonly OperatingMode[];
+
+/** The modes that can each get an on/off switch: every mode. */
+export const SWITCHED_MODES = THERMOSTAT_MODES;
 
 export type SwitchedMode = (typeof SWITCHED_MODES)[number];
+
+/**
+ * The thermostat mode each mode of the unit is shown as, such as `{ dehumidify: 'heat' }` for a unit that only cools:
+ * a mode the unit lacks, so that none of its own modes is lost, and no two the same.
+ */
+export type ModeReplacements = Partial<Record<OperatingMode, OperatingMode>>;
 
 /** The value of a hidden setting that leaves the unit as it is. */
 export const KEEP_SETTING = 'keep';
@@ -104,6 +115,8 @@ export interface DaikinDeviceExposure {
   modeControl: ModeControlOption;
   /** The modes that each get an on/off switch while `modeControl` is `switches`. */
   modeSwitches: SwitchedMode[];
+  /** The thermostat mode each mode of the unit is shown as while `modeControl` is `replacements`. */
+  modeReplacements: ModeReplacements;
   /** How the auto fan speed is exposed: see `FAN_AUTO_CONTROLS`. */
   fanAutoControl: FanAutoControlOption;
   /** Whether the fan control is a fan of its own in Matter, instead of a part of the air conditioner. */
@@ -168,6 +181,28 @@ const macAddressPattern = /^[0-9A-F]{12}$/;
  */
 function isMember<T extends string>(members: readonly T[], value: unknown): value is T {
   return typeof value === 'string' && (members as readonly string[]).includes(value);
+}
+
+/**
+ * Parse the stored mode replacements
+ *
+ * Whether the unit has a mode or lacks it is not known here: `getModeReplacements` keeps what the unit can take.
+ *
+ * Edge cases:
+ *  - an entry that is not from a mode to another mode is dropped
+ *  - a thermostat mode that a mode earlier in `THERMOSTAT_MODES` is already shown as is dropped: no two modes share one
+ *
+ * @param {Record<string, unknown>} stored The stored entries.
+ * @returns {{ replacements: ModeReplacements; dropped: Record<string, unknown> }} The replacements in the order of `THERMOSTAT_MODES`, and the entries that were dropped.
+ */
+function parseModeReplacements(stored: Record<string, unknown>): { replacements: ModeReplacements; dropped: Record<string, unknown> } {
+  const replacements: ModeReplacements = {};
+  for (const mode of THERMOSTAT_MODES) {
+    const replacement = stored[mode];
+    if (isMember(THERMOSTAT_MODES, replacement) && replacement !== mode && !Object.values(replacements).includes(replacement)) replacements[mode] = replacement;
+  }
+  const dropped = Object.fromEntries(Object.entries(stored).filter(([mode]) => !isMember(THERMOSTAT_MODES, mode) || replacements[mode] === undefined));
+  return { replacements, dropped };
 }
 
 /**
@@ -289,6 +324,11 @@ export function parseDeviceConfig(value: unknown, report?: (message: string) => 
   const modeSwitches: unknown[] = Array.isArray(raw.modeSwitches) ? raw.modeSwitches : useDefault('modeSwitches', []);
   const unknownModeSwitches = modeSwitches.filter((mode) => !isMember(SWITCHED_MODES, mode));
   if (unknownModeSwitches.length > 0) report?.(`"${name}" has mode switches this version does not know, which are dropped: ${JSON.stringify(unknownModeSwitches)}`);
+  const storedReplacements: Record<string, unknown> = isValidObject(raw.modeReplacements) ? { ...raw.modeReplacements } : useDefault('modeReplacements', {});
+  const { replacements: modeReplacements, dropped: droppedReplacements } = parseModeReplacements(storedReplacements);
+  if (Object.keys(droppedReplacements).length > 0) {
+    report?.(`"${name}" has mode replacements this version does not take, which are dropped: ${JSON.stringify(droppedReplacements)}`);
+  }
   const device: DaikinDeviceConfig = {
     name,
     macAddress,
@@ -303,6 +343,7 @@ export function parseDeviceConfig(value: unknown, report?: (message: string) => 
     swingModeWhenHidden: isMember(hiddenSwingModes, raw.swingModeWhenHidden) ? raw.swingModeWhenHidden : useDefault('swingModeWhenHidden', KEEP_SETTING),
     modeControl: isMember(MODE_CONTROLS, raw.modeControl) ? raw.modeControl : useDefault('modeControl', 'native'),
     modeSwitches: SWITCHED_MODES.filter((mode) => modeSwitches.includes(mode)),
+    modeReplacements,
     fanAutoControl: isMember(FAN_AUTO_CONTROLS, raw.fanAutoControl) ? raw.fanAutoControl : useDefault('fanAutoControl', 'native'),
     hasSeparateFan: isValidBoolean(raw.hasSeparateFan) ? raw.hasSeparateFan : useDefault('hasSeparateFan', false),
     specialModeSwitches: SPECIAL_MODES.filter((mode) => specialModeSwitches.includes(mode)),
@@ -429,6 +470,7 @@ export function hasSameExposure(left: DaikinDeviceConfig, right: DaikinDeviceCon
     left.fanControl === right.fanControl &&
     left.swingControl === right.swingControl &&
     left.modeControl === right.modeControl &&
-    left.modeSwitches.join() === right.modeSwitches.join()
+    left.modeSwitches.join() === right.modeSwitches.join() &&
+    THERMOSTAT_MODES.every((mode) => left.modeReplacements[mode] === right.modeReplacements[mode])
   );
 }

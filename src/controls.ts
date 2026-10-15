@@ -21,10 +21,10 @@
  * limitations under the License.
  */
 
-import { type DaikinCapabilities, type DaikinSensors, type FanSpeed, OPERATING_MODES, SPECIAL_MODES, type SpecialMode } from 'daikin-local-control';
+import { type DaikinCapabilities, type DaikinSensors, type FanSpeed, OPERATING_MODES, type OperatingMode, SPECIAL_MODES, type SpecialMode } from 'daikin-local-control';
 
-import { type DaikinDeviceConfig, KEEP_SETTING, SWITCHED_MODES } from './config.js';
-import { getFanSteps } from './mapping.js';
+import { type DaikinDeviceConfig, KEEP_SETTING, type ModeControlOption, type ModeReplacements, SWITCHED_MODES, type SwitchedMode, THERMOSTAT_MODES } from './config.js';
+import { getFanSteps, getThermostatProfile } from './mapping.js';
 
 /** The part of a unit's capabilities that decides which controls a device can have. */
 export type ExposedCapabilities = Pick<DaikinCapabilities, 'modes' | 'fanSpeeds' | 'swingModes' | 'specialModes'>;
@@ -49,6 +49,27 @@ export function getSwitchableSpecialModes(capabilities: Pick<DaikinCapabilities,
   return SPECIAL_MODES.filter((specialMode) => OPERATING_MODES.some((mode) => capabilities.specialModes[mode].includes(specialMode)));
 }
 
+/**
+ * Keep the mode replacements a unit can take
+ *
+ * Edge cases:
+ *  - a replacement of a mode the unit lacks is dropped
+ *  - a replacement by a mode the unit has is dropped: the unit's own mode would be lost to the thermostat
+ *  - Auto is dropped unless the thermostat both cools and heats, counting the replacements, because Matter has Auto only with both
+ *
+ * @param {ModeReplacements} wanted The replacements asked for, no two the same.
+ * @param {readonly OperatingMode[]} modes The operating modes the unit offers.
+ * @returns {ModeReplacements} The replacements that are kept, in the order of `THERMOSTAT_MODES`.
+ */
+export function getModeReplacements(wanted: ModeReplacements, modes: readonly OperatingMode[]): ModeReplacements {
+  const kept = THERMOSTAT_MODES.flatMap((mode) => {
+    const replacement = wanted[mode];
+    return modes.includes(mode) && replacement !== undefined && !modes.includes(replacement) ? [[mode, replacement] as const] : [];
+  });
+  const profile = getThermostatProfile([...modes, ...kept.map(([, replacement]) => replacement)]);
+  return Object.fromEntries(kept.filter(([, replacement]) => replacement !== 'auto' || profile === 'heatCool'));
+}
+
 /** The controls and the switches a device can have in Matter, given what its unit accepts: what the setup page offers. */
 export interface AvailableControls {
   /** The fan speeds a controller can pick, slowest first, without `auto`. Empty when apps cannot set the fan speed. */
@@ -57,10 +78,10 @@ export interface AvailableControls {
   hasFanAuto: boolean;
   /** Whether apps can move the louvers. */
   hasSwing: boolean;
-  /** Whether the unit has a dehumidify mode, which can get a switch. */
-  hasDryMode: boolean;
-  /** Whether the unit has a fan mode, which can get a switch. */
-  hasFanMode: boolean;
+  /** The modes of the unit, which can each get a switch. */
+  switchableModes: SwitchedMode[];
+  /** The thermostat modes the unit lacks, which one of its modes can be shown as. */
+  lackingModes: SwitchedMode[];
   /** The special modes that can each get a switch. */
   specialModes: SpecialMode[];
 }
@@ -78,8 +99,8 @@ export function getAvailableControls(capabilities: ExposedCapabilities): Availab
     fanSteps: getFanSteps(capabilities.fanSpeeds),
     hasFanAuto: hasFanAuto(capabilities),
     hasSwing: capabilities.swingModes.length > 0,
-    hasDryMode: capabilities.modes.includes('dehumidify'),
-    hasFanMode: capabilities.modes.includes('fan'),
+    switchableModes: SWITCHED_MODES.filter((mode) => capabilities.modes.includes(mode)),
+    lackingModes: THERMOSTAT_MODES.filter((mode) => !capabilities.modes.includes(mode)),
     specialModes: getSwitchableSpecialModes(capabilities),
   };
 }
@@ -89,7 +110,7 @@ export function getAvailableControls(capabilities: ExposedCapabilities): Availab
  *
  * @param {DaikinDeviceConfig} device The device.
  * @param {ExposedCapabilities} capabilities What its unit accepts.
- * @returns {DaikinDeviceConfig} The device, with a fixed fan speed or swing mode the unit lacks replaced by `keep`, an auto fan switch or step that cannot hold replaced by the native fan mode, and without the switches, the mode select and the fan the unit has no use for.
+ * @returns {DaikinDeviceConfig} The device, with a fixed fan speed or swing mode the unit lacks replaced by `keep`, an auto fan switch or step that cannot hold replaced by the native fan mode, and without the switches, the mode select, the mode replacements and the fan the unit has no use for.
  */
 export function fitToCapabilities(device: DaikinDeviceConfig, capabilities: ExposedCapabilities): DaikinDeviceConfig {
   const fanSpeedWhenHidden = device.fanSpeedWhenHidden !== KEEP_SETTING && capabilities.fanSpeeds.includes(device.fanSpeedWhenHidden) ? device.fanSpeedWhenHidden : KEEP_SETTING;
@@ -100,16 +121,22 @@ export function fitToCapabilities(device: DaikinDeviceConfig, capabilities: Expo
   const isAutoStep = device.fanAutoControl === 'firstStep' || device.fanAutoControl === 'lastStep';
   // Auto is a step only of a fan control that is shown.
   const canHold = hasFanAuto(capabilities) && (isAutoStep ? device.fanControl !== 'hidden' : !hasFixedFanSpeed);
-  // The thermostat mode already offers every mode but these two, so a switch or a mode select is only of use for them.
-  const switchedModes = SWITCHED_MODES.filter((mode) => capabilities.modes.includes(mode));
-  const modeSwitches = device.modeControl === 'switches' ? switchedModes.filter((mode) => device.modeSwitches.includes(mode)) : [];
-  const hasModeControl = device.modeControl === 'switches' ? modeSwitches.length > 0 : switchedModes.length > 0;
+  const modeSwitches = device.modeControl === 'switches' ? SWITCHED_MODES.filter((mode) => capabilities.modes.includes(mode) && device.modeSwitches.includes(mode)) : [];
+  const modeReplacements = device.modeControl === 'replacements' ? getModeReplacements(device.modeReplacements, capabilities.modes) : {};
+  // Every app offers the thermostat modes but dry and fan, so a mode select is only of use for a unit with one of them.
+  const isOfUse: Record<ModeControlOption, boolean> = {
+    native: true,
+    select: capabilities.modes.includes('dehumidify') || capabilities.modes.includes('fan'),
+    switches: modeSwitches.length > 0,
+    replacements: Object.keys(modeReplacements).length > 0,
+  };
   return {
     ...device,
     fanSpeedWhenHidden,
     swingModeWhenHidden,
-    modeControl: hasModeControl ? device.modeControl : 'native',
+    modeControl: isOfUse[device.modeControl] ? device.modeControl : 'native',
     modeSwitches,
+    modeReplacements,
     fanAutoControl: canHold ? device.fanAutoControl : 'native',
     hasSeparateFan: device.hasSeparateFan && device.fanControl !== 'hidden' && getFanSteps(capabilities.fanSpeeds).length > 0,
     specialModeSwitches: getSwitchableSpecialModes(capabilities).filter((mode) => device.specialModeSwitches.includes(mode)),

@@ -28,6 +28,7 @@ import { addDevice, aggregator, createServerNode, createTestEnvironment, startSe
 import { DaikinAccessory } from '../../src/accessory/daikinAccessory.js';
 import { readFanSpeed } from '../../src/accessory/matterState.js';
 import { PendingCommand } from '../../src/accessory/pendingCommand.js';
+import type { SwitchedMode } from '../../src/config.js';
 import { createCapabilities, createDeviceConfig, createFakeClient, type FakeClient, macOf } from '../fakeDaikin.js';
 
 const online = { fabric: 1 } as unknown as ActionContext;
@@ -42,6 +43,20 @@ const vendorId = 0xfff1;
  */
 async function addAccessory(accessory: DaikinAccessory): Promise<void> {
   for (const endpoint of accessory.endpoints) expect(await addDevice(aggregator, endpoint)).toBe(true);
+}
+
+/**
+ * Get the switch of a mode, which the test needs
+ *
+ * @param {DaikinAccessory} accessory The accessory.
+ * @param {SwitchedMode} mode The mode.
+ * @returns {MatterbridgeEndpoint} The switch.
+ * @throws {Error} When the accessory has no switch for the mode.
+ */
+function getModeSwitch(accessory: DaikinAccessory, mode: SwitchedMode): MatterbridgeEndpoint {
+  const modeSwitch = accessory.modeSwitches.get(mode);
+  if (modeSwitch === undefined) throw new Error(`The ${mode} mode switch is missing`);
+  return modeSwitch;
 }
 
 /**
@@ -498,7 +513,7 @@ describe('DaikinAccessory', () => {
     });
   });
 
-  describe('a unit with switches for the dry and fan modes', () => {
+  describe('a unit with switches for its modes', () => {
     let client: FakeClient;
     let accessory: DaikinAccessory;
 
@@ -507,60 +522,61 @@ describe('DaikinAccessory', () => {
       const config = createDeviceConfig({ name: 'Den', fanControl: 'hidden', swingControl: 'hidden', modeControl: 'switches', modeSwitches: ['dehumidify', 'fan'] });
       accessory = new DaikinAccessory({ config, capabilities: createCapabilities(), client, log, vendorId });
       expect(accessory.endpoints).toHaveLength(3);
-      expect(accessory.dryModeSwitch?.deviceName).toBe('Den Dry Mode');
-      expect(accessory.fanModeSwitch?.deviceName).toBe('Den Fan Mode');
+      expect(getModeSwitch(accessory, 'dehumidify').deviceName).toBe('Den Dry Mode');
+      expect(getModeSwitch(accessory, 'fan').deviceName).toBe('Den Fan Mode');
       await addAccessory(accessory);
       await accessory.refresh();
-      expect(accessory.dryModeSwitch?.getAttribute(OnOff, 'onOff')).toBe(false);
-      expect(accessory.fanModeSwitch?.getAttribute(OnOff, 'onOff')).toBe(false);
+      expect(getModeSwitch(accessory, 'dehumidify').getAttribute(OnOff, 'onOff')).toBe(false);
+      expect(getModeSwitch(accessory, 'fan').getAttribute(OnOff, 'onOff')).toBe(false);
 
       const withoutDry = createCapabilities({ modes: ['cool', 'heat', 'fan'] });
       const other = new DaikinAccessory({ config: { ...config, name: 'Loft' }, capabilities: withoutDry, client: createFakeClient(), log, vendorId });
-      expect(other.dryModeSwitch).toBeUndefined();
-      expect(other.fanModeSwitch).toBeDefined();
+      expect([...other.modeSwitches.keys()]).toEqual(['fan']);
     });
 
     it('should put the unit in a mode from its switch, and show which mode the unit is in', async () => {
-      if (accessory.dryModeSwitch === undefined || accessory.fanModeSwitch === undefined) throw new Error('The mode switches are missing');
+      const dry = getModeSwitch(accessory, 'dehumidify');
+      const fan = getModeSwitch(accessory, 'fan');
       client.state.power = false;
       await accessory.refresh();
-      await writeAsController(accessory.dryModeSwitch, 'OnOff', 'onOff', true);
+      await writeAsController(dry, 'OnOff', 'onOff', true);
       await accessory.flushCommands();
       expect(client.setState).toHaveBeenLastCalledWith({ power: true, mode: 'dehumidify' });
       expect(accessory.endpoint.getAttribute(Thermostat, 'systemMode')).toBe(Thermostat.SystemMode.Dry);
-      expect(accessory.fanModeSwitch.getAttribute(OnOff, 'onOff')).toBe(false);
+      expect(fan.getAttribute(OnOff, 'onOff')).toBe(false);
 
-      await writeAsController(accessory.fanModeSwitch, 'OnOff', 'onOff', true);
+      await writeAsController(fan, 'OnOff', 'onOff', true);
       await accessory.flushCommands();
       expect(client.setState).toHaveBeenLastCalledWith({ power: true, mode: 'fan' });
-      expect(accessory.fanModeSwitch.getAttribute(OnOff, 'onOff')).toBe(true);
-      expect(accessory.dryModeSwitch.getAttribute(OnOff, 'onOff')).toBe(false);
+      expect(fan.getAttribute(OnOff, 'onOff')).toBe(true);
+      expect(dry.getAttribute(OnOff, 'onOff')).toBe(false);
     });
 
     it('should go back to cooling when the switch of the current mode is turned off', async () => {
-      if (accessory.dryModeSwitch === undefined || accessory.fanModeSwitch === undefined) throw new Error('The mode switches are missing');
-      await writeAsController(accessory.fanModeSwitch, 'OnOff', 'onOff', false);
+      const dry = getModeSwitch(accessory, 'dehumidify');
+      const fan = getModeSwitch(accessory, 'fan');
+      await writeAsController(fan, 'OnOff', 'onOff', false);
       await accessory.flushCommands();
       expect(client.setState).toHaveBeenLastCalledWith({ mode: 'cool' });
       expect(accessory.endpoint.getAttribute(Thermostat, 'systemMode')).toBe(Thermostat.SystemMode.Cool);
       expect(accessory.endpoint.getAttribute(OnOff, 'onOff')).toBe(true);
 
       // Turned on and off again before anything was sent: the unit ends up cooling.
-      await writeAsController(accessory.dryModeSwitch, 'OnOff', 'onOff', true);
-      await writeAsController(accessory.dryModeSwitch, 'OnOff', 'onOff', false);
+      await writeAsController(dry, 'OnOff', 'onOff', true);
+      await writeAsController(dry, 'OnOff', 'onOff', false);
       await accessory.flushCommands();
       expect(client.setState).toHaveBeenLastCalledWith({ power: true, mode: 'cool' });
     });
 
     it('should send nothing when a switch is turned off after the unit left its mode, and show a unit that is off as off', async () => {
-      if (accessory.dryModeSwitch === undefined) throw new Error('The dry mode switch is missing');
-      await writeAsController(accessory.dryModeSwitch, 'OnOff', 'onOff', false);
+      const dry = getModeSwitch(accessory, 'dehumidify');
+      await writeAsController(dry, 'OnOff', 'onOff', false);
       await accessory.flushCommands();
       expect(client.setState).not.toHaveBeenCalled();
 
       Object.assign(client.state, { power: false, mode: 'dehumidify' });
       await accessory.refresh();
-      expect(accessory.dryModeSwitch.getAttribute(OnOff, 'onOff')).toBe(false);
+      expect(dry.getAttribute(OnOff, 'onOff')).toBe(false);
       await accessory.close();
     });
 
@@ -574,14 +590,105 @@ describe('DaikinAccessory', () => {
         log,
         vendorId,
       });
-      if (warm.fanModeSwitch === undefined) throw new Error('The fan mode switch is missing');
+      const fan = getModeSwitch(warm, 'fan');
       await addAccessory(warm);
       await warm.refresh();
-      expect(warm.fanModeSwitch.getAttribute(OnOff, 'onOff')).toBe(true);
-      await writeAsController(warm.fanModeSwitch, 'OnOff', 'onOff', false);
+      expect(fan.getAttribute(OnOff, 'onOff')).toBe(true);
+      await writeAsController(fan, 'OnOff', 'onOff', false);
       await warm.flushCommands();
       expect(heater.setState).toHaveBeenLastCalledWith({ mode: 'heat' });
       await warm.close();
+    });
+
+    it('should turn the unit off when the switch of a mode it has no other to go back to is turned off', async () => {
+      const unit = createFakeClient({ power: false });
+      const config = createDeviceConfig({ name: 'Boathouse', fanControl: 'hidden', swingControl: 'hidden', modeControl: 'switches', modeSwitches: ['auto', 'cool', 'heat'] });
+      const boathouse = new DaikinAccessory({ config, capabilities: createCapabilities(), client: unit, log, vendorId });
+      expect([...boathouse.modeSwitches.values()].map((modeSwitch) => modeSwitch.deviceName)).toEqual(['Boathouse Auto Mode', 'Boathouse Cool Mode', 'Boathouse Heat Mode']);
+      expect(boathouse.endpoints).toHaveLength(4);
+      await addAccessory(boathouse);
+      await boathouse.refresh();
+      const heat = getModeSwitch(boathouse, 'heat');
+      await writeAsController(heat, 'OnOff', 'onOff', true);
+      await boathouse.flushCommands();
+      expect(unit.setState).toHaveBeenLastCalledWith({ power: true, mode: 'heat' });
+      expect(heat.getAttribute(OnOff, 'onOff')).toBe(true);
+      expect(getModeSwitch(boathouse, 'cool').getAttribute(OnOff, 'onOff')).toBe(false);
+
+      await writeAsController(heat, 'OnOff', 'onOff', false);
+      await boathouse.flushCommands();
+      expect(unit.setState).toHaveBeenLastCalledWith({ power: false });
+      expect(boathouse.endpoint.getAttribute(Thermostat, 'systemMode')).toBe(Thermostat.SystemMode.Off);
+      await boathouse.close();
+    });
+  });
+
+  describe('a unit whose dry and fan modes take the place of thermostat modes', () => {
+    it('should give a unit that only cools the heating its replacement needs, and run the replaced modes from the thermostat', async () => {
+      const capabilities = createCapabilities({ modes: ['cool', 'dehumidify', 'fan'] });
+      const client = createFakeClient({}, capabilities);
+      const config = createDeviceConfig({ name: 'Orangery', modeControl: 'replacements', modeReplacements: { dehumidify: 'heat', fan: 'auto' } });
+      const accessory = new DaikinAccessory({ config, capabilities, client, log, vendorId });
+      // The replacements are on the thermostat: no endpoint is added for them.
+      expect(accessory.endpoints).toHaveLength(3);
+      await addAccessory(accessory);
+      await accessory.refresh();
+      expect(accessory.endpoint.getAttribute(Thermostat, 'systemMode')).toBe(Thermostat.SystemMode.Cool);
+      expect(accessory.endpoint.getAttribute(Thermostat, 'occupiedHeatingSetpoint')).toBeDefined();
+
+      await writeAsController(accessory.endpoint, 'Thermostat', 'systemMode', Thermostat.SystemMode.Heat);
+      await accessory.flushCommands();
+      expect(client.setState).toHaveBeenLastCalledWith({ power: true, mode: 'dehumidify' });
+      expect(accessory.endpoint.getAttribute(Thermostat, 'systemMode')).toBe(Thermostat.SystemMode.Heat);
+      // Dry takes no setpoint, whatever it is shown as, so what was written is put back to what the setpoint showed.
+      client.setState.mockClear();
+      const heating: unknown = accessory.endpoint.getAttribute(Thermostat, 'occupiedHeatingSetpoint');
+      await writeAsController(accessory.endpoint, 'Thermostat', 'occupiedHeatingSetpoint', 2300);
+      await writeAsController(accessory.endpoint, 'Thermostat', 'occupiedHeatingSetpoint', 2200);
+      await accessory.flushCommands();
+      expect(client.setState).not.toHaveBeenCalled();
+      expect(accessory.endpoint.getAttribute(Thermostat, 'occupiedHeatingSetpoint')).toBe(heating);
+
+      await writeAsController(accessory.endpoint, 'Thermostat', 'systemMode', Thermostat.SystemMode.Auto);
+      await accessory.flushCommands();
+      expect(client.setState).toHaveBeenLastCalledWith({ power: true, mode: 'fan' });
+      expect(accessory.endpoint.getAttribute(Thermostat, 'systemMode')).toBe(Thermostat.SystemMode.Auto);
+      const cooling: unknown = accessory.endpoint.getAttribute(Thermostat, 'occupiedCoolingSetpoint');
+      await writeAsController(accessory.endpoint, 'Thermostat', 'occupiedCoolingSetpoint', 2100);
+      await accessory.flushCommands();
+      expect(accessory.endpoint.getAttribute(Thermostat, 'occupiedCoolingSetpoint')).toBe(cooling);
+
+      // The native modes stay as they are, for the apps that offer them.
+      await writeAsController(accessory.endpoint, 'Thermostat', 'systemMode', Thermostat.SystemMode.Dry);
+      await accessory.flushCommands();
+      expect(client.setState).toHaveBeenLastCalledWith({ power: true, mode: 'dehumidify' });
+      expect(accessory.endpoint.getAttribute(Thermostat, 'systemMode')).toBe(Thermostat.SystemMode.Heat);
+      await accessory.close();
+    });
+
+    it('should give a mode of the unit the setpoint and the limits of the thermostat mode it is shown as', async () => {
+      const ranges = { ...createCapabilities().targetTemperaturesInC, heat: null };
+      const capabilities = createCapabilities({ modes: ['auto', 'cool', 'dehumidify', 'fan'], targetTemperaturesInC: ranges });
+      const client = createFakeClient({ mode: 'auto', targetTemperatureInC: 24 }, capabilities);
+      const config = createDeviceConfig({ name: 'Scullery', modeControl: 'replacements', modeReplacements: { auto: 'heat' } });
+      const accessory = new DaikinAccessory({ config, capabilities, client, log, vendorId });
+      await addAccessory(accessory);
+      await accessory.refresh();
+      expect(accessory.endpoint.getAttribute(Thermostat, 'systemMode')).toBe(Thermostat.SystemMode.Heat);
+      expect(accessory.endpoint.getAttribute(Thermostat, 'occupiedHeatingSetpoint')).toBe(2400);
+      // The limits of auto, not those the unit reports for a heat mode it lacks.
+      expect(accessory.endpoint.getAttribute(Thermostat, 'minHeatSetpointLimit')).toBe(1800);
+
+      await writeAsController(accessory.endpoint, 'Thermostat', 'occupiedHeatingSetpoint', 2250);
+      await accessory.flushCommands();
+      expect(client.setState).toHaveBeenLastCalledWith({ targetTemperatureInC: 22.5 });
+
+      await writeAsController(accessory.endpoint, 'Thermostat', 'systemMode', Thermostat.SystemMode.Cool);
+      await accessory.flushCommands();
+      await writeAsController(accessory.endpoint, 'Thermostat', 'systemMode', Thermostat.SystemMode.Heat);
+      await accessory.flushCommands();
+      expect(client.setState).toHaveBeenLastCalledWith({ power: true, mode: 'auto' });
+      await accessory.close();
     });
   });
 
@@ -1030,7 +1137,8 @@ describe('DaikinAccessory', () => {
       const client = createFakeClient();
       client.sensors = { indoorTemperatureInC: 26.5, outdoorTemperatureInC: 31, indoorHumidityInPercent: 60 };
       const accessory = new DaikinAccessory({ config, capabilities: createCapabilities(), reportedSensors, client, log, vendorId });
-      const parts = [accessory.fan, accessory.verticalSwitch, accessory.horizontalSwitch, accessory.dryModeSwitch, accessory.humiditySensor];
+      const dry = getModeSwitch(accessory, 'dehumidify');
+      const parts = [accessory.fan, accessory.verticalSwitch, accessory.horizontalSwitch, dry, accessory.humiditySensor];
       // The outdoor sensor is a device of its own, which can be put in a room other than that of the air conditioner.
       expect(accessory.endpoints).toEqual([accessory.endpoint, accessory.outdoorTemperatureSensor]);
       expect(accessory.endpoint.getChildEndpoints()).toEqual(parts);
@@ -1040,12 +1148,12 @@ describe('DaikinAccessory', () => {
       expect(accessory.humiditySensor?.tagList).toBeUndefined();
       expect(accessory.verticalSwitch?.tagList).toEqual([{ ...CommonNumberTag.One, label: 'Vertical Swing' }]);
       expect(accessory.horizontalSwitch?.tagList).toEqual([{ ...CommonNumberTag.Two, label: 'Horizontal Swing' }]);
-      expect(accessory.dryModeSwitch?.tagList).toEqual([{ ...CommonNumberTag.Three, label: 'Dry Mode' }]);
+      expect(dry.tagList).toEqual([{ ...CommonNumberTag.Three, label: 'Dry Mode' }]);
       expect(accessory.outdoorTemperatureSensor?.deviceName).toBe('Mezzanine Outdoor Temperature');
 
       await addAccessory(accessory);
       expect(accessory.endpoint.getAttribute(Descriptor, 'partsList')).toHaveLength(5);
-      expect(accessory.dryModeSwitch?.getAttribute(Descriptor, 'tagList')).toEqual([{ ...CommonNumberTag.Three, label: 'Dry Mode' }]);
+      expect(dry.getAttribute(Descriptor, 'tagList')).toEqual([{ ...CommonNumberTag.Three, label: 'Dry Mode' }]);
       await accessory.refresh();
       expect(accessory.fan?.getAttribute(FanControl, 'percentSetting')).toBe(66);
       expect(accessory.verticalSwitch?.getAttribute(OnOff, 'onOff')).toBe(true);
@@ -1058,8 +1166,8 @@ describe('DaikinAccessory', () => {
       expect(accessory.outdoorTemperatureSensor?.getAttribute(BridgedDeviceBasicInformation, 'reachable')).toBe(true);
       for (const part of parts) expect(part?.hasClusterServer(BridgedDeviceBasicInformation)).toBe(false);
 
-      if (accessory.dryModeSwitch === undefined || accessory.fan === undefined) throw new Error('A part is missing');
-      await writeAsController(accessory.dryModeSwitch, 'OnOff', 'onOff', true);
+      if (accessory.fan === undefined) throw new Error('A part is missing');
+      await writeAsController(dry, 'OnOff', 'onOff', true);
       await accessory.flushCommands();
       expect(client.setState).toHaveBeenLastCalledWith({ power: true, mode: 'dehumidify' });
       expect(accessory.endpoint.getAttribute(Thermostat, 'systemMode')).toBe(Thermostat.SystemMode.Dry);
@@ -1119,8 +1227,16 @@ describe('DaikinAccessory', () => {
     // A fan speed that cannot be read is left out of the command.
     const pending = new PendingCommand();
     pending.requestFanSpeed();
-    const unit = { state: undefined, capabilities: createCapabilities(), fanSteps: ['level1', 'level2'] as const, lastManualFanSpeed: undefined };
+    const unit = { state: undefined, capabilities: createCapabilities(), fanSteps: ['level1', 'level2'] as const, lastManualFanSpeed: undefined, modeReplacements: {} };
     expect(pending.take(unit, vi.fn()).control).toEqual({});
+  });
+
+  it('should send no setpoint for a mode shown as one that has none', () => {
+    const pending = new PendingCommand();
+    pending.requestControl({ mode: 'cool' });
+    pending.requestSetpoint('cool', 22);
+    const unit = { state: undefined, capabilities: createCapabilities(), fanSteps: [], lastManualFanSpeed: undefined, modeReplacements: { cool: 'fan' } } as const;
+    expect(pending.take(unit, vi.fn()).control).toEqual({ mode: 'cool' });
   });
 
   it('should refuse a unit that neither cools nor heats', () => {

@@ -6,7 +6,7 @@
  */
 
 import type { AvailableControls, Exposure } from './api.js';
-import { pickExposure } from './exposure.js';
+import { fitModeReplacements, pickExposure } from './exposure.js';
 import type { Draft } from './state.js';
 
 export type PresetName = 'apple' | 'google' | 'matter';
@@ -14,9 +14,12 @@ export type PresetName = 'apple' | 'google' | 'matter';
 export const presets: Record<PresetName, { title: string; text: string }> = {
   apple: {
     title: 'Apple Home',
-    text: 'Fan speed as a percentage, the humidity on a sensor of its own too, and a switch for auto fan, each a device of its own. The swing is not shown and stays as it is.',
+    text: 'Fan speed as a percentage, the humidity on a sensor of its own too, and a switch for auto fan and for each of dry and fan, each a device of its own. The swing is not shown and stays as it is.',
   },
-  google: { title: 'Google Home', text: 'Fan speed as steps, the humidity on a sensor of its own too, and a switch for auto fan, each a device of its own. The swing is not shown and stays as it is.' },
+  google: {
+    title: 'Google Home',
+    text: 'Fan speed as steps, the humidity on a sensor of its own too, and a switch for auto fan and for each of dry and fan, each a device of its own. The swing is not shown and stays as it is.',
+  },
   matter: {
     title: 'Full Matter support',
     text: 'For apps that show every Matter control: fan speed as steps with its auto mode, the swing as a mode select, a switch for each special mode and the outdoor temperature, all as one device.',
@@ -33,14 +36,18 @@ export function presetExposure(name: PresetName, controls: AvailableControls): E
   // An app that shows every Matter control shows a mode select, which Matter has for what it has no cluster for. The
   // other presets leave the swing as it is, rather than add a switch for each axis.
   const swingControl: Exposure['swingControl'] = isMatter && controls.hasSwing ? 'select' : 'hidden';
+  // Home and Google Home are reported to offer off, cool, heat and auto alone, so dry and fan get a switch each where
+  // the unit has them.
+  const modeSwitches = isMatter ? [] : controls.switchableModes.filter((mode) => mode === 'dehumidify' || mode === 'fan');
   return {
     fanControl: controls.fanSteps.length === 0 ? 'hidden' : name === 'apple' ? 'percent' : 'steps',
     fanSpeedWhenHidden: 'keep',
     swingControl,
     swingModeWhenHidden: 'keep',
-    // The thermostat has dry and fan only among its modes, and no preset adds a switch or a mode select for them.
-    modeControl: 'native',
-    modeSwitches: [],
+    // An app that shows every Matter control has dry and fan among the modes of the thermostat.
+    modeControl: modeSwitches.length > 0 ? 'switches' : 'native',
+    modeSwitches,
+    modeReplacements: {},
     // Neither Home nor Google Home is known to show the auto fan mode, which the switch is beside.
     fanAutoControl: !isMatter && controls.hasFanAuto ? 'switch' : 'native',
     // No preset takes the fan off the air conditioner: that is for an app that shows no fan speed there.
@@ -69,9 +76,17 @@ export function matchesPreset(draft: Draft, name: PresetName, controls: Availabl
   const hasFixedFanSpeed = chosen.fanControl === 'hidden' && chosen.fanSpeedWhenHidden !== 'keep';
   if (!controls.hasFanAuto || (isAutoStep && chosen.fanControl === 'hidden') || hasFixedFanSpeed) chosen.fanAutoControl = 'native';
   if (!controls.hasSwing) Object.assign(chosen, { swingControl: 'hidden', swingModeWhenHidden: 'keep' });
-  // The switches are a choice only while they are chosen, and nothing shows on a unit without a dry or a fan mode.
-  if (chosen.modeControl !== 'switches') chosen.modeSwitches = [];
-  if (!controls.hasDryMode && !controls.hasFanMode) Object.assign(chosen, { modeControl: 'native', modeSwitches: [] });
+  // The switches and the replacements are a choice only while they are chosen, and only for what the unit has. A mode
+  // select shows nothing more than the thermostat on a unit without a dry or a fan mode.
+  chosen.modeSwitches = chosen.modeControl === 'switches' ? controls.switchableModes.filter((mode) => chosen.modeSwitches.includes(mode)) : [];
+  chosen.modeReplacements = chosen.modeControl === 'replacements' ? fitModeReplacements(chosen.modeReplacements, controls) : {};
+  const isOfUse: Record<Exposure['modeControl'], boolean> = {
+    native: true,
+    select: controls.switchableModes.includes('dehumidify') || controls.switchableModes.includes('fan'),
+    switches: chosen.modeSwitches.length > 0,
+    replacements: Object.keys(chosen.modeReplacements).length > 0,
+  };
+  if (!isOfUse[chosen.modeControl]) chosen.modeControl = 'native';
   chosen.specialModeSwitches = controls.specialModes.filter((mode) => chosen.specialModeSwitches.includes(mode));
   return JSON.stringify(chosen) === JSON.stringify(presetExposure(name, controls));
 }
