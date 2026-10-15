@@ -24,7 +24,7 @@ export interface FakeClient extends DaikinClient {
   getSensors: Mock<() => Promise<DaikinSensors>>;
   getStateAndSensors: Mock<() => Promise<DaikinStateAndSensors>>;
   setSpecialMode: Mock<(specialMode: SpecialMode, isOn: boolean) => Promise<void>>;
-  close: Mock<() => Promise<void>>;
+  dispose: Mock<() => Promise<void>>;
 }
 
 /**
@@ -137,7 +137,9 @@ export function createFakeClient(state: Partial<DaikinState> = {}, capabilities:
       client.state.specialModes = client.state.specialModes.filter((mode) => mode !== specialMode);
       if (isOn) client.state.specialModes.push(specialMode);
     }),
-    close: vi.fn(async () => Promise.resolve()),
+    dispose: vi.fn(async () => Promise.resolve()),
+    // `await using` disposes the client the way a caller would, so the mock records it.
+    [Symbol.asyncDispose]: async () => client.dispose(),
   };
   Object.assign(client, methods);
   return client;

@@ -31,14 +31,14 @@ const basicInfo = { ret: 'OK', type: 'aircon', name: 'Living%20Room', lpw_flag: 
  *
  * @returns {ClassicDaikinClient} The client, which passes `instanceof ClassicDaikinClient`.
  */
-function createClassicClient(): ClassicDaikinClient & Record<'getCapabilities' | 'getSensors' | 'getDeviceInfo' | 'registerTerminal' | 'command' | 'close', Mock> {
+function createClassicClient(): ClassicDaikinClient & Record<'getCapabilities' | 'getSensors' | 'getDeviceInfo' | 'registerTerminal' | 'command' | 'dispose', Mock> {
   return Object.assign(Object.create(ClassicDaikinClient.prototype) as ClassicDaikinClient, {
     getCapabilities: vi.fn(async () => capabilities),
     getSensors: vi.fn(async () => sensors),
     getDeviceInfo: vi.fn(async () => deviceInfo),
     registerTerminal: vi.fn(async () => {}),
     command: vi.fn(async () => basicInfo),
-    close: vi.fn(async () => {}),
+    dispose: vi.fn(async () => {}),
   });
 }
 
@@ -47,12 +47,12 @@ function createClassicClient(): ClassicDaikinClient & Record<'getCapabilities' |
  *
  * @returns {DsiotDaikinClient} The client, which passes `instanceof DsiotDaikinClient`.
  */
-function createDsiotClient(): DsiotDaikinClient & Record<'getCapabilities' | 'getSensors' | 'getDeviceInfo' | 'close', Mock> {
+function createDsiotClient(): DsiotDaikinClient & Record<'getCapabilities' | 'getSensors' | 'getDeviceInfo' | 'dispose', Mock> {
   return Object.assign(Object.create(DsiotDaikinClient.prototype) as DsiotDaikinClient, {
     getCapabilities: vi.fn(async () => capabilities),
     getSensors: vi.fn(async () => sensors),
     getDeviceInfo: vi.fn(async () => deviceInfo),
-    close: vi.fn(async () => {}),
+    dispose: vi.fn(async () => {}),
   });
 }
 
@@ -61,10 +61,10 @@ function createDsiotClient(): DsiotDaikinClient & Record<'getCapabilities' | 'ge
  *
  * @returns {AirbaseDaikinClient} The client, which passes `instanceof AirbaseDaikinClient`.
  */
-function createAirbaseClient(): AirbaseDaikinClient & Record<'getDeviceInfo' | 'close', Mock> {
+function createAirbaseClient(): AirbaseDaikinClient & Record<'getDeviceInfo' | 'dispose', Mock> {
   return Object.assign(Object.create(AirbaseDaikinClient.prototype) as AirbaseDaikinClient, {
     getDeviceInfo: vi.fn(async () => deviceInfo),
-    close: vi.fn(async () => {}),
+    dispose: vi.fn(async () => {}),
   });
 }
 
@@ -76,12 +76,12 @@ describe('probe', () => {
   describe('probeDevice', () => {
     it('should report a device that answers as ready, with what its unit accepts and what its sensors read', async () => {
       const client = createClassicClient();
-      client.close.mockRejectedValueOnce(new Error('close failed'));
+      client.dispose.mockRejectedValueOnce(new Error('close failed'));
       createClient.mockReturnValueOnce(client);
       // The device did not say which adapter it is, so the adapter is asked.
       expect(await probeDevice(classic, credentials)).toEqual({ status: 'ready', device: { ...classic, ...deviceInfo }, capabilities, sensors, controls });
       expect(createClient).toHaveBeenCalledWith(classic, { ...credentials, timeoutInMs: 5000 });
-      expect(client.close).toHaveBeenCalled();
+      expect(client.dispose).toHaveBeenCalled();
     });
 
     it('should take the name the adapter tells, over none and over one that was typed for it', async () => {
@@ -144,7 +144,7 @@ describe('probe', () => {
       expect(result.message).toBe(error.message);
       expect(result.device.requiresLocalPassword === true).toBe(status === 'localPasswordRejected' || device.requiresLocalPassword === true);
       expect(result.device.requiresRegistration === true).toBe(status === 'registrationRequired' || device.requiresRegistration === true);
-      expect(client.close).toHaveBeenCalled();
+      expect(client.dispose).toHaveBeenCalled();
     });
   });
 
@@ -154,7 +154,7 @@ describe('probe', () => {
       createClient.mockReturnValueOnce(registering).mockReturnValueOnce(createClassicClient());
       expect(await registerWithDevice(classic, '0123456789012', credentials)).toEqual({ status: 'ready', device: { ...classic, ...deviceInfo }, capabilities, sensors, controls });
       expect(registering.registerTerminal).toHaveBeenCalledWith('0123456789012');
-      expect(registering.close).toHaveBeenCalled();
+      expect(registering.dispose).toHaveBeenCalled();
     });
 
     it('should report a KEY the adapter refused', async () => {
@@ -181,7 +181,7 @@ describe('probe', () => {
       const client = createDsiotClient();
       createClient.mockReturnValueOnce(client);
       expect(await registerWithDevice(dsiot, 'key', credentials)).toMatchObject({ status: 'failed', message: 'Only a classic adapter registers terminals' });
-      expect(client.close).toHaveBeenCalled();
+      expect(client.dispose).toHaveBeenCalled();
     });
   });
 
@@ -243,7 +243,7 @@ describe('probe', () => {
         { host: '192.168.1.52', protocol: 'airbase' },
         { terminalUuid: credentials.terminalUuid, timeoutInMs: 5000, retry: { delaysInMs: [] } },
       );
-      expect(airbaseClient.close).toHaveBeenCalled();
+      expect(airbaseClient.dispose).toHaveBeenCalled();
     });
 
     it('should find a DSIOT adapter, which answers neither the classic nor the Airbase question', async () => {
@@ -255,8 +255,8 @@ describe('probe', () => {
       createClient.mockReturnValueOnce(classicClient).mockReturnValueOnce(airbaseClient).mockReturnValueOnce(dsiotClient);
       expect(await identifyHost('192.168.1.51', credentials.terminalUuid)).toEqual({ host: '192.168.1.51', protocol: 'dsiot', ...deviceInfo });
       expect(createClient).toHaveBeenCalledTimes(3);
-      expect(airbaseClient.close).toHaveBeenCalled();
-      expect(dsiotClient.close).toHaveBeenCalled();
+      expect(airbaseClient.dispose).toHaveBeenCalled();
+      expect(dsiotClient.dispose).toHaveBeenCalled();
     });
 
     it('should find a DSIOT adapter that asks for its child lock code', async () => {

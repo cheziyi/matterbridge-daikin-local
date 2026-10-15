@@ -245,7 +245,7 @@ describe('DaikinPlatform', () => {
     await vi.waitFor(() => expect(log.notice).toHaveBeenCalledWith('"Living Room" moved from 192.168.1.50 to 192.168.1.77'));
     await settle();
     expect(saveConfig).toHaveBeenCalledWith(expect.objectContaining({ devices: [expect.objectContaining({ name: 'Living Room', host: '192.168.1.77' })] }));
-    expect(unitAt('192.168.1.50').close).toHaveBeenCalled();
+    expect(unitAt('192.168.1.50').dispose).toHaveBeenCalled();
     expect(unitAt('192.168.1.77').getState).toHaveBeenCalled();
     expect(platform.getDevices()).toHaveLength(3);
   });
@@ -362,7 +362,7 @@ describe('DaikinPlatform', () => {
 
   it('should reconnect a device whose address or credentials were changed', async () => {
     await platform.saveDevice({ ...bedroom, host: '192.168.1.52' });
-    expect(unitAt('192.168.1.51').close).toHaveBeenCalled();
+    expect(unitAt('192.168.1.51').dispose).toHaveBeenCalled();
     expect(unitAt('192.168.1.52').getState).toHaveBeenCalled();
     expect(log.info).not.toHaveBeenCalledWith('"Bedroom" stopped');
     // A device that no longer requires a code loses the stored one.
@@ -421,7 +421,7 @@ describe('DaikinPlatform', () => {
     await platform.context?.remove(`capabilities:${macOf('Study')}`);
 
     unit.getCapabilities.mockResolvedValue(createCapabilities());
-    unit.close.mockRejectedValueOnce(new Error('close failed'));
+    unit.dispose.mockRejectedValueOnce(new Error('close failed'));
     await platform.saveDevice(createDeviceConfig({ name: 'Study', host: '192.168.1.90', fanControl: 'hidden' }));
     // Living Room, Bedroom, and Study with its two swing switches.
     expect(platform.getDevices()).toHaveLength(5);
@@ -691,11 +691,11 @@ describe('DaikinPlatform', () => {
     expect(log.info).toHaveBeenCalledWith('onChangeLoggerLevel called with: debug');
   });
 
-  it('should stop its timers and close every device on shutdown', async () => {
+  it('should stop its timers and dispose of every device on shutdown', async () => {
     await platform.onShutdown('Vitest');
     expect(log.info).toHaveBeenCalledWith(`Shutting down platform ${pluginName} with reason: Vitest...`);
-    expect(unitAt('192.168.1.77').close).toHaveBeenCalled();
-    expect(unitAt('192.168.1.52').close).toHaveBeenCalled();
+    expect(unitAt('192.168.1.77').dispose).toHaveBeenCalled();
+    expect(unitAt('192.168.1.52').dispose).toHaveBeenCalled();
     expect((await platform.getSetupState()).devices.map((device) => device.status)).toEqual(['stopped', 'stopped']);
     await platform.pollDevices();
     expect(unitAt('192.168.1.77').getState).not.toHaveBeenCalled();
