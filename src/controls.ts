@@ -122,13 +122,12 @@ export function fitToCapabilities(device: DaikinDeviceConfig, capabilities: Expo
   // Auto is a step only of a fan control that is shown.
   const canHold = hasFanAuto(capabilities) && (isAutoStep ? device.fanControl !== 'hidden' : !hasFixedFanSpeed);
   const modeSwitches = device.modeControl === 'switches' ? SWITCHED_MODES.filter((mode) => capabilities.modes.includes(mode) && device.modeSwitches.includes(mode)) : [];
-  const modeReplacements = device.modeControl === 'replacements' ? getModeReplacements(device.modeReplacements, capabilities.modes) : {};
+  const modeReplacements = getModeReplacements(device.modeReplacements, capabilities.modes);
   // Every app offers the thermostat modes but dry and fan, so a mode select is only of use for a unit with one of them.
   const isOfUse: Record<ModeControlOption, boolean> = {
     native: true,
     select: capabilities.modes.includes('dehumidify') || capabilities.modes.includes('fan'),
     switches: modeSwitches.length > 0,
-    replacements: Object.keys(modeReplacements).length > 0,
   };
   return {
     ...device,

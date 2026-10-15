@@ -199,14 +199,13 @@ Fixed louver positions are not controlled from Matter.
 
 ### Modes
 
-Every mode of the unit is a native Matter mode of the air conditioner, but some Matter apps, such as Apple Home and, by reports, Google Home, only offer Off, Cool, Heat and Auto. For those apps the setup can add one of these:
+Every mode of the unit is a native Matter mode of the air conditioner, but some Matter apps, such as Apple Home and, by reports, Google Home, only offer Off, Cool, Heat and Auto. For those apps the setup can add one of these, and can also have the modes the unit lacks run others: see [Modes the unit lacks](#modes-the-unit-lacks).
 
-| Option                          | In Matter                                                                                                                                             |
-| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Native modes only               | Nothing more: every mode of the unit is among the modes of the air conditioner. The default                                                           |
-| A mode select                   | A mode select named `<name> Mode`, with every mode of the unit, on a unit with a dry or a fan mode: see [Mode selects](#mode-selects)                 |
-| Modes the unit lacks run others | Nothing more: each Matter mode the unit lacks can run one of its modes, as you pick, such as Heat running dry on a unit that only cools: see below    |
-| Switches                        | A switch for each mode of the unit you pick, named `<name> Auto Mode`, `<name> Cool Mode`, `<name> Heat Mode`, `<name> Dry Mode` or `<name> Fan Mode` |
+| Option            | In Matter                                                                                                                                             |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Native modes only | Nothing more: every mode of the unit is among the modes of the air conditioner. The default                                                           |
+| A mode select     | A mode select named `<name> Mode`, with every mode of the unit, on a unit with a dry or a fan mode: see [Mode selects](#mode-selects)                 |
+| Switches          | A switch for each mode of the unit you pick, named `<name> Auto Mode`, `<name> Cool Mode`, `<name> Heat Mode`, `<name> Dry Mode` or `<name> Fan Mode` |
 
 A switch does this:
 
@@ -217,7 +216,9 @@ A switch does this:
 
 A switch is on while the unit is on and in its mode, whichever way it got there.
 
-With modes the unit lacks running others, picking such a mode, such as Heat for dry, turns the unit on in dry, and the air conditioner shows Heat while the unit is in dry, whichever way it got there. This works without any switch or mode select, in an app that offers only Off, Cool, Heat and Auto:
+#### Modes the unit lacks
+
+Each Matter mode the unit lacks can run one of its modes instead, as you pick, such as Heat running dry on a unit that only cools. Picking Heat then turns the unit on in dry, and the air conditioner shows Heat while the unit is in dry, whichever way it got there. Nothing is added to Matter, so an app that offers only Off, Cool, Heat and Auto reaches dry, and it goes with any of the options above: with a switch for Fan, a cool-only unit has every mode in such an app.
 
 - Only a mode the unit lacks can run another, so the unit loses none of its own modes. Any mode of the unit can be run: Heat for dry on a unit that only cools, Auto for fan, or Heat for auto on a unit without a heat mode.
 - A replacement can give the air conditioner what the unit lacks: Heat for dry on a unit that only cools makes the air conditioner both heat and cool in Matter.

@@ -76,15 +76,14 @@ export function matchesPreset(draft: Draft, name: PresetName, controls: Availabl
   const hasFixedFanSpeed = chosen.fanControl === 'hidden' && chosen.fanSpeedWhenHidden !== 'keep';
   if (!controls.hasFanAuto || (isAutoStep && chosen.fanControl === 'hidden') || hasFixedFanSpeed) chosen.fanAutoControl = 'native';
   if (!controls.hasSwing) Object.assign(chosen, { swingControl: 'hidden', swingModeWhenHidden: 'keep' });
-  // The switches and the replacements are a choice only while they are chosen, and only for what the unit has. A mode
-  // select shows nothing more than the thermostat on a unit without a dry or a fan mode.
+  // The switches are a choice only while they are chosen, and both they and the replacements only for what the unit
+  // has. A mode select shows nothing more than the thermostat on a unit without a dry or a fan mode.
   chosen.modeSwitches = chosen.modeControl === 'switches' ? controls.switchableModes.filter((mode) => chosen.modeSwitches.includes(mode)) : [];
-  chosen.modeReplacements = chosen.modeControl === 'replacements' ? fitModeReplacements(chosen.modeReplacements, controls) : {};
+  chosen.modeReplacements = fitModeReplacements(chosen.modeReplacements, controls);
   const isOfUse: Record<Exposure['modeControl'], boolean> = {
     native: true,
     select: controls.switchableModes.includes('dehumidify') || controls.switchableModes.includes('fan'),
     switches: chosen.modeSwitches.length > 0,
-    replacements: Object.keys(chosen.modeReplacements).length > 0,
   };
   if (!isOfUse[chosen.modeControl]) chosen.modeControl = 'native';
   chosen.specialModeSwitches = controls.specialModes.filter((mode) => chosen.specialModeSwitches.includes(mode));

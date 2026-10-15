@@ -77,7 +77,7 @@ export interface AccessoryLayout {
  * @throws {Error} When the unit neither cools nor heats, so no Matter thermostat can stand for it.
  */
 export function getAccessoryLayout(config: DaikinDeviceConfig, capabilities: DaikinCapabilities, reportedSensors: ReportedSensors): AccessoryLayout {
-  const modeReplacements = config.modeControl === 'replacements' ? getModeReplacements(config.modeReplacements, capabilities.modes) : {};
+  const modeReplacements = getModeReplacements(config.modeReplacements, capabilities.modes);
   // A replacement can give the thermostat a mode the unit lacks, such as Heat on a unit that only cools.
   const profile = getThermostatProfile([...capabilities.modes, ...Object.values(modeReplacements)]);
   if (profile === undefined) throw new Error(`"${config.name}" neither cools nor heats and cannot be exposed as an air conditioner`);

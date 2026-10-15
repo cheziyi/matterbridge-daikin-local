@@ -58,10 +58,10 @@ export type FanAutoControlOption = (typeof FAN_AUTO_CONTROLS)[number];
 /**
  * How the modes are exposed to Matter besides the thermostat of the air conditioner: natively alone, as modes of the
  * thermostat, or also as a mode select of every mode of the unit, or as an on/off switch for each mode in
- * `modeSwitches`, or with modes of the unit shown as the thermostat modes `modeReplacements` puts them in. Each but the
- * native modes alone is for apps whose climate controls lack some of the modes.
+ * `modeSwitches`. Each but the native modes alone is for apps whose climate controls lack some of the modes. The mode
+ * replacements are a setting of their own, which goes with any of these.
  */
-export const MODE_CONTROLS = ['native', 'select', 'switches', 'replacements'] as const;
+export const MODE_CONTROLS = ['native', 'select', 'switches'] as const;
 
 export type ModeControlOption = (typeof MODE_CONTROLS)[number];
 
@@ -115,7 +115,7 @@ export interface DaikinDeviceExposure {
   modeControl: ModeControlOption;
   /** The modes that each get an on/off switch while `modeControl` is `switches`. */
   modeSwitches: SwitchedMode[];
-  /** The thermostat mode each mode of the unit is shown as while `modeControl` is `replacements`. */
+  /** The thermostat mode each mode of the unit is shown as, whatever `modeControl` is: none when empty. */
   modeReplacements: ModeReplacements;
   /** How the auto fan speed is exposed: see `FAN_AUTO_CONTROLS`. */
   fanAutoControl: FanAutoControlOption;

@@ -117,7 +117,7 @@ describe('config', () => {
   });
 
   it('should keep the mode replacements that are valid, and report the others', () => {
-    const device = createDeviceConfig({ name: 'A', host: 'h', modeControl: 'replacements', modeReplacements: { dehumidify: 'cool' } });
+    const device = createDeviceConfig({ name: 'A', host: 'h', modeReplacements: { dehumidify: 'cool' } });
     const report = vi.fn();
     // A thermostat mode stands for one mode at most: the first to take it keeps it.
     const stored = { ...device, modeReplacements: { dehumidify: 'cool', fan: 'cool', turbo: 'auto' } };

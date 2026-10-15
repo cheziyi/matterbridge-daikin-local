@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
-- [devices]: Add the option to have a Matter mode the unit lacks run one of its modes, for Matter apps that offer only some of them, with nothing more added to Matter: Heat running dry on a unit that only cools, or Auto running fan. The air conditioner shows that mode, with its setpoint, while the unit is in the mode it runs. It is the `replacements` value of `modeControl`, with `modeReplacements` from each mode of the unit to the mode it is shown as, such as `{ "dehumidify": "heat", "fan": "auto" }`.
+- [devices]: Add the option to have a Matter mode the unit lacks run one of its modes, for Matter apps that offer only some of them, with nothing more added to Matter: Heat running dry on a unit that only cools, or Auto running fan. The air conditioner shows that mode, with its setpoint, while the unit is in the mode it runs. It is `modeReplacements`, from each mode of the unit to the mode it is shown as, such as `{ "dehumidify": "heat", "fan": "auto" }`, and goes with the mode switches or the mode select.
 - [devices]: Add a switch for any mode of the unit, Auto, Cool and Heat among them, not only for dry and fan. Turning one of those three off turns the unit off. The setup page picks the switches with a compact list.
 
 ### Changed

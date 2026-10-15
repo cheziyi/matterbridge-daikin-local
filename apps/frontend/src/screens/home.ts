@@ -26,13 +26,10 @@ function describeExposure(device: StoredDevice): string {
   const controls = [hasFan ? fan : '', hasSwing ? swing : ''].filter((text) => text !== '').join(', ');
   const modeSwitches = device.modeControl === 'switches' ? device.modeSwitches.map((mode) => modeNames[mode]) : [];
   // Such as "dry mode as heat".
-  const replacements =
-    device.modeControl === 'replacements'
-      ? (Object.keys(modeNames) as SwitchedMode[]).flatMap((mode) => {
-          const replacement = device.modeReplacements[mode];
-          return replacement === undefined ? [] : [`${modeNames[mode]} as ${modeNames[replacement].replace(' mode', '')}`];
-        })
-      : [];
+  const replacements = (Object.keys(modeNames) as SwitchedMode[]).flatMap((mode) => {
+    const replacement = device.modeReplacements[mode];
+    return replacement === undefined ? [] : [`${modeNames[mode]} as ${modeNames[replacement].replace(' mode', '')}`];
+  });
   const switches = [...modeSwitches, device.fanAutoControl === 'switch' ? 'auto fan' : '', ...device.specialModeSwitches].filter(
     (name) => name !== '',
   );

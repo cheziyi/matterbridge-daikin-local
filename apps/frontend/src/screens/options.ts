@@ -251,16 +251,6 @@ function swingSection(draft: Draft): HTMLElement {
   );
 }
 
-// What the replacements start with: dry, then fan, shown as each of cool, heat and auto the unit lacks, as far as they go.
-function startReplacements(controls: AvailableControls): ModeReplacements {
-  const replacements: ModeReplacements = {};
-  for (const shown of ['cool', 'heat', 'auto'] as const) {
-    const mode = (['dehumidify', 'fan'] as const).find((source) => replacements[source] === undefined && canReplace(source, shown, replacements, controls));
-    if (mode !== undefined) replacements[mode] = shown;
-  }
-  return replacements;
-}
-
 // One row for each thermostat mode the unit lacks: which of its modes, if any, an app picking that mode runs.
 function replacementFields(draft: Draft, controls: AvailableControls): HTMLElement {
   const replacements = fitModeReplacements(draft.modeReplacements, controls);
@@ -301,17 +291,13 @@ function modeSection(draft: Draft, controls: AvailableControls): Child {
   const { switchableModes, lackingModes } = controls;
   if (switchableModes.length === 0) return null;
   const modeSwitches = switchableModes.filter((mode) => draft.modeSwitches.includes(mode));
-  const replacements = fitModeReplacements(draft.modeReplacements, controls);
   const extraModes = switchableModes.filter((mode) => mode === 'dehumidify' || mode === 'fan');
   const hasSelect = extraModes.length > 0;
-  const hasReplacements = lackingModes.length > 0;
-  let current = draft.modeControl;
-  if ((current === 'select' && !hasSelect) || (current === 'replacements' && !hasReplacements)) current = 'native';
-  // Switches with none picked would add nothing, so picking them starts with one for each of dry and fan, and
-  // replacements start with dry and fan shown as the modes the unit lacks.
+  // A mode select is only of use for a dry or a fan mode.
+  const current = draft.modeControl === 'select' && !hasSelect ? 'native' : draft.modeControl;
+  // Switches with none picked would add nothing, so picking them starts with one for each of dry and fan.
   const pick = (modeControl: Exposure['modeControl']): void => {
     if (modeControl === 'switches' && modeSwitches.length === 0) update(draft, { modeControl, modeSwitches: hasSelect ? extraModes : [...switchableModes] });
-    else if (modeControl === 'replacements' && Object.keys(replacements).length === 0) update(draft, { modeControl, modeReplacements: startReplacements(controls) });
     else update(draft, { modeControl });
   };
   const fallback = switchableModes.includes('cool') ? 'cool' : 'heat';
@@ -334,17 +320,6 @@ function modeSection(draft: Draft, controls: AvailableControls): Child {
       hasSelect
         ? radio('mode-control', 'select', current, 'A mode select', `${placement(draft, 'Mode', true)}, with Off and every mode of the unit, as the air conditioner has them. Picking a mode turns the unit on in it. ${selectSupport}`, pick)
         : null,
-      hasReplacements
-        ? radio(
-            'mode-control',
-            'replacements',
-            current,
-            'Modes the unit lacks run others',
-            `This unit has no ${lacking}. Pick below which of its modes each of those runs, such as heat running dry on a unit that only cools: an app then reaches that mode from the modes it offers, and nothing is added to Matter. The air conditioner shows the mode picked while the unit is in it, with its setpoint. Auto is offered once the air conditioner both cools and heats, counting these.`,
-            pick,
-          )
-        : null,
-      current === 'replacements' ? replacementFields(draft, controls) : null,
       radio('mode-control', 'switches', current, 'Switches', `A switch for each mode picked below. On turns the unit on in that mode. ${switchOff}`, pick),
       current === 'switches'
         ? h(
@@ -355,6 +330,20 @@ function modeSection(draft: Draft, controls: AvailableControls): Child {
           )
         : null,
     ),
+    // The replacements are on the thermostat, so they go with any of the choices above.
+    lackingModes.length > 0
+      ? h(
+          'div',
+          { class: 'field' },
+          h('h3', {}, 'Modes the unit lacks'),
+          h(
+            'p',
+            { class: 'help' },
+            `This unit has no ${lacking}. Each can run one of its modes instead, such as heat running dry on a unit that only cools: an app then reaches that mode from the modes it offers, and nothing is added to Matter. The air conditioner shows the mode picked while the unit is in it, with its setpoint. Auto is offered once the air conditioner both cools and heats, counting these.`,
+          ),
+          replacementFields(draft, controls),
+        )
+      : null,
   );
 }
 

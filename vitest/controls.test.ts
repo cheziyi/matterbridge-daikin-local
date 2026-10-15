@@ -43,8 +43,8 @@ describe('controls', () => {
     expect(fitToCapabilities(wanted, createCapabilities({ modes: ['cool', 'heat'] })).modeSwitches).toEqual(['cool', 'heat']);
   });
 
-  it('should keep the mode replacements the unit can take, only while replacements are chosen', () => {
-    const wanted = createDeviceConfig({ modeControl: 'replacements', modeReplacements: { dehumidify: 'heat', fan: 'auto' } });
+  it('should keep the mode replacements the unit can take, beside any mode control', () => {
+    const wanted = createDeviceConfig({ modeReplacements: { dehumidify: 'heat', fan: 'auto' } });
     // Heat gives a unit that only cools the heating, which Auto needs.
     expect(fitToCapabilities(wanted, createCapabilities({ modes: ['cool', 'dehumidify', 'fan'] }))).toEqual(wanted);
     // Without it, Matter has no Auto on a unit that only cools.
@@ -55,7 +55,8 @@ describe('controls', () => {
     // Any mode of the unit can be shown as any mode it lacks.
     expect(fitToCapabilities({ ...wanted, modeReplacements: { auto: 'heat' } }, createCapabilities({ modes: ['auto', 'cool'] })).modeReplacements).toEqual({ auto: 'heat' });
     expect(fitToCapabilities({ ...wanted, modeReplacements: { heat: 'dehumidify' } }, createCapabilities({ modes: ['heat'] })).modeReplacements).toEqual({ heat: 'dehumidify' });
-    expect(fitToCapabilities({ ...wanted, modeControl: 'switches' }, createCapabilities({ modes: ['cool', 'dehumidify', 'fan'] })).modeReplacements).toEqual({});
+    const withSwitches = createDeviceConfig({ ...wanted, modeControl: 'switches', modeSwitches: ['fan'] });
+    expect(fitToCapabilities(withSwitches, createCapabilities({ modes: ['cool', 'dehumidify', 'fan'] }))).toEqual(withSwitches);
   });
 
   it('should keep the mode switches only while switches are chosen', () => {

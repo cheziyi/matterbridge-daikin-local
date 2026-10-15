@@ -495,9 +495,9 @@ export class DaikinAccessory implements AccessoryEndpoints {
     // A switch turned off after the unit already left the mode sends nothing: the read that follows shows where the unit is.
     const isInMode = (this.pending.mode ?? this.state?.mode) === mode;
     if (!isInMode) this.scheduleCommand(`${mode} mode switch off`);
-    // Leaving dry or fan goes back to cooling, or to heating on a unit that only heats. Leaving any other mode turns the
-    // unit off, as there is no mode to go back to.
-    else if (mode === 'dehumidify' || mode === 'fan') this.queueControl({ mode: this.layout.profile === 'heat' ? 'heat' : 'cool' }, `${mode} mode switch off`);
+    // Leaving dry or fan goes back to cooling, or to heating on a unit that only heats: the unit's own modes, whatever
+    // a replacement gives the thermostat. Leaving any other mode turns the unit off, as there is no mode to go back to.
+    else if (mode === 'dehumidify' || mode === 'fan') this.queueControl({ mode: this.capabilities.modes.includes('cool') ? 'cool' : 'heat' }, `${mode} mode switch off`);
     else this.queueControl({ power: false }, `${mode} mode switch off`);
   }
 

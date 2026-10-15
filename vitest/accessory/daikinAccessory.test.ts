@@ -627,9 +627,9 @@ describe('DaikinAccessory', () => {
     it('should give a unit that only cools the heating its replacement needs, and run the replaced modes from the thermostat', async () => {
       const capabilities = createCapabilities({ modes: ['cool', 'dehumidify', 'fan'] });
       const client = createFakeClient({}, capabilities);
-      const config = createDeviceConfig({ name: 'Orangery', modeControl: 'replacements', modeReplacements: { dehumidify: 'heat', fan: 'auto' } });
+      const config = createDeviceConfig({ name: 'Orangery', modeReplacements: { dehumidify: 'heat', fan: 'auto' } });
       const accessory = new DaikinAccessory({ config, capabilities, client, log, vendorId });
-      // The replacements are on the thermostat: no endpoint is added for them.
+      // The replacements are on the thermostat: no endpoint is added for them, only the two swing switches.
       expect(accessory.endpoints).toHaveLength(3);
       await addAccessory(accessory);
       await accessory.refresh();
@@ -670,7 +670,7 @@ describe('DaikinAccessory', () => {
       const ranges = { ...createCapabilities().targetTemperaturesInC, heat: null };
       const capabilities = createCapabilities({ modes: ['auto', 'cool', 'dehumidify', 'fan'], targetTemperaturesInC: ranges });
       const client = createFakeClient({ mode: 'auto', targetTemperatureInC: 24 }, capabilities);
-      const config = createDeviceConfig({ name: 'Scullery', modeControl: 'replacements', modeReplacements: { auto: 'heat' } });
+      const config = createDeviceConfig({ name: 'Scullery', modeReplacements: { auto: 'heat' } });
       const accessory = new DaikinAccessory({ config, capabilities, client, log, vendorId });
       await addAccessory(accessory);
       await accessory.refresh();
@@ -688,6 +688,29 @@ describe('DaikinAccessory', () => {
       await writeAsController(accessory.endpoint, 'Thermostat', 'systemMode', Thermostat.SystemMode.Heat);
       await accessory.flushCommands();
       expect(client.setState).toHaveBeenLastCalledWith({ power: true, mode: 'auto' });
+      await accessory.close();
+    });
+  });
+
+  describe('a unit with mode switches beside its mode replacements', () => {
+    it('should run a mode from its switch and the thermostat mode that stands for it alike', async () => {
+      const capabilities = createCapabilities({ modes: ['cool', 'dehumidify', 'fan'] });
+      const client = createFakeClient({}, capabilities);
+      const config = createDeviceConfig({ name: 'Belvedere', swingControl: 'hidden', modeControl: 'switches', modeSwitches: ['fan'], modeReplacements: { dehumidify: 'heat' } });
+      const accessory = new DaikinAccessory({ config, capabilities, client, log, vendorId });
+      expect([...accessory.modeSwitches.keys()]).toEqual(['fan']);
+      await addAccessory(accessory);
+      await accessory.refresh();
+      const fan = getModeSwitch(accessory, 'fan');
+      await writeAsController(fan, 'OnOff', 'onOff', true);
+      await accessory.flushCommands();
+      expect(client.setState).toHaveBeenLastCalledWith({ power: true, mode: 'fan' });
+      expect(accessory.endpoint.getAttribute(Thermostat, 'systemMode')).toBe(Thermostat.SystemMode.FanOnly);
+
+      await writeAsController(accessory.endpoint, 'Thermostat', 'systemMode', Thermostat.SystemMode.Heat);
+      await accessory.flushCommands();
+      expect(client.setState).toHaveBeenLastCalledWith({ power: true, mode: 'dehumidify' });
+      expect(fan.getAttribute(OnOff, 'onOff')).toBe(false);
       await accessory.close();
     });
   });
