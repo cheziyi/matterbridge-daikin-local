@@ -6,12 +6,14 @@
  */
 
 import { loadState, removeDevice, search, startQueue } from '../actions.js';
-import type { StoredDevice } from '../api.js';
+import type { StoredDevice, SwitchedMode } from '../api.js';
 import { button, notice } from '../components.js';
 import { type Child, h } from '../dom.js';
 import { draftFromStored } from '../exposure.js';
 import { render } from '../render.js';
 import { view } from '../state.js';
+
+const modeNames: Record<SwitchedMode, string> = { auto: 'auto mode', cool: 'cool mode', heat: 'heat mode', dehumidify: 'dry mode', fan: 'fan mode' };
 
 function describeExposure(device: StoredDevice): string {
   // What the unit cannot do is left out, whatever is stored for it. A unit the plugin has not asked yet is described as stored.
@@ -22,11 +24,18 @@ function describeExposure(device: StoredDevice): string {
   const fan = device.fanControl === 'hidden' ? 'fan speed not shown' : `fan speed as ${device.fanControl === 'steps' ? 'steps' : 'a percentage'}${autoStep}${fanPlace}`;
   const swing = { switches: 'swing as switches', select: 'swing as a mode select', hidden: 'swing not shown' }[device.swingControl];
   const controls = [hasFan ? fan : '', hasSwing ? swing : ''].filter((text) => text !== '').join(', ');
-  const modeSwitches = device.modeControl === 'switches' ? device.modeSwitches.map((mode) => (mode === 'dehumidify' ? 'dry mode' : 'fan mode')) : [];
+  const modeSwitches = device.modeControl === 'switches' ? device.modeSwitches.map((mode) => modeNames[mode]) : [];
+  // Such as "dry mode as heat".
+  const replacements = (Object.keys(modeNames) as SwitchedMode[]).flatMap((mode) => {
+    const replacement = device.modeReplacements[mode];
+    return replacement === undefined ? [] : [`${modeNames[mode]} as ${modeNames[replacement].replace(' mode', '')}`];
+  });
   const switches = [...modeSwitches, device.fanAutoControl === 'switch' ? 'auto fan' : '', ...device.specialModeSwitches].filter(
     (name) => name !== '',
   );
-  const extra = [switches.length === 0 ? '' : `a switch for ${switches.join(', ')}`, device.modeControl === 'select' ? 'a mode select' : ''].filter((text) => text !== '').join(' and ');
+  const extra = [switches.length === 0 ? '' : `a switch for ${switches.join(', ')}`, device.modeControl === 'select' ? 'a mode select' : '', replacements.join(' and ')]
+    .filter((text) => text !== '')
+    .join(' and ');
   const place = device.isComposed ? ', all as one device' : '';
   if (controls === '') return `${extra === '' ? 'power, mode and temperature' : extra}${place}`;
   return `${extra === '' ? controls : `${controls}, and ${extra}`}${place}`;

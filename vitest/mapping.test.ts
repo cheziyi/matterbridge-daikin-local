@@ -74,6 +74,12 @@ describe('mapping', () => {
     expect(toSystemMode('auto', 'heatCool')).toBe(Thermostat.SystemMode.Auto);
     expect(toSystemMode('auto', 'cool')).toBe(Thermostat.SystemMode.Cool);
     expect(toSystemMode('auto', 'heat')).toBe(Thermostat.SystemMode.Heat);
+    // A mode with a replacement shows as it, and the others stay as they are.
+    const replacements = { dehumidify: 'heat', fan: 'auto', heat: 'dehumidify' } as const;
+    expect(toSystemMode('dehumidify', 'heatCool', replacements)).toBe(Thermostat.SystemMode.Heat);
+    expect(toSystemMode('fan', 'heatCool', replacements)).toBe(Thermostat.SystemMode.Auto);
+    expect(toSystemMode('heat', 'heat', replacements)).toBe(Thermostat.SystemMode.Dry);
+    expect(toSystemMode('cool', 'heatCool', replacements)).toBe(Thermostat.SystemMode.Cool);
   });
 
   it('should convert Matter system modes to the Daikin modes the unit offers', () => {
@@ -87,6 +93,14 @@ describe('mapping', () => {
     expect(toOperatingMode(Thermostat.SystemMode.Dry, modes)).toBe('dehumidify');
     expect(toOperatingMode(Thermostat.SystemMode.Sleep, modes)).toBeUndefined();
     expect(toOperatingMode(Thermostat.SystemMode.Heat, ['cool'])).toBeUndefined();
+    // The system mode of a replacement is that of the mode of the unit shown as it.
+    const coolOnly = ['cool', 'dehumidify', 'fan'] as const;
+    const replacements = { dehumidify: 'heat', fan: 'auto' } as const;
+    expect(toOperatingMode(Thermostat.SystemMode.Heat, coolOnly, replacements)).toBe('dehumidify');
+    expect(toOperatingMode(Thermostat.SystemMode.EmergencyHeat, coolOnly, replacements)).toBe('dehumidify');
+    expect(toOperatingMode(Thermostat.SystemMode.Auto, coolOnly, replacements)).toBe('fan');
+    expect(toOperatingMode(Thermostat.SystemMode.Cool, coolOnly, replacements)).toBe('cool');
+    expect(toOperatingMode(Thermostat.SystemMode.Sleep, coolOnly, replacements)).toBeUndefined();
   });
 
   it('should clamp a setpoint to the range and round it to the step', () => {

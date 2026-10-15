@@ -96,16 +96,16 @@ The plugin presents itself to every adapter with a **Terminal ID**, which it gen
 
 ## How an air conditioner appears in Matter
 
-| In Matter           | From the unit                                                                                                                                                              |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| On/off              | Power                                                                                                                                                                      |
-| Thermostat mode     | Off, Cool, Heat, Auto, Dry (dehumidify) and Fan only, for the modes the unit has. Not every Matter app offers Dry and Fan only                                             |
-| Target temperature  | The setpoint of the current mode, within the limits and the step the unit reports. In Auto the unit has one setpoint, which both the heating and the cooling setpoint show |
-| Current temperature | The indoor temperature the unit measures                                                                                                                                   |
-| Humidity            | The indoor humidity, on the air conditioner and, when you add one, on a sensor of its own, for a unit that gives it: see below                                             |
-| Outdoor temperature | A temperature sensor named `<name> Outdoor Temperature`, when you turn it on, for a unit that gives it: see below                                                          |
-| Fan speed           | Your choice: see below                                                                                                                                                     |
-| Swing               | Your choice: see below                                                                                                                                                     |
+| In Matter           | From the unit                                                                                                                                                                                                                                             |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| On/off              | Power                                                                                                                                                                                                                                                     |
+| Thermostat mode     | Off, Cool, Heat, Auto, Dry (dehumidify) and Fan only, for the modes the unit has. Not every Matter app offers Dry and Fan only                                                                                                                            |
+| Target temperature  | The setpoint of the current mode, within the limits and the step the unit reports. In Auto the unit has one setpoint, which both the heating and the cooling setpoint show. Dry and fan take none: a setpoint changed in them goes back to what it showed |
+| Current temperature | The indoor temperature the unit measures                                                                                                                                                                                                                  |
+| Humidity            | The indoor humidity, on the air conditioner and, when you add one, on a sensor of its own, for a unit that gives it: see below                                                                                                                            |
+| Outdoor temperature | A temperature sensor named `<name> Outdoor Temperature`, when you turn it on, for a unit that gives it: see below                                                                                                                                         |
+| Fan speed           | Your choice: see below                                                                                                                                                                                                                                    |
+| Swing               | Your choice: see below                                                                                                                                                                                                                                    |
 
 The adapter does not report whether the compressor is running, so a unit that is on is shown as cooling or heating according to its mode.
 
@@ -192,38 +192,49 @@ A switch or a step is for Matter apps that show no Auto fan mode. A step takes t
 | Option      | In Matter                                                                                                                                                                                                                                 |
 | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Switches    | One on/off switch for each axis the unit swings on, named `<name> Vertical Swing` and `<name> Horizontal Swing`. A unit that swings on one axis gets one switch. They appear as outlets, the on/off device type every Matter app supports |
-| Mode select | One mode select named `<name> Swing`, with Off, Vertical, Horizontal and Both for the swing modes the unit has. Few Matter apps show it: see [Mode selects](#mode-selects)                                                                |
+| Mode select | One mode select named `<name> Swing`, with Off, Vertical, Horizontal and 3D for the swing modes the unit has. Few Matter apps show it: see [Mode selects](#mode-selects)                                                                  |
 | Not shown   | No swing control. The swing either stays as it is, or is set to the mode you pick each time the plugin sends a command                                                                                                                    |
 
 Fixed louver positions are not controlled from Matter.
 
-### Dry and fan modes
+### Modes
 
-Dry and Fan only are always among the native Matter modes of the air conditioner, but some Matter apps, such as Apple Home, only offer Off, Cool, Heat and Auto. For those apps the setup can add one of these:
+Every mode of the unit is a native Matter mode of the air conditioner, but some Matter apps, such as Apple Home and, by reports, Google Home, only offer Off, Cool, Heat and Auto. For those apps the setup can add one of these, and can also have the modes the unit lacks run others: see [Modes the unit lacks](#modes-the-unit-lacks).
 
-| Option            | In Matter                                                                                                              |
-| ----------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| Native modes only | Nothing more: Dry and Fan only are among the modes of the air conditioner. The default                                 |
-| A mode select     | A mode select named `<name> Mode`, with every mode of the unit: see [Mode selects](#mode-selects)                      |
-| Switches          | A switch named `<name> Dry Mode`, `<name> Fan Mode` or both, for whichever of the two modes the unit has that you pick |
+| Option            | In Matter                                                                                                                                             |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Native modes only | Nothing more: every mode of the unit is among the modes of the air conditioner. The default                                                           |
+| A mode select     | A mode select named `<name> Mode`, with every mode of the unit, on a unit with a dry or a fan mode: see [Mode selects](#mode-selects)                 |
+| Switches          | A switch for each mode of the unit you pick, named `<name> Auto Mode`, `<name> Cool Mode`, `<name> Heat Mode`, `<name> Dry Mode` or `<name> Fan Mode` |
 
 A switch does this:
 
-| Switch     | Does                                                                                                                      |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------- |
-| Turned on  | Turns the unit on in that mode                                                                                            |
-| Turned off | Puts the unit back in Cool, or in Heat on a unit that only heats. The unit stays on: turn it off from the air conditioner |
+| Switch     | Does                                                                                                                                              |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Turned on  | Turns the unit on in that mode                                                                                                                    |
+| Turned off | For Dry and Fan, puts the unit back in Cool, or in Heat on a unit that only heats: the unit stays on. For Auto, Cool and Heat, turns the unit off |
 
 A switch is on while the unit is on and in its mode, whichever way it got there.
 
+#### Modes the unit lacks
+
+Each Matter mode the unit lacks can run one of its modes instead, as you pick, such as Heat running dry on a unit that only cools. Picking Heat then turns the unit on in dry, and the air conditioner shows Heat while the unit is in dry, whichever way it got there. Nothing is added to Matter, so an app that offers only Off, Cool, Heat and Auto reaches dry, and it goes with any of the options above: with a switch for Fan, a cool-only unit has every mode in such an app.
+
+- Only a mode the unit lacks can run another, so the unit loses none of its own modes. Any mode of the unit can be run: Heat for dry on a unit that only cools, Auto for fan, or Heat for auto on a unit without a heat mode.
+- A replacement can give the air conditioner what the unit lacks: Heat for dry on a unit that only cools makes the air conditioner both heat and cool in Matter.
+- Auto can run a mode only once the air conditioner both cools and heats, counting the replacements, because Matter has Auto only with both.
+- **Do not use Auto for Apple Home.** Apple Home has an Auto of its own, which never picks Matter's Auto: it picks Cool or Heat itself, from the room temperature, so a mode shown as Auto cannot be reached from Apple Home. Use Cool or Heat there instead. Other apps, such as Home Assistant, pick Matter's Auto.
+- No two Matter modes run the same mode of the unit.
+- The setpoint and its limits are those of the mode the air conditioner shows: Heat for auto shows the setpoint of auto as the heating setpoint. Dry and fan take no setpoint on any adapter, so in Heat for dry a change of the heating setpoint is not sent, and the setpoint goes back to what it showed.
+
 ### Mode selects
 
-A mode select is the Matter device type that picks one value from a list, as a drop-down does. The setup can add one for the mode, named `<name> Mode`, on a unit with a dry or a fan mode, and one for the swing, named `<name> Swing`, as a choice under [Swing](#swing). Each lists only what the unit has, and is chosen instead of the switches: the mode select under [Dry and fan modes](#dry-and-fan-modes), the swing select under [Swing](#swing). The Full Matter support preset adds the swing select, and no preset adds the mode select.
+A mode select is the Matter device type that picks one value from a list, as a drop-down does. The setup can add one for the mode, named `<name> Mode`, on a unit with a dry or a fan mode, and one for the swing, named `<name> Swing`, as a choice under [Swing](#swing). Each lists only what the unit has, and is chosen instead of the switches: the mode select under [Modes](#modes), the swing select under [Swing](#swing). The Full Matter support preset adds the swing select, and no preset adds the mode select.
 
 | Mode select | Lists                                                                    | Picking a value                                                                                                                              |
 | ----------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | Mode        | Off, Auto, Cool, Heat, Dry and Fan Only, as the thermostat mode has them | Off turns the unit off, and any other mode turns it on in that mode. The select shows Off while the unit is off, as the thermostat mode does |
-| Swing       | Off, Vertical, Horizontal and Both                                       | Sets the swing                                                                                                                               |
+| Swing       | Off, Vertical, Horizontal and 3D                                         | Sets the swing                                                                                                                               |
 
 **Few Matter apps show a mode select.** Home Assistant shows each one as a select among the settings of the device. Apple Home is reported not to show them, and Google Home, Amazon Alexa and SmartThings do not list them among the devices they support. This has not been tested with this plugin. In the other apps, the switches are the way to reach these controls.
 
@@ -238,17 +249,17 @@ Matter has no control for Powerful, Econo and Streamer, so the setup can add a s
 
 ### Presets
 
-In the Options step, a preset fills in every choice above for what the unit can do. You can change any of them afterwards.
+In the Options step, a preset fills in every choice above for what the unit can do. You can change any of them afterwards. A new air conditioner starts with the Apple Home preset, and one already set up keeps its own choices.
 
-| Preset              | Fan speed  | Swing         | Dry and fan modes | Auto fan | Special mode switches | Humidity                    | Outdoor sensor | Parts of the air conditioner |
-| ------------------- | ---------- | ------------- | ----------------- | -------- | --------------------- | --------------------------- | -------------- | ---------------------------- |
-| Apple Home          | Percentage | Not shown     | Native modes only | Switch   | None                  | Also on a sensor of its own | No             | No                           |
-| Google Home         | Steps      | Not shown     | Native modes only | Switch   | None                  | Also on a sensor of its own | No             | No                           |
-| Full Matter support | Steps      | A mode select | Native modes only | Native   | All                   | On the air conditioner      | Yes            | Yes                          |
+| Preset              | Fan speed  | Swing         | Modes                | Auto fan | Special mode switches | Humidity                    | Outdoor sensor | Parts of the air conditioner |
+| ------------------- | ---------- | ------------- | -------------------- | -------- | --------------------- | --------------------------- | -------------- | ---------------------------- |
+| Apple Home          | Percentage | Not shown     | Dry and fan switches | Switch   | None                  | Also on a sensor of its own | No             | No                           |
+| Google Home         | Steps      | Not shown     | Dry and fan switches | Switch   | None                  | Also on a sensor of its own | No             | No                           |
+| Full Matter support | Steps      | A mode select | Native modes only    | Native   | All                   | On the air conditioner      | Yes            | Yes                          |
 
 ### One device or several
 
-The switches, the mode selects, a fan of its own and a humidity sensor of its own are parts of the air conditioner, which Matter calls a composed device, so they move between rooms with it. The outdoor temperature sensor is a device of its own either way, so that you can put it in another room than the air conditioner. The setup can make each of them a device of its own instead, beside the air conditioner. A Matter app then does not know that they belong together, so each is put in a room by itself: moving the air conditioner to another room leaves them where they were. A new device starts as one composed device. The Full Matter support preset keeps it one, and the Apple Home and Google Home presets make each part a device of its own: see [Presets](#presets).
+The switches, the mode selects, a fan of its own and a humidity sensor of its own are parts of the air conditioner, which Matter calls a composed device, so they move between rooms with it. The outdoor temperature sensor is a device of its own either way, so that you can put it in another room than the air conditioner. The setup can make each of them a device of its own instead, beside the air conditioner. A Matter app then does not know that they belong together, so each is put in a room by itself: moving the air conditioner to another room leaves them where they were. A new device starts with the Apple Home preset, which makes each part a device of its own. The Google Home preset does too, and the Full Matter support preset makes it one composed device: see [Presets](#presets).
 
 ```mermaid
 flowchart TD
@@ -291,7 +302,7 @@ This plugin is the only one of the four that finds the adapters itself, that spe
 | Built on                     | [daikin-local-control](https://github.com/cheziyi/daikin-local-control), a library by the same author that works on its own                            | [daikin-controller](https://github.com/Apollon77/daikin-controller)                                              | Its own DSIOT code                                                                                | [daikin-controller-cloud](https://github.com/Apollon77/daikin-controller-cloud)               |
 | Adding a unit                | A search of the network and a guided setup page, or by address. No restart                                                                             | IP addresses in the plugin settings                                                                              | IP addresses in the plugin settings, then a restart                                               | Every unit of the account, with a white list and a black list                                 |
 | KEY and child lock code      | Asked for in the setup page, by the adapters that need them                                                                                            | Not supported: it cannot connect to an adapter that wants its KEY or a child lock code                           | Not supported: it cannot connect to an adapter with a child lock code. DSIOT adapters have no KEY | Neither applies: it signs in to the Daikin cloud                                              |
-| Thermostat modes             | Off, Cool, Heat, Auto, Dry and Fan only, and an optional switch for each of Dry and Fan only or a mode select                                          | Off, Cool, Heat, Auto, Dry and Fan only                                                                          | Off, Cool, Heat, Auto and Fan only. Dry and humidify through a mode select                        | Off, Cool, Heat, Auto, Dry and Fan only                                                       |
+| Thermostat modes             | Off, Cool, Heat, Auto, Dry and Fan only, and an optional switch for each mode, a mode select, or the modes the unit lacks running others               | Off, Cool, Heat, Auto, Dry and Fan only                                                                          | Off, Cool, Heat, Auto and Fan only. Dry and humidify through a mode select                        | Off, Cool, Heat, Auto, Dry and Fan only                                                       |
 | Fan speed                    | Steps, a percentage or not shown, on the air conditioner or on a fan of its own, and an optional switch for the auto speed                             | No                                                                                                               | Low, Medium, High and Auto, a percentage, or a mode select                                        | A fan device                                                                                  |
 | Swing                        | A switch for each axis, a mode select, or not shown with the mode you fix                                                                              | No                                                                                                               | The airflow direction of each axis, through a mode select                                         | No                                                                                            |
 | Powerful, Econo and Streamer | An optional switch for each                                                                                                                            | No                                                                                                               | No                                                                                                | A switch for Powerful                                                                         |

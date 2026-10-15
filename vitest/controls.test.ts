@@ -4,7 +4,16 @@
  * @author Calvin Che
  */
 
-import { addReportedSensors, fitToCapabilities, getAvailableControls, getSwitchableSpecialModes, hasFanAuto, hasSameControls, noReportedSensors } from '../src/controls.js';
+import {
+  addReportedSensors,
+  fitToCapabilities,
+  getAvailableControls,
+  getModeReplacements,
+  getSwitchableSpecialModes,
+  hasFanAuto,
+  hasSameControls,
+  noReportedSensors,
+} from '../src/controls.js';
 import { createCapabilities, createDeviceConfig } from './fakeDaikin.js';
 
 describe('controls', () => {
@@ -27,6 +36,27 @@ describe('controls', () => {
     expect(fitToCapabilities(wanted, createCapabilities({ modes: ['cool', 'fan'] })).modeControl).toBe('select');
     // The thermostat mode offers every other mode.
     expect(fitToCapabilities(wanted, createCapabilities({ modes: ['auto', 'cool', 'heat'] })).modeControl).toBe('native');
+  });
+
+  it('should keep a switch for any mode the unit has', () => {
+    const wanted = createDeviceConfig({ modeControl: 'switches', modeSwitches: ['auto', 'cool', 'heat'] });
+    expect(fitToCapabilities(wanted, createCapabilities({ modes: ['cool', 'heat'] })).modeSwitches).toEqual(['cool', 'heat']);
+  });
+
+  it('should keep the mode replacements the unit can take, beside any mode control', () => {
+    const wanted = createDeviceConfig({ modeReplacements: { dehumidify: 'heat', fan: 'auto' } });
+    // Heat gives a unit that only cools the heating, which Auto needs.
+    expect(fitToCapabilities(wanted, createCapabilities({ modes: ['cool', 'dehumidify', 'fan'] }))).toEqual(wanted);
+    // Without it, Matter has no Auto on a unit that only cools.
+    expect(fitToCapabilities(wanted, createCapabilities({ modes: ['cool', 'fan'] }))).toEqual(createDeviceConfig());
+    // A mode the unit has itself is never taken: the unit would lose it.
+    expect(fitToCapabilities(wanted, createCapabilities())).toEqual(createDeviceConfig());
+    expect(fitToCapabilities(wanted, createCapabilities({ modes: ['auto', 'cool', 'dehumidify', 'fan'] })).modeReplacements).toEqual({ dehumidify: 'heat' });
+    // Any mode of the unit can be shown as any mode it lacks.
+    expect(fitToCapabilities({ ...wanted, modeReplacements: { auto: 'heat' } }, createCapabilities({ modes: ['auto', 'cool'] })).modeReplacements).toEqual({ auto: 'heat' });
+    expect(fitToCapabilities({ ...wanted, modeReplacements: { heat: 'dehumidify' } }, createCapabilities({ modes: ['heat'] })).modeReplacements).toEqual({ heat: 'dehumidify' });
+    const withSwitches = createDeviceConfig({ ...wanted, modeControl: 'switches', modeSwitches: ['fan'] });
+    expect(fitToCapabilities(withSwitches, createCapabilities({ modes: ['cool', 'dehumidify', 'fan'] }))).toEqual(withSwitches);
   });
 
   it('should keep the mode switches only while switches are chosen', () => {
@@ -97,16 +127,16 @@ describe('controls', () => {
       fanSteps: ['silent', 'level1', 'level2', 'level3', 'level4', 'level5'],
       hasFanAuto: true,
       hasSwing: true,
-      hasDryMode: true,
-      hasFanMode: true,
+      switchableModes: ['auto', 'cool', 'heat', 'dehumidify', 'fan'],
+      lackingModes: [],
       specialModes: ['powerful', 'econo', 'streamer'],
     });
     expect(getAvailableControls(createCapabilities({ modes: ['heat'], fanSpeeds: ['auto'], swingModes: [] }))).toEqual({
       fanSteps: [],
       hasFanAuto: false,
       hasSwing: false,
-      hasDryMode: false,
-      hasFanMode: false,
+      switchableModes: ['heat'],
+      lackingModes: ['auto', 'cool', 'dehumidify', 'fan'],
       specialModes: [],
     });
   });

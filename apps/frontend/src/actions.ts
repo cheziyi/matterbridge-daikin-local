@@ -7,6 +7,7 @@
 
 import { api, type StoredDevice } from './api.js';
 import { pickExposure } from './exposure.js';
+import { presetExposure } from './presets.js';
 import { render } from './render.js';
 import { currentDraft, type Draft, draftLabel, isStored, view } from './state.js';
 
@@ -133,8 +134,12 @@ export async function check(draft: Draft, key?: string): Promise<void> {
   draft.probe = reply.result;
   draft.adapter = reply.result.device;
   if (reply.result.status === 'ready') {
+    const isFirstReading = draft.controls === undefined;
     draft.capabilities = reply.result.capabilities;
     draft.controls = reply.result.controls;
+    // A new unit starts with the Apple Home preset, once what it can do is known. A later check, such as after a
+    // registration, keeps what was chosen since.
+    if (draft.isNew && isFirstReading && draft.controls !== undefined) Object.assign(draft, presetExposure('apple', draft.controls));
     // The name the adapter tells is the name of the device. Only an adapter that has none is named here.
     const told = reply.result.device.name ?? '';
     if (told !== '') draft.name = told;

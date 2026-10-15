@@ -1,6 +1,6 @@
 {
   "name": "matterbridge-daikin-local",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "description": "Matterbridge Daikin Local",
   "author": "https://github.com/cheziyi",
   "license": "Apache-2.0",
@@ -122,7 +122,7 @@
     "npmPublishTagLatest": "npx shx cp package.json package.json.backup && npm run prepublishOnly && npm publish --tag latest && npx shx cp package.json.backup package.json && npx shx rm -f package.json.backup && npm run reset"
   },
   "dependencies": {
-    "daikin-local-control": "0.5.0",
+    "daikin-local-control": "0.5.1",
     "node-ansi-logger": "3.3.1",
     "node-persist-manager": "2.1.1"
   },

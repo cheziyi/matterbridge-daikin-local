@@ -24,7 +24,7 @@
 import { type DaikinCapabilities, FAN_SPEEDS, type FanSpeed, type OperatingMode, SWING_MODES, type SwingMode, type TemperatureRange } from 'daikin-local-control';
 import { FanControl, type ModeSelect, Thermostat } from 'matterbridge/matter/clusters';
 
-import { maxDeviceNameLength } from './config.js';
+import { maxDeviceNameLength, type ModeReplacements, THERMOSTAT_MODES } from './config.js';
 
 /** Which Thermostat features a unit takes: both, cooling alone or heating alone. */
 export type ThermostatProfile = 'heatCool' | 'cool' | 'heat';
@@ -54,7 +54,7 @@ export const modeSelectChoices: SelectChoices<ModeSelectValue> = {
 /** The swing modes of the unit on its swing select. */
 export const swingSelectChoices: SelectChoices<SwingMode> = {
   values: SWING_MODES,
-  labels: { off: 'Off', vertical: 'Vertical', horizontal: 'Horizontal', both: 'Both' },
+  labels: { off: 'Off', vertical: 'Vertical', horizontal: 'Horizontal', both: '3D' },
 };
 
 /**
@@ -145,12 +145,16 @@ export function getThermostatProfile(modes: readonly OperatingMode[]): Thermosta
  *
  * Edge cases:
  *  - `auto` on a unit that only cools or only heats -> Cool or Heat, because Matter has Auto only with both
+ *  - a mode with a replacement -> the system mode of its replacement
  *
  * @param {OperatingMode} mode The Daikin mode.
- * @param {ThermostatProfile} profile The Thermostat features of the unit.
+ * @param {ThermostatProfile} profile The Thermostat features of the device.
+ * @param {ModeReplacements} [replacements] The thermostat mode each mode of the unit is shown as. Defaults to none.
  * @returns {Thermostat.SystemMode} The Matter system mode.
  */
-export function toSystemMode(mode: OperatingMode, profile: ThermostatProfile): Thermostat.SystemMode {
+export function toSystemMode(mode: OperatingMode, profile: ThermostatProfile, replacements: ModeReplacements = {}): Thermostat.SystemMode {
+  const replacement = replacements[mode];
+  if (replacement !== undefined) return toSystemMode(replacement, profile);
   switch (mode) {
     case 'cool':
       return Thermostat.SystemMode.Cool;
@@ -179,12 +183,17 @@ const operatingModesBySystemMode: Readonly<Partial<Record<Thermostat.SystemMode,
 /**
  * Convert a Matter system mode to a Daikin operating mode
  *
+ * Edge cases:
+ *  - the system mode of a replacement -> the mode of the unit shown as it
+ *
  * @param {Thermostat.SystemMode} systemMode The Matter system mode, other than Off.
  * @param {readonly OperatingMode[]} modes The operating modes the unit offers.
+ * @param {ModeReplacements} [replacements] The thermostat mode each mode of the unit is shown as. Defaults to none.
  * @returns {OperatingMode | undefined} The Daikin mode, or undefined when the unit does not offer it.
  */
-export function toOperatingMode(systemMode: Thermostat.SystemMode, modes: readonly OperatingMode[]): OperatingMode | undefined {
-  const mode = operatingModesBySystemMode[systemMode];
+export function toOperatingMode(systemMode: Thermostat.SystemMode, modes: readonly OperatingMode[], replacements: ModeReplacements = {}): OperatingMode | undefined {
+  const named = operatingModesBySystemMode[systemMode];
+  const mode = THERMOSTAT_MODES.find((replaced) => named !== undefined && replacements[replaced] === named) ?? named;
   return mode !== undefined && modes.includes(mode) ? mode : undefined;
 }
 

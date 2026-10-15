@@ -386,6 +386,61 @@ input[type='checkbox'] {
   background: var(--accent-wash);
 }
 
+/* What a choice asks for besides itself, such as the switches it adds: under its title, out of the way of the next choice. */
+.sub {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin: 0 0 0.25rem 2.6rem;
+}
+
+/* A compact multi-select, for a list that full sized choices would make too long. */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  /* The checkbox sits at the start of a fully rounded edge, so it needs as much room as the label at the other end. */
+  padding: 0.3rem 0.95rem 0.3rem 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.chip input {
+  margin: 0;
+}
+
+.chip:hover {
+  background: var(--wash);
+}
+
+.chip:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--accent-wash);
+}
+
+.replacements {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: center;
+  gap: 0.4rem 0.75rem;
+}
+
+.replacements label {
+  font-weight: 500;
+}
+
+.replacements select {
+  justify-self: start;
+  max-width: 100%;
+}
+
 .devices,
 .found-list {
   margin: 0;
@@ -548,5 +603,9 @@ summary {
 
   .footer .button {
     flex: 1 1 auto;
+  }
+
+  .sub {
+    margin-left: 0;
   }
 }
