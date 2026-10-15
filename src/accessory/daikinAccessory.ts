@@ -164,7 +164,7 @@ export class DaikinAccessory implements AccessoryEndpoints {
   private isReachable = false;
   private lastError: string | undefined;
   private failureCount = 0;
-  private isClosed = false;
+  private isDisposed = false;
 
   // What the controllers asked for since the last command was sent.
   private readonly pending = new PendingCommand();
@@ -288,13 +288,13 @@ export class DaikinAccessory implements AccessoryEndpoints {
    *
    * @param {DaikinDeviceConfig} config The updated device.
    * @param {DaikinClient} client The client for the updated device.
-   * @returns {Promise<void>} Resolves when the previous client is closed.
+   * @returns {Promise<void>} Resolves when the previous client is disposed.
    */
   async updateConnection(config: DaikinDeviceConfig, client: DaikinClient): Promise<void> {
     const previous = this.client;
     this.config = config;
     this.client = client;
-    await this.closeClient(previous);
+    await this.disposeClient(previous);
   }
 
   /**
@@ -340,17 +340,18 @@ export class DaikinAccessory implements AccessoryEndpoints {
   }
 
   /**
-   * Stop the device: drop what is waiting to be sent and close the connection to the adapter
+   * Stop the device for good: drop what is waiting to be sent and close the connection to the adapter. The device
+   * reads and sends nothing afterwards, so a device that is needed again is built anew.
    *
-   * @returns {Promise<void>} Resolves when the running read or command is done and the client is closed.
+   * @returns {Promise<void>} Resolves when the running read or command is done and the client is disposed.
    */
-  async close(): Promise<void> {
-    this.isClosed = true;
+  async dispose(): Promise<void> {
+    this.isDisposed = true;
     clearTimeout(this.commandTimer);
     this.commandTimer = undefined;
     this.hasPendingCommand = false;
     await this.queue;
-    await this.closeClient(this.client);
+    await this.disposeClient(this.client);
   }
 
   private createAirConditioner(): MatterbridgeEndpoint {
@@ -424,7 +425,7 @@ export class DaikinAccessory implements AccessoryEndpoints {
       for (const again of subscriptions) again();
       if (endpoint === this.endpoint) this.log.info(`"${this.name}" is subscribed again after the Matter node was reset`);
       // The reset put every attribute back to its default, and the endpoints come back one by one: the state of the
-      // unit replaces the defaults of each as it comes back, and does nothing once the device is closed.
+      // unit replaces the defaults of each as it comes back, and does nothing once the device is disposed.
       void this.refresh();
     });
   }
@@ -534,7 +535,7 @@ export class DaikinAccessory implements AccessoryEndpoints {
   }
 
   private scheduleCommand(description: string): void {
-    if (this.isClosed) return;
+    if (this.isDisposed) return;
     this.log.info(`"${this.name}" received ${description}`);
     this.hasPendingCommand = true;
     clearTimeout(this.commandTimer);
@@ -606,7 +607,7 @@ export class DaikinAccessory implements AccessoryEndpoints {
    * @returns {Promise<boolean>} True when the unit answered.
    */
   private async readAndApply(shouldReadSensors: boolean, setpointsBefore: Partial<Record<SetpointKind, number>> = {}): Promise<boolean> {
-    if (this.isClosed) return false;
+    if (this.isDisposed) return false;
     let state: DaikinState;
     let sensors = this.sensors;
     try {
@@ -622,7 +623,7 @@ export class DaikinAccessory implements AccessoryEndpoints {
     this.failureCount = 0;
     this.lastError = undefined;
     // A controller wrote while the unit was answering: the command about to be sent reads these attributes.
-    if (this.hasPendingCommand || this.isClosed) return true;
+    if (this.hasPendingCommand || this.isDisposed) return true;
     try {
       await this.setReachable(true);
       await applyState(this, this.layout, state, sensors);
@@ -661,7 +662,7 @@ export class DaikinAccessory implements AccessoryEndpoints {
     }
   }
 
-  private async closeClient(client: DaikinClient): Promise<void> {
+  private async disposeClient(client: DaikinClient): Promise<void> {
     try {
       await client.dispose();
     } catch (error) {

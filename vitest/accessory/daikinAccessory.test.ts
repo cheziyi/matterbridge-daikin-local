@@ -408,7 +408,7 @@ describe('DaikinAccessory', () => {
       updateAttribute.mockRestore();
     });
 
-    it('should use a new client after the address changed, and close the previous one', async () => {
+    it('should use a new client after the address changed, and dispose of the previous one', async () => {
       const next = createFakeClient({ power: false });
       client.dispose.mockRejectedValueOnce(new Error('already closed'));
       await accessory.updateConnection(createDeviceConfig({ host: '192.168.1.60' }), next);
@@ -419,10 +419,10 @@ describe('DaikinAccessory', () => {
       client = next;
     });
 
-    it('should stop reading and sending once it is closed', async () => {
+    it('should stop reading and sending once it is disposed', async () => {
       await writeAsController(accessory.endpoint, 'OnOff', 'onOff', true);
       client.dispose.mockRejectedValueOnce('odd');
-      await accessory.close();
+      await accessory.dispose();
       expect(client.dispose).toHaveBeenCalled();
       await writeAsController(accessory.endpoint, 'OnOff', 'onOff', false);
       await accessory.flushCommands();
@@ -483,7 +483,7 @@ describe('DaikinAccessory', () => {
       await accessory.flushCommands();
       // The unit does not swing on both axes, so the fixed mode is left out.
       expect(client.setState).toHaveBeenLastCalledWith({ power: false });
-      await accessory.close();
+      await accessory.dispose();
     });
   });
 
@@ -509,7 +509,7 @@ describe('DaikinAccessory', () => {
       await accessory.flushCommands();
       // The unit has no level5, so only the setpoint is sent.
       expect(client.setState).toHaveBeenLastCalledWith({ targetTemperatureInC: 22 });
-      await accessory.close();
+      await accessory.dispose();
     });
   });
 
@@ -577,7 +577,7 @@ describe('DaikinAccessory', () => {
       Object.assign(client.state, { power: false, mode: 'dehumidify' });
       await accessory.refresh();
       expect(dry.getAttribute(OnOff, 'onOff')).toBe(false);
-      await accessory.close();
+      await accessory.dispose();
     });
 
     it('should go back to heating on a unit that only heats', async () => {
@@ -597,7 +597,7 @@ describe('DaikinAccessory', () => {
       await writeAsController(fan, 'OnOff', 'onOff', false);
       await warm.flushCommands();
       expect(heater.setState).toHaveBeenLastCalledWith({ mode: 'heat' });
-      await warm.close();
+      await warm.dispose();
     });
 
     it('should turn the unit off when the switch of a mode it has no other to go back to is turned off', async () => {
@@ -619,7 +619,7 @@ describe('DaikinAccessory', () => {
       await boathouse.flushCommands();
       expect(unit.setState).toHaveBeenLastCalledWith({ power: false });
       expect(boathouse.endpoint.getAttribute(Thermostat, 'systemMode')).toBe(Thermostat.SystemMode.Off);
-      await boathouse.close();
+      await boathouse.dispose();
     });
   });
 
@@ -663,7 +663,7 @@ describe('DaikinAccessory', () => {
       await accessory.flushCommands();
       expect(client.setState).toHaveBeenLastCalledWith({ power: true, mode: 'dehumidify' });
       expect(accessory.endpoint.getAttribute(Thermostat, 'systemMode')).toBe(Thermostat.SystemMode.Heat);
-      await accessory.close();
+      await accessory.dispose();
     });
 
     it('should give a mode of the unit the setpoint and the limits of the thermostat mode it is shown as', async () => {
@@ -688,7 +688,7 @@ describe('DaikinAccessory', () => {
       await writeAsController(accessory.endpoint, 'Thermostat', 'systemMode', Thermostat.SystemMode.Heat);
       await accessory.flushCommands();
       expect(client.setState).toHaveBeenLastCalledWith({ power: true, mode: 'auto' });
-      await accessory.close();
+      await accessory.dispose();
     });
   });
 
@@ -711,7 +711,7 @@ describe('DaikinAccessory', () => {
       await accessory.flushCommands();
       expect(client.setState).toHaveBeenLastCalledWith({ power: true, mode: 'dehumidify' });
       expect(fan.getAttribute(OnOff, 'onOff')).toBe(false);
-      await accessory.close();
+      await accessory.dispose();
     });
   });
 
@@ -766,7 +766,7 @@ describe('DaikinAccessory', () => {
       await writeAsController(accessory.fanAutoSwitch, 'OnOff', 'onOff', false);
       await accessory.flushCommands();
       expect(client.setState).not.toHaveBeenCalled();
-      await accessory.close();
+      await accessory.dispose();
     });
   });
 
@@ -811,7 +811,7 @@ describe('DaikinAccessory', () => {
       await accessory.flushCommands();
       expect(client.setState).toHaveBeenLastCalledWith({ fanSpeed: 'auto' });
       expect(accessory.endpoint.getAttribute(FanControl, 'percentSetting')).toBe(14);
-      await accessory.close();
+      await accessory.dispose();
     });
 
     it('should put auto above the speeds of the unit, at 100 %', async () => {
@@ -832,7 +832,7 @@ describe('DaikinAccessory', () => {
       await writeAsController(accessory.endpoint, 'FanControl', 'percentSetting', 100);
       await accessory.flushCommands();
       expect(client.setState).toHaveBeenLastCalledWith({ fanSpeed: 'auto' });
-      await accessory.close();
+      await accessory.dispose();
     });
   });
 
@@ -896,7 +896,7 @@ describe('DaikinAccessory', () => {
       await accessory.flushCommands();
       expect(log.error).toHaveBeenCalledWith('"Suite" did not turn Powerful off: Daikin command failed (ret=PARAM NG)');
       expect(powerful.getAttribute(OnOff, 'onOff')).toBe(true);
-      await accessory.close();
+      await accessory.dispose();
     });
 
     it('should not turn on a special mode before the unit said which mode it is in', async () => {
@@ -908,7 +908,7 @@ describe('DaikinAccessory', () => {
       await early.flushCommands();
       expect(log.warn).toHaveBeenCalledWith('"Early" does not take Powerful in its current mode: the request is ignored');
       expect(client.setSpecialMode).not.toHaveBeenCalled();
-      await early.close();
+      await early.dispose();
     });
   });
 
@@ -940,7 +940,7 @@ describe('DaikinAccessory', () => {
       expect(accessory.endpoint.getAttribute(OnOff, 'onOff')).toBe(false);
       expect(accessory.fan.getAttribute(OnOff, 'onOff')).toBe(false);
       expect(accessory.fan.getAttribute(FanControl, 'percentSetting')).toBe(100);
-      await accessory.close();
+      await accessory.dispose();
     });
 
     it('should turn the unit on and off from the fan', async () => {
@@ -973,7 +973,7 @@ describe('DaikinAccessory', () => {
       await accessory.flushCommands();
       expect(client.setState).toHaveBeenLastCalledWith({ power: false });
       expect(client.state.fanSpeed).toBe('level3');
-      await accessory.close();
+      await accessory.dispose();
     });
 
     it('should have no fan when the fan speed is not shown', () => {
@@ -1010,7 +1010,7 @@ describe('DaikinAccessory', () => {
       expect(accessory.endpoint.getAttribute(RelativeHumidityMeasurement, 'measuredValue')).toBeNull();
       expect(accessory.outdoorTemperatureSensor?.getAttribute(TemperatureMeasurement, 'measuredValue')).toBeNull();
       expect(accessory.getNewlyReportedSensors()).toBeUndefined();
-      await accessory.close();
+      await accessory.dispose();
     });
 
     it('should tell when the unit gives a reading its endpoints were not built for', async () => {
@@ -1028,7 +1028,7 @@ describe('DaikinAccessory', () => {
       client.sensors.indoorHumidityInPercent = 55;
       await accessory.refresh();
       expect(accessory.getNewlyReportedSensors()).toEqual({ hasHumidity: true, hasOutdoorTemperature: false });
-      await accessory.close();
+      await accessory.dispose();
     });
 
     it('should show the humidity on a sensor of its own too when asked to', async () => {
@@ -1048,7 +1048,7 @@ describe('DaikinAccessory', () => {
       expect(accessory.humiditySensor?.getAttribute(RelativeHumidityMeasurement, 'measuredValue')).toBe(6000);
       expect(accessory.endpoint.getAttribute(RelativeHumidityMeasurement, 'measuredValue')).toBe(6000);
       expect(accessory.humiditySensor?.getAttribute(BridgedDeviceBasicInformation, 'reachable')).toBe(true);
-      await accessory.close();
+      await accessory.dispose();
     });
 
     it('should have no outdoor sensor when none is asked for, and not take the outdoor temperature for a new reading', async () => {
@@ -1061,7 +1061,7 @@ describe('DaikinAccessory', () => {
       await addAccessory(accessory);
       await accessory.refresh();
       expect(accessory.getNewlyReportedSensors()).toBeUndefined();
-      await accessory.close();
+      await accessory.dispose();
 
       // Nor once the unit is known to give it.
       const reportedSensors = { hasHumidity: false, hasOutdoorTemperature: true };
@@ -1122,7 +1122,7 @@ describe('DaikinAccessory', () => {
       client.state.swingMode = 'both';
       await accessory.refresh();
       expect(accessory.swingSelect.getAttribute(ModeSelect, 'currentMode')).toBe(0);
-      await accessory.close();
+      await accessory.dispose();
     });
 
     it('should tell the selects of a composed device apart by their tags, beside a switch', async () => {
@@ -1141,7 +1141,7 @@ describe('DaikinAccessory', () => {
       expect(accessory.modeSelect?.getAttribute(ModeSelect, 'currentMode')).toBe(2);
       expect(accessory.swingSelect?.getAttribute(ModeSelect, 'currentMode')).toBe(1);
       expect(accessory.fanAutoSwitch?.getAttribute(OnOff, 'onOff')).toBe(false);
-      await accessory.close();
+      await accessory.dispose();
     });
   });
 
@@ -1197,7 +1197,7 @@ describe('DaikinAccessory', () => {
       await writeAsController(accessory.fan, 'FanControl', 'percentSetting', 100);
       await accessory.flushCommands();
       expect(client.setState).toHaveBeenLastCalledWith({ fanSpeed: 'level5' });
-      await accessory.close();
+      await accessory.dispose();
     });
 
     it('should give a second device parts of its own', async () => {
@@ -1207,7 +1207,7 @@ describe('DaikinAccessory', () => {
       await accessory.refresh();
       expect(accessory.endpoint.getAttribute(Descriptor, 'partsList')).toHaveLength(5);
       expect(accessory.verticalSwitch?.getAttribute(OnOff, 'onOff')).toBe(true);
-      await accessory.close();
+      await accessory.dispose();
     });
   });
 
@@ -1232,8 +1232,8 @@ describe('DaikinAccessory', () => {
       await addAccessory(one);
       expect(one.endpoint.getAttribute(FanControl, 'fanModeSequence')).toBe(FanControl.FanModeSequence.OffHigh);
       expect(one.endpoint.getAttribute(FanControl, 'speedMax')).toBe(1);
-      await two.close();
-      await one.close();
+      await two.dispose();
+      await one.dispose();
     });
 
     it('should expose no fan to a unit whose fan is not controllable', () => {

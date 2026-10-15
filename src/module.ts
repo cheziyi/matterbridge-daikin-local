@@ -161,7 +161,7 @@ export class DaikinPlatform extends MatterbridgeDynamicPlatform implements Setup
 
     this.stopTimers();
     await this.changes;
-    for (const accessory of this.accessories.values()) await accessory.close();
+    for (const accessory of this.accessories.values()) await accessory.dispose();
     this.accessories.clear();
     if (this.config.unregisterOnShutdown) await this.unregisterAllDevices();
 
@@ -611,7 +611,7 @@ export class DaikinPlatform extends MatterbridgeDynamicPlatform implements Setup
     this.accessories.delete(macAddress);
     this.startErrors.delete(macAddress);
     if (accessory !== undefined) {
-      await accessory.close();
+      await accessory.dispose();
       for (const endpoint of accessory.endpoints) await this.unregisterDevice(endpoint);
       this.log.info(`"${name}" stopped`);
     }

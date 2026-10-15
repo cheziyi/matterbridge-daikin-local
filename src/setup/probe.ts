@@ -65,12 +65,12 @@ export interface ProbeResult {
 }
 
 /**
- * Close a setup client without letting a failed close hide the result of the check
+ * Dispose of a setup client without letting a failed close hide the result of the check
  *
- * @param {DaikinClient} client The client to close.
- * @returns {Promise<void>} Resolves when the client is closed or the close failed.
+ * @param {DaikinClient} client The client to dispose of.
+ * @returns {Promise<void>} Resolves when the client is disposed or the close failed.
  */
-async function closeQuietly(client: DaikinClient): Promise<void> {
+async function disposeQuietly(client: DaikinClient): Promise<void> {
   try {
     await client.dispose();
   } catch {
@@ -129,7 +129,7 @@ export async function probeDevice(device: DaikinDevice, credentials: ProbeCreden
   } catch (error) {
     return classifyFailure(error, device);
   } finally {
-    await closeQuietly(client);
+    await disposeQuietly(client);
   }
 }
 
@@ -150,7 +150,7 @@ export async function registerWithDevice(device: DaikinDevice, key: string, cred
     const failure = classifyFailure(error, device);
     return failure.status === 'unreachable' || failure.status === 'localPasswordRejected' ? failure : { ...failure, status: 'registrationRejected' };
   } finally {
-    await closeQuietly(client);
+    await disposeQuietly(client);
   }
   return probeDevice(device, credentials);
 }
@@ -176,7 +176,7 @@ async function identifyClassic(host: string, usesHttps: boolean, terminalUuid: s
     if (status === 401 || status === 403) return { host, protocol: 'classic', usesHttps, requiresRegistration: true };
     return status;
   } finally {
-    await closeQuietly(client);
+    await disposeQuietly(client);
   }
 }
 
@@ -196,7 +196,7 @@ async function identifyAirbase(host: string, terminalUuid: string): Promise<Daik
   } catch {
     return undefined;
   } finally {
-    await closeQuietly(client);
+    await disposeQuietly(client);
   }
 }
 
@@ -214,7 +214,7 @@ async function identifyDsiot(host: string, terminalUuid: string): Promise<Daikin
   } catch (error) {
     return error instanceof DaikinError && error.httpStatusCode === 401 ? { host, protocol: 'dsiot', requiresLocalPassword: true } : undefined;
   } finally {
-    await closeQuietly(client);
+    await disposeQuietly(client);
   }
 }
 

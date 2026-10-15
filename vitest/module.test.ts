@@ -691,7 +691,7 @@ describe('DaikinPlatform', () => {
     expect(log.info).toHaveBeenCalledWith('onChangeLoggerLevel called with: debug');
   });
 
-  it('should stop its timers and close every device on shutdown', async () => {
+  it('should stop its timers and dispose of every device on shutdown', async () => {
     await platform.onShutdown('Vitest');
     expect(log.info).toHaveBeenCalledWith(`Shutting down platform ${pluginName} with reason: Vitest...`);
     expect(unitAt('192.168.1.77').dispose).toHaveBeenCalled();

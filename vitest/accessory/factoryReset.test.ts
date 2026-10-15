@@ -55,7 +55,7 @@ describe('a device when the Matter node is reset to factory defaults', () => {
   });
 
   afterAll(async () => {
-    await accessory.close();
+    await accessory.dispose();
     await stopServerNode();
     vi.restoreAllMocks();
   });
