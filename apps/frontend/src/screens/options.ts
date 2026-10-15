@@ -28,7 +28,7 @@ const swingModeLabels: Record<SwingMode, string> = {
   off: 'No swing',
   vertical: 'Up and down',
   horizontal: 'Left and right',
-  both: 'Up, down, left and right',
+  both: '3D swing',
 };
 
 const modeLabels: Record<SwitchedMode, string> = { auto: 'Auto', cool: 'Cool', heat: 'Heat', dehumidify: 'Dry', fan: 'Fan' };
@@ -227,7 +227,7 @@ function swingSection(draft: Draft): HTMLElement {
         'select',
         draft.swingControl,
         'A mode select',
-        `${placement(draft, 'Swing', true)}, and picks one of: ${swingModes.map((mode) => swingModeLabels[mode].toLowerCase()).join(', ')}. ${selectSupport}`,
+        `${placement(draft, 'Swing', true)}, and picks one of: ${swingModes.map((mode) => (mode === 'both' ? swingModeLabels[mode] : swingModeLabels[mode].toLowerCase())).join(', ')}. ${selectSupport}`,
         glyphs.select,
         (swingControl) => update(draft, { swingControl }),
       ),

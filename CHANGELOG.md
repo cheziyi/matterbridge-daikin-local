@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- [setup]: Call the swing on both axes at once 3D swing: `3D` on the swing mode select in Matter instead of `Both`, and `3D swing` in the setup page.
 - [setup]: Start a new air conditioner with the Apple Home preset in the setup page, instead of choices that matched no preset.
 - [setup]: The Apple Home and Google Home presets add a switch for each of the dry and fan modes the unit has, since both apps are reported to offer only off, cool, heat and auto.
 - [devices]: Give a fan of its own an on/off that follows the power of the air conditioner, so that a Matter app does not show the fan running while the unit is off. Turning the fan on or off turns the air conditioner on or off, and the fan keeps showing the speed the unit holds. A command that turns the unit off leaves its fan speed as it is, since an app that turns a fan off sets its speed to 0 as well.

@@ -54,7 +54,7 @@ export const modeSelectChoices: SelectChoices<ModeSelectValue> = {
 /** The swing modes of the unit on its swing select. */
 export const swingSelectChoices: SelectChoices<SwingMode> = {
   values: SWING_MODES,
-  labels: { off: 'Off', vertical: 'Vertical', horizontal: 'Horizontal', both: 'Both' },
+  labels: { off: 'Off', vertical: 'Vertical', horizontal: 'Horizontal', both: '3D' },
 };
 
 /**

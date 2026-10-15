@@ -192,7 +192,7 @@ A switch or a step is for Matter apps that show no Auto fan mode. A step takes t
 | Option      | In Matter                                                                                                                                                                                                                                 |
 | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Switches    | One on/off switch for each axis the unit swings on, named `<name> Vertical Swing` and `<name> Horizontal Swing`. A unit that swings on one axis gets one switch. They appear as outlets, the on/off device type every Matter app supports |
-| Mode select | One mode select named `<name> Swing`, with Off, Vertical, Horizontal and Both for the swing modes the unit has. Few Matter apps show it: see [Mode selects](#mode-selects)                                                                |
+| Mode select | One mode select named `<name> Swing`, with Off, Vertical, Horizontal and 3D for the swing modes the unit has. Few Matter apps show it: see [Mode selects](#mode-selects)                                                                  |
 | Not shown   | No swing control. The swing either stays as it is, or is set to the mode you pick each time the plugin sends a command                                                                                                                    |
 
 Fixed louver positions are not controlled from Matter.
@@ -233,7 +233,7 @@ A mode select is the Matter device type that picks one value from a list, as a d
 | Mode select | Lists                                                                    | Picking a value                                                                                                                              |
 | ----------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | Mode        | Off, Auto, Cool, Heat, Dry and Fan Only, as the thermostat mode has them | Off turns the unit off, and any other mode turns it on in that mode. The select shows Off while the unit is off, as the thermostat mode does |
-| Swing       | Off, Vertical, Horizontal and Both                                       | Sets the swing                                                                                                                               |
+| Swing       | Off, Vertical, Horizontal and 3D                                         | Sets the swing                                                                                                                               |
 
 **Few Matter apps show a mode select.** Home Assistant shows each one as a select among the settings of the device. Apple Home is reported not to show them, and Google Home, Amazon Alexa and SmartThings do not list them among the devices they support. This has not been tested with this plugin. In the other apps, the switches are the way to reach these controls.
 
