@@ -72,7 +72,7 @@ export interface ProbeResult {
  */
 async function closeQuietly(client: DaikinClient): Promise<void> {
   try {
-    await client.close();
+    await client.dispose();
   } catch {
     // The check already has its answer.
   }

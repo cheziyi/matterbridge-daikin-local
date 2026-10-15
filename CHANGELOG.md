@@ -13,7 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
-- [package]: Use daikin-local-control 0.5.1: a classic adapter is sent its setpoint rounded to the whole degree, and a DSIOT adapter rounds it to the nearest half degree instead of down.
+- [package]: Use daikin-local-control 0.6.0: a classic adapter is sent its setpoint rounded to the whole degree, and a DSIOT adapter rounds it to the nearest half degree instead of down. Its clients close with `dispose`, which the plugin calls where it called `close`.
 - [setup]: Call the swing on both axes at once 3D swing: `3D` on the swing mode select in Matter instead of `Both`, and `3D swing` in the setup page.
 - [setup]: Start a new air conditioner with the Apple Home preset in the setup page, instead of choices that matched no preset.
 - [setup]: The Apple Home and Google Home presets add a switch for each of the dry and fan modes the unit has, since both apps are reported to offer only off, cool, heat and auto.

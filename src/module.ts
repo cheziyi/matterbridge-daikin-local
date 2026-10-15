@@ -580,7 +580,7 @@ export class DaikinPlatform extends MatterbridgeDynamicPlatform implements Setup
       this.startErrors.set(device.macAddress, message);
       for (const endpoint of registered) await this.unregisterDevice(endpoint);
       try {
-        await client.close();
+        await client.dispose();
       } catch {
         // The start already failed for another reason.
       }

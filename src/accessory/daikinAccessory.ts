@@ -663,7 +663,7 @@ export class DaikinAccessory implements AccessoryEndpoints {
 
   private async closeClient(client: DaikinClient): Promise<void> {
     try {
-      await client.close();
+      await client.dispose();
     } catch (error) {
       this.log.debug(`"${this.name}" connection did not close cleanly: ${getErrorMessage(error)}`);
     }

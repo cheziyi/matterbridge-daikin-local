@@ -410,9 +410,9 @@ describe('DaikinAccessory', () => {
 
     it('should use a new client after the address changed, and close the previous one', async () => {
       const next = createFakeClient({ power: false });
-      client.close.mockRejectedValueOnce(new Error('already closed'));
+      client.dispose.mockRejectedValueOnce(new Error('already closed'));
       await accessory.updateConnection(createDeviceConfig({ host: '192.168.1.60' }), next);
-      expect(client.close).toHaveBeenCalled();
+      expect(client.dispose).toHaveBeenCalled();
       await accessory.refresh();
       expect(next.getState).toHaveBeenCalled();
       expect(accessory.endpoint.getAttribute(OnOff, 'onOff')).toBe(false);
@@ -421,9 +421,9 @@ describe('DaikinAccessory', () => {
 
     it('should stop reading and sending once it is closed', async () => {
       await writeAsController(accessory.endpoint, 'OnOff', 'onOff', true);
-      client.close.mockRejectedValueOnce('odd');
+      client.dispose.mockRejectedValueOnce('odd');
       await accessory.close();
-      expect(client.close).toHaveBeenCalled();
+      expect(client.dispose).toHaveBeenCalled();
       await writeAsController(accessory.endpoint, 'OnOff', 'onOff', false);
       await accessory.flushCommands();
       expect(await accessory.refresh()).toBe(false);
