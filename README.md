@@ -80,12 +80,12 @@ Afterwards the same page lists your air conditioners with their status. From the
   </tr>
   <tr>
     <td valign="top">
-      <img src="screenshots/options-presets-fan.png" alt="The Options step with the presets and the three ways to show the fan speed">
+      <img src="screenshots/options-presets-fan.png" alt="The Options step with the Apple Home preset chosen, the three ways to show the fan speed and the four ways to show the auto fan speed">
       <br><b>Options.</b> Start from a preset, then choose how the fan speed appears.
     </td>
     <td valign="top">
-      <img src="screenshots/options-switches.png" alt="The Options step with the swing choice and the switches for the dry mode, the fan mode and the special modes">
-      <br><b>Options.</b> The swing, and a switch for each mode Matter apps do not offer.
+      <img src="screenshots/options-modes.png" alt="The Options step with the swing not shown, a switch for the fan mode picked from a row of modes, and Heat running dry on a unit that only cools">
+      <br><b>Options.</b> The swing, a switch for any mode, and a mode the unit lacks running another.
     </td>
   </tr>
 </table>
