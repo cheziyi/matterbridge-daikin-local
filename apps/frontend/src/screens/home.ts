@@ -22,7 +22,7 @@ function describeExposure(device: StoredDevice): string {
   const fanPlace = device.hasSeparateFan ? ' on a fan of its own' : '';
   const autoStep = { native: '', switch: '', firstStep: ' with auto first', lastStep: ' with auto last' }[device.fanAutoControl];
   const fan = device.fanControl === 'hidden' ? 'fan speed not shown' : `fan speed as ${device.fanControl === 'steps' ? 'steps' : 'a percentage'}${autoStep}${fanPlace}`;
-  const swing = { switches: 'swing as switches', select: 'swing as a mode select', hidden: 'swing not shown' }[device.swingControl];
+  const swing = { native: 'swing as native rocking', switches: 'swing as switches', select: 'swing as a mode select', hidden: 'swing not shown' }[device.swingControl];
   const controls = [hasFan ? fan : '', hasSwing ? swing : ''].filter((text) => text !== '').join(', ');
   const modeSwitches = device.modeControl === 'switches' ? device.modeSwitches.map((mode) => modeNames[mode]) : [];
   // Such as "dry mode as heat".

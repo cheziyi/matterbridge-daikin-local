@@ -193,10 +193,16 @@ export async function applyState(endpoints: AccessoryEndpoints, layout: Accessor
   if (state.targetTemperatureInC !== null) await applySetpoint(endpoint, layout, state.mode, state.targetTemperatureInC);
   await applySensors(endpoints, layout, sensors);
   await endpoint.updateAttribute(Thermostat, 'thermostatRunningState', getRunningState(state, sensors));
-  if (layout.hasFan) await applyFanSpeed(endpoints.fan ?? endpoint, layout, state.fanSpeed);
+  const axes = getSwingAxes(state.swingMode);
+  if (layout.hasFan) {
+    const fanControl = endpoints.fan ?? endpoint;
+    await applyFanSpeed(fanControl, layout, state.fanSpeed);
+    const { vertical, horizontal } = layout.rockAxes;
+    if (vertical || horizontal)
+      await fanControl.updateAttribute('FanControl', 'rockSetting', { rockLeftRight: horizontal && axes.horizontal, rockUpDown: vertical && axes.vertical, rockRound: false });
+  }
   // A fan of its own is on and off with the air conditioner, and keeps showing the speed the unit holds.
   await endpoints.fan?.updateAttribute(OnOff, 'onOff', state.power);
-  const axes = getSwingAxes(state.swingMode);
   await endpoints.verticalSwitch?.updateAttribute(OnOff, 'onOff', axes.vertical);
   await endpoints.horizontalSwitch?.updateAttribute(OnOff, 'onOff', axes.horizontal);
   for (const [mode, modeSwitch] of endpoints.modeSwitches) await modeSwitch.updateAttribute(OnOff, 'onOff', state.power && state.mode === mode);

@@ -33,7 +33,7 @@ import {
 } from 'daikin-local-control';
 import type { MatterbridgeEndpoint } from 'matterbridge';
 import type { AnsiLogger } from 'matterbridge/logger';
-import type { ActionContext } from 'matterbridge/matter';
+import { type ActionContext, Node } from 'matterbridge/matter';
 import { BridgedDeviceBasicInformation, FanControl, ModeSelect, OnOff, Thermostat } from 'matterbridge/matter/clusters';
 
 import { type DaikinDeviceConfig, SWITCHED_MODES, type SwitchedMode } from '../config.js';
@@ -114,11 +114,11 @@ function ignore(): void {
 }
 
 /**
- * One Daikin air conditioner and the Matter endpoints that stand for it: a room air conditioner and, when they are
- * exposed, one on/off switch for each axis the unit swings on, for each mode, for the auto fan speed
- * and for each special mode, and a mode select for the mode and one for the swing. The fan control is a fan of its own
- * when it is exposed that way. The humidity of a unit that has given it is on the air conditioner, and on a sensor of
- * its own too when one is asked for. A unit that has given its outdoor temperature gets a sensor for it, unless none is
+ * One Daikin air conditioner and the Matter endpoints that stand for it: a room air conditioner, with a fan control
+ * whose rocking is the swing when the swing is exposed as native rocking, and, when they are exposed, one on/off switch for
+ * each axis the unit swings on, for each mode, for the auto fan speed and for each special mode, and a mode select for
+ * the mode and one for the swing. The fan control is a fan of its own when it is exposed that way. The humidity of a
+ * unit that has given it is on the air conditioner, and on a sensor of its own too when one is asked for. A unit that has given its outdoor temperature gets a sensor for it, unless none is
  * asked for. The fan, the switches, the mode selects and the humidity sensor are each a device of their own in Matter, or parts of the air
  * conditioner when the device is exposed as a composed one. The outdoor temperature sensor is always a device of its own.
  *
@@ -176,6 +176,8 @@ export class DaikinAccessory implements AccessoryEndpoints {
   private queue: Promise<void> = Promise.resolve();
   // What is subscribed on each endpoint, to subscribe it again after a factory reset of the Matter node.
   private readonly subscriptions = new Map<MatterbridgeEndpoint, (() => void)[]>();
+  // Whether a read waits for the node to come back online after a factory reset.
+  private isAwaitingOnline = false;
 
   /**
    * Create the endpoints of a device from what it accepts and how it is configured
@@ -198,7 +200,7 @@ export class DaikinAccessory implements AccessoryEndpoints {
     if (this.layout.isComposed) this.parent = this.endpoint;
     if (this.layout.hasSeparateFan) this.fan = this.createFan();
     if (this.layout.hasFan) this.subscribeFan(this.fan ?? this.endpoint);
-    if (this.config.swingControl === 'switches') {
+    if (this.layout.hasSwingSwitches) {
       if (this.capabilities.swingModes.includes('vertical')) this.verticalSwitch = this.createSwingSwitch('vertical');
       if (this.capabilities.swingModes.includes('horizontal')) this.horizontalSwitch = this.createSwingSwitch('horizontal');
     }
@@ -424,8 +426,27 @@ export class DaikinAccessory implements AccessoryEndpoints {
       wasReset = false;
       for (const again of subscriptions) again();
       if (endpoint === this.endpoint) this.log.info(`"${this.name}" is subscribed again after the Matter node was reset`);
-      // The reset put every attribute back to its default, and the endpoints come back one by one: the state of the
-      // unit replaces the defaults of each as it comes back, and does nothing once the device is disposed.
+      this.refreshWhenOnline(endpoint);
+    });
+  }
+
+  /**
+   * Write the state of the unit to Matter once the node is back online after a factory reset
+   *
+   * The reset put every attribute back to its default, and the endpoints come back one by one while the node is offline.
+   * As the node goes online, the thermostat writes its temperature in a way that cannot wait for a write of the plugin,
+   * and the reset fails when one holds the thermostat then. One read, once every endpoint is back, replaces the defaults.
+   *
+   * @param {MatterbridgeEndpoint} endpoint An endpoint of the device that came back.
+   * @returns {void}
+   */
+  private refreshWhenOnline(endpoint: MatterbridgeEndpoint): void {
+    if (this.isAwaitingOnline) return;
+    this.isAwaitingOnline = true;
+    // The read is not awaited, so that the node goes online without waiting for the unit. It does nothing once the
+    // device is disposed.
+    Node.forEndpoint(endpoint).lifecycle.online.once(() => {
+      this.isAwaitingOnline = false;
       void this.refresh();
     });
   }
@@ -436,6 +457,16 @@ export class DaikinAccessory implements AccessoryEndpoints {
     };
     this.listen(endpoint, () => endpoint.subscribeAttribute(FanControl, 'fanMode', onFanWrite));
     this.listen(endpoint, () => endpoint.subscribeAttribute(FanControl, 'percentSetting', onFanWrite));
+    const { vertical, horizontal } = this.layout.rockAxes;
+    if (!vertical && !horizontal) return;
+    this.listen(endpoint, () =>
+      endpoint.subscribeAttribute('FanControl', 'rockSetting', (setting: { rockUpDown?: boolean; rockLeftRight?: boolean }, _previous: unknown, context: ActionContext) => {
+        if (!isControllerWrite(context)) return;
+        if (vertical) this.pending.requestSwing('vertical', setting.rockUpDown === true);
+        if (horizontal) this.pending.requestSwing('horizontal', setting.rockLeftRight === true);
+        this.scheduleCommand(`rocking ${JSON.stringify({ vertical: setting.rockUpDown === true, horizontal: setting.rockLeftRight === true })}`);
+      }),
+    );
   }
 
   // The code tells the switches of one device apart in their serial numbers.

@@ -41,6 +41,10 @@ export interface AccessoryLayout {
   hasFan: boolean;
   /** Whether that fan control is a fan of its own, instead of a part of the air conditioner. */
   hasSeparateFan: boolean;
+  /** The axes the rocking of each fan control has, the swing of the unit: none when the device shows no rocking. */
+  rockAxes: { vertical: boolean; horizontal: boolean };
+  /** Whether the device has an on/off switch for each axis the unit swings on. */
+  hasSwingSwitches: boolean;
   /** Whether the fan control has the Matter fan mode Auto: the unit takes the `auto` fan speed, and it is no step. */
   hasFanAuto: boolean;
   /** Whether the `auto` fan speed is a step of the fan control. */
@@ -90,6 +94,10 @@ export function getAccessoryLayout(config: DaikinDeviceConfig, capabilities: Dai
   const hasFan = config.fanControl !== 'hidden' && fanSteps.length > 0;
   const hasAutoStep = hasFan && capabilities.fanSpeeds.includes('auto') && (config.fanAutoControl === 'firstStep' || config.fanAutoControl === 'lastStep');
   const hasAutoSwitch = config.fanAutoControl === 'switch' && hasFanAuto(capabilities);
+  const swingsOn = (axis: 'vertical' | 'horizontal'): boolean => capabilities.swingModes.includes(axis) || capabilities.swingModes.includes('both');
+  // The rocking is the native place of the swing, on every fan control. It is never beside the switches or the select:
+  // Apple Home is reported to upset it, so they take its place.
+  const hasRocking = hasFan && config.swingControl === 'native';
   let fanPositions = fanSteps;
   if (hasAutoStep) fanPositions = config.fanAutoControl === 'firstStep' ? ['auto', ...fanSteps] : [...fanSteps, 'auto'];
   return {
@@ -99,6 +107,9 @@ export function getAccessoryLayout(config: DaikinDeviceConfig, capabilities: Dai
     fanPositions,
     hasFan,
     hasSeparateFan: hasFan && config.hasSeparateFan,
+    rockAxes: { vertical: hasRocking && swingsOn('vertical'), horizontal: hasRocking && swingsOn('horizontal') },
+    // Without a fan control, the swing has no rocking, and its switches stand for it.
+    hasSwingSwitches: config.swingControl === 'switches' || (config.swingControl === 'native' && !hasFan),
     // A step takes the place of the fan mode Auto, which holds no percent: the two cannot show at once. A switch is an endpoint of its own beside it.
     hasFanAuto: capabilities.fanSpeeds.includes('auto') && !hasAutoStep,
     hasFanAutoStep: hasAutoStep,

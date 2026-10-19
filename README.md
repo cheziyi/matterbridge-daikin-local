@@ -118,8 +118,8 @@ Matter describes a device as endpoints. Each endpoint has one or more device typ
 flowchart TD
     bridge["Matterbridge<br/>Aggregator"]
     subgraph device["One device in a Matter app"]
-        ac["<b>Living Room</b><br/>Room Air Conditioner, Bridged Node, Power Source<br/>On/Off, Thermostat<br/>Fan Control when it is here, and Relative Humidity once the unit gives it"]
-        fan["Fan<br/>Fan Control"]
+        ac["<b>Living Room</b><br/>Room Air Conditioner, Bridged Node, Power Source<br/>On/Off, Thermostat<br/>Fan Control unless the fan speed is hidden or on a fan of its own, with Rocking for the swing when it is chosen, and Relative Humidity once the unit gives it"]
+        fan["Fan<br/>Fan Control, with Rocking for the swing when it is chosen"]
         switches["On/Off Plug-in Unit, one for each switch<br/>tagged 1 Vertical Swing, 2 Horizontal Swing and so on<br/>On/Off"]
         selects["Mode Select, one for the mode and one for the swing<br/>tagged 1 Mode, 2 Swing<br/>Mode Select"]
         humidity["Humidity Sensor<br/>Relative Humidity"]
@@ -192,13 +192,14 @@ A switch or a step is for Matter apps that show no Auto fan mode. A step takes t
 
 ### Swing
 
-| Option      | In Matter                                                                                                                                                                                                                                 |
-| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Switches    | One on/off switch for each axis the unit swings on, named `<name> Vertical Swing` and `<name> Horizontal Swing`. A unit that swings on one axis gets one switch. They appear as outlets, the on/off device type every Matter app supports |
-| Mode select | One mode select named `<name> Swing`, with Off, Vertical, Horizontal and 3D for the swing modes the unit has. Few Matter apps show it: see [Mode selects](#mode-selects)                                                                  |
-| Not shown   | No swing control. The swing either stays as it is, or is set to the mode you pick each time the plugin sends a command                                                                                                                    |
+| Option         | In Matter                                                                                                                                                                                                                                              |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Native rocking | The rocking of the fan control, as Matter has it: up and down for the vertical swing, left and right for the horizontal one, and both for 3D, on the axes the unit swings on. Not every app shows it, and Apple Home is reported not to handle it well |
+| Switches       | One on/off switch for each axis the unit swings on, named `<name> Vertical Swing` and `<name> Horizontal Swing`. A unit that swings on one axis gets one switch. They appear as outlets, the on/off device type every Matter app supports              |
+| Mode select    | One mode select named `<name> Swing`, with Off, Vertical, Horizontal and 3D for the swing modes the unit has. Few Matter apps show it: see [Mode selects](#mode-selects)                                                                               |
+| Not shown      | No swing control. The swing either stays as it is, or is set to the mode you pick each time the plugin sends a command                                                                                                                                 |
 
-Fixed louver positions are not controlled from Matter.
+The switches and the select are for the Matter apps that show no rocking, or do not handle it well: they take its place, so the fan control has no rocking beside them. A unit whose fan speed is not shown has no fan control, and so no rocking: native rocking falls back to the switches. Fixed louver positions are not controlled from Matter.
 
 ### Modes
 
@@ -232,7 +233,7 @@ Each Matter mode the unit lacks can run one of its modes instead, as you pick, s
 
 ### Mode selects
 
-A mode select is the Matter device type that picks one value from a list, as a drop-down does. The setup can add one for the mode, named `<name> Mode`, on a unit with a dry or a fan mode, and one for the swing, named `<name> Swing`, as a choice under [Swing](#swing). Each lists only what the unit has, and is chosen instead of the switches: the mode select under [Modes](#modes), the swing select under [Swing](#swing). The Full Matter support preset adds the swing select, and no preset adds the mode select.
+A mode select is the Matter device type that picks one value from a list, as a drop-down does. The setup can add one for the mode, named `<name> Mode`, on a unit with a dry or a fan mode, and one for the swing, named `<name> Swing`, as a choice under [Swing](#swing). Each lists only what the unit has, and is chosen instead of the switches: the mode select under [Modes](#modes), and the swing select under [Swing](#swing), instead of the rocking of the fan control as well. The Full Matter support preset adds the swing select, and no preset adds the mode select.
 
 | Mode select | Lists                                                                    | Picking a value                                                                                                                              |
 | ----------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -254,11 +255,11 @@ Matter has no control for Powerful, Econo and Streamer, so the setup can add a s
 
 In the Options step, a preset fills in every choice above for what the unit can do. You can change any of them afterwards. A new air conditioner starts with the Apple Home preset, and one already set up keeps its own choices.
 
-| Preset              | Fan speed  | Swing         | Modes                | Auto fan | Special mode switches | Humidity                    | Outdoor sensor | Parts of the air conditioner |
-| ------------------- | ---------- | ------------- | -------------------- | -------- | --------------------- | --------------------------- | -------------- | ---------------------------- |
-| Apple Home          | Percentage | Not shown     | Dry and fan switches | Switch   | None                  | Also on a sensor of its own | No             | No                           |
-| Google Home         | Steps      | Not shown     | Dry and fan switches | Switch   | None                  | Also on a sensor of its own | No             | No                           |
-| Full Matter support | Steps      | A mode select | Native modes only    | Native   | All                   | On the air conditioner      | Yes            | Yes                          |
+| Preset              | Fan speed  | Swing          | Modes                | Auto fan | Special mode switches | Humidity                    | Outdoor sensor | Parts of the air conditioner |
+| ------------------- | ---------- | -------------- | -------------------- | -------- | --------------------- | --------------------------- | -------------- | ---------------------------- |
+| Apple Home          | Percentage | Not shown      | Dry and fan switches | Switch   | None                  | Also on a sensor of its own | No             | No                           |
+| Google Home         | Steps      | Native rocking | Dry and fan switches | Switch   | None                  | Also on a sensor of its own | No             | No                           |
+| Full Matter support | Steps      | A mode select  | Native modes only    | Native   | All                   | On the air conditioner      | Yes            | Yes                          |
 
 ### One device or several
 
@@ -267,8 +268,8 @@ The switches, the mode selects, a fan of its own and a humidity sensor of its ow
 ```mermaid
 flowchart TD
     bridge["Matterbridge<br/>Aggregator"]
-    ac["<b>Living Room</b><br/>Room Air Conditioner<br/>On/Off, Thermostat<br/>Fan Control when it is here, and Relative Humidity once the unit gives it"]
-    fan["<b>Living Room Fan</b><br/>Fan<br/>Fan Control"]
+    ac["<b>Living Room</b><br/>Room Air Conditioner<br/>On/Off, Thermostat<br/>Fan Control unless the fan speed is hidden or on a fan of its own, with Rocking for the swing when it is chosen, and Relative Humidity once the unit gives it"]
+    fan["<b>Living Room Fan</b><br/>Fan<br/>Fan Control, with Rocking for the swing when it is chosen"]
     switches["<b>Living Room Vertical Swing</b>, and the other switches<br/>On/Off Plug-in Unit, one for each switch<br/>On/Off"]
     selects["<b>Living Room Mode</b> and <b>Living Room Swing</b><br/>Mode Select, one for each<br/>Mode Select"]
     humidity["<b>Living Room Humidity</b><br/>Humidity Sensor<br/>Relative Humidity"]
@@ -310,7 +311,7 @@ This plugin is the only one of the four that finds the adapters itself, that spe
 | Thermostat modes             | Off, Cool, Heat, Auto, Dry and Fan only, and an optional switch for each mode, a mode select, or the modes the unit lacks running others                       | Off, Cool, Heat, Auto, Dry and Fan only                                                                                                                         | Off, Cool, Heat, Auto, Dry and Fan only, and a mode select that also has humidify                                                                                        | Off, Cool, Heat, Auto, Dry and Fan only                                                        |
 | Controls                     | Built from the modes, fan speeds, swing and temperature limits each unit reports                                                                               | The same for every unit, with fixed temperature limits                                                                                                          | Built for its two tested models                                                                                                                                          | Modes and temperature limits from the cloud                                                    |
 | Fan speed                    | Steps, a percentage or not shown, on the air conditioner or on a fan of its own, and an optional switch for the auto speed                                     | No                                                                                                                                                              | Low, Medium, High and Auto, a percentage, or a mode select                                                                                                               | A fan device                                                                                   |
-| Swing                        | A switch for each axis, a mode select, or not shown with the mode you fix                                                                                      | No                                                                                                                                                              | The airflow direction of each axis, through a mode select                                                                                                                | No                                                                                             |
+| Swing                        | The rocking of the fan control, a switch for each axis, a mode select, or not shown with the mode you fix                                                      | No                                                                                                                                                              | The airflow direction of each axis, through a mode select                                                                                                                | No                                                                                             |
 | Powerful, Econo and Streamer | An optional switch for each                                                                                                                                    | No                                                                                                                                                              | No                                                                                                                                                                       | A switch for Powerful                                                                          |
 | Humidity                     | On the air conditioner, and on a sensor of its own if you add one, when the unit gives it                                                                      | No                                                                                                                                                              | Target humidity and ventilation as fans, and a humidity sensor                                                                                                           | A humidity sensor, on units that report it                                                     |
 | Outdoor temperature          | A sensor you turn on, when the unit gives it                                                                                                                   | No                                                                                                                                                              | On the air conditioner and on a sensor                                                                                                                                   | A sensor you can turn off                                                                      |

@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- [devices]: Add the swing as the rocking of the fan control, a new choice named Native rocking beside the switches, the mode select and not shown: up and down for the vertical swing and left and right for the horizontal one, on the axes the unit swings on. The switches and the select take its place, so the fan control has no rocking beside them, as Apple Home is reported not to handle it well. The Google Home preset shows the rocking, where it showed no swing.
+
+### Fixed
+
+- [devices]: Write the state of the unit again after a factory reset of the Matter node once the node is back online, instead of as each endpoint comes back. A unit that answered at once held the thermostat as the node went online, which failed the reset and left Matterbridge stuck.
+
 ## [0.8.0] - 2026-10-19
 
 ### Changed
