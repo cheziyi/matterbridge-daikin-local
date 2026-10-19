@@ -6,7 +6,7 @@
  */
 
 import type { Adapter, AvailableControls, Exposure, ModeReplacements, StoredDevice, SwitchedMode } from './api.js';
-import type { Draft } from './state.js';
+import { type Draft, view } from './state.js';
 
 /** Copy the choices of how a device appears in Matter, and nothing else. */
 export function pickExposure(source: Exposure): Exposure {
@@ -61,13 +61,43 @@ const defaultExposure: Exposure = {
   isComposed: true,
 };
 
-export function draftFromAdapter(adapter: Adapter): Draft {
-  return { adapter, name: adapter.name ?? '', isNew: true, ...pickExposure(defaultExposure) };
+/** The longest name Matter takes. */
+const maxNameLength = 32;
+
+/** A name no device has yet: the name the adapter tells, or that name with a number after it, such as "Bedroom 2". */
+export function uniqueName(base: string, taken: ReadonlySet<string>): string {
+  if (base === '' || !taken.has(base)) return base;
+  for (let count = 2; ; count++) {
+    const suffix = ` ${count}`;
+    const name = `${base.slice(0, maxNameLength - suffix.length).trimEnd()}${suffix}`;
+    if (!taken.has(name)) return name;
+  }
+}
+
+/** The names a draft cannot take: those of the stored devices but its own, and those of the other drafts of the run. */
+export function takenNames(draft: Draft): Set<string> {
+  const stored = (view.setup?.devices ?? []).filter((device) => device.macAddress !== draft.adapter.macAddress).map((device) => device.name);
+  const queued = view.queue.filter((other) => other !== draft).map((other) => other.name);
+  return new Set([...stored, ...queued].filter((name) => name !== ''));
+}
+
+/**
+ * The drafts of adapters picked in the Find step, each named after its adapter. Adapters can share a name, so each
+ * draft gets one no stored device and no draft before it has.
+ */
+export function draftsFromAdapters(adapters: readonly Adapter[]): Draft[] {
+  const taken = new Set((view.setup?.devices ?? []).map((device) => device.name));
+  return adapters.map((adapter) => {
+    const name = uniqueName(adapter.name ?? '', taken);
+    if (name !== '') taken.add(name);
+    return { adapter, name, isNew: true, ...pickExposure(defaultExposure) };
+  });
 }
 
 export function draftFromStored(device: StoredDevice): Draft {
   const { capabilities, controls, name, macAddress, host, protocol, requiresRegistration, usesHttps, requiresLocalPassword } = device;
-  const adapter: Adapter = { host, protocol, name, macAddress, requiresRegistration, usesHttps, requiresLocalPassword };
+  // The stored name is the one given in the setup page: the check in Connect reads the adapter's own.
+  const adapter: Adapter = { host, protocol, macAddress, requiresRegistration, usesHttps, requiresLocalPassword };
   return { adapter, name, isNew: false, capabilities, controls, ...pickExposure(device) };
 }
 

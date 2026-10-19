@@ -94,6 +94,33 @@ function chips<T extends string>(group: string, label: string, values: readonly 
   );
 }
 
+// The air conditioner as its adapter tells it apart from the others: by the name of its Daikin app, then by its address.
+function adapterText(draft: Draft): string {
+  const told = draft.adapter.name;
+  const address = `at ${draft.adapter.host}`;
+  return told === undefined || told === '' ? `the air conditioner ${address}` : `the air conditioner named "${told}" in its Daikin app, ${address}`;
+}
+
+// Redrawn as it is typed, so that the texts that name the device follow. A redraw when the field is left instead would
+// replace the button the click leaving it is on, and lose that click.
+function nameSection(draft: Draft): HTMLElement {
+  const input = h('input', { type: 'text', id: 'device-name', value: draft.name, maxLength: 32, autocomplete: 'off', spellcheck: false });
+  input.addEventListener('input', (event) => {
+    draft.name = input.value.trim();
+    // A redraw in the middle of a composition, such as of Japanese text, would end it.
+    if (!(event as InputEvent).isComposing) render();
+  });
+  const told = draft.adapter.name;
+  const toldText = told === undefined || told === '' ? 'Its adapter has no name of its own.' : `Its adapter is named "${told}" in its Daikin app, which other adapters can share.`;
+  return h(
+    'section',
+    {},
+    h('h2', {}, h('label', { for: 'device-name' }, 'Name in Matter')),
+    h('p', { class: 'help' }, `${toldText} The name here is what your Matter apps show, up to 32 characters, and no two air conditioners of this plugin share one. A new name of the adapter does not change it.`),
+    h('div', { class: 'inline-form' }, input),
+  );
+}
+
 function presetSection(draft: Draft, controls: AvailableControls): HTMLElement {
   return h(
     'section',
@@ -428,7 +455,8 @@ export function optionsScreen(): Child[] {
   return [
     steps(),
     unitStrip(),
-    unitHeader(draft, `Options for the air conditioner at ${draft.adapter.host}. Power, mode and temperature always appear in Matter: choose how the rest appears.`),
+    unitHeader(draft, `Options for ${adapterText(draft)}. Power, mode and temperature always appear in Matter: choose how the rest appears.`),
+    nameSection(draft),
     presetSection(draft, controls),
     fanSection(draft, controls),
     swingSection(draft),

@@ -45,7 +45,10 @@ describe('mapping', () => {
   it('should convert any percent to a step of the unit', () => {
     expect(percentToFanStep(6, 0)).toBe(1);
     expect(percentToFanStep(6, 1)).toBe(1);
-    expect(percentToFanStep(6, 17)).toBe(2);
+    // The nearest step, the faster one halfway: 17 % is nearest the first sixth, and 25 % halfway to the second.
+    expect(percentToFanStep(6, 17)).toBe(1);
+    expect(percentToFanStep(6, 24)).toBe(1);
+    expect(percentToFanStep(6, 25)).toBe(2);
     expect(percentToFanStep(6, 100)).toBe(6);
     expect(percentToFanStep(6, 250)).toBe(6);
   });

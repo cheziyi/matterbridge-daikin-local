@@ -17,7 +17,7 @@ const ready: ProbeResult = { status: 'ready', device: parsedAdapter };
 
 const platform = {
   getSetupState: vi.fn(async () => state),
-  discoverForSetup: vi.fn(async () => [{ ...adapter, isConfigured: false, hasDuplicateName: false, needsRegistration: false }]),
+  discoverForSetup: vi.fn(async () => [{ ...adapter, isConfigured: false, needsRegistration: false }]),
   identify: vi.fn(async () => adapter),
   probe: vi.fn(async () => ready),
   register: vi.fn(async () => ready),
@@ -59,7 +59,7 @@ describe('setupApi', () => {
   it('should search the network', async () => {
     expect(await handleSetupRequest(platform, 'POST', 'discover')).toEqual({
       ok: true,
-      devices: [{ ...adapter, isConfigured: false, hasDuplicateName: false, needsRegistration: false }],
+      devices: [{ ...adapter, isConfigured: false, needsRegistration: false }],
     });
   });
 

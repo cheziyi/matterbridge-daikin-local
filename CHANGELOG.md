@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - Unreleased
+
+### Changed
+
+- [setup]: Name each air conditioner in its options in the setup page. The name starts as the one its adapter announces, with a number after it when another device has that name, such as `Bedroom 2`. A new name of the adapter no longer renames the device, and adapters that share a name can each be set up.
+- [devices]: **Breaking:** give a switch, a mode select, a fan or a sensor that is a device of its own the serial number of its air conditioner with a dash before its letter, such as `A4:08:EA:CC:91:D4-V` in place of `A4:08:EA:CC:91:D4V`. A Matter app takes each of them for a new device.
+- [setup]: Say after adding or removing an air conditioner that Matterbridge's own list of devices shows the change once its page is reloaded: Matterbridge does not tell its page when a plugin adds or removes a device.
+
+### Fixed
+
+- [devices]: Set the speed nearest the percent a Matter app sets, as the README says, instead of the one above it.
+- [devices]: **Breaking:** the fan modes Low, Medium and High follow, since Matterbridge sets each to the middle percentage of its third: on a unit with Silent and Level 1 to 5 they set Silent, Level 2 and Level 4 instead of Level 1, Level 2 and Level 5, and with auto as the first step Low sets auto.
+
 ## [0.7.0] - 2026-10-15
 
 ### Added

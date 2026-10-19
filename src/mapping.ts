@@ -89,7 +89,9 @@ export function getFanSteps(fanSpeeds: readonly FanSpeed[]): FanSpeed[] {
 /**
  * Convert a fan step to the Matter percent that stands for it
  *
- * The percent is the top of the step's share of 100, rounded down, so that `percentToFanStep` turns it back into the same step.
+ * The percent is the top of the step's share of 100, rounded down, so that `percentToFanStep` turns it back into the same
+ * step. Rounded down rather than to the nearest: the fan control server of Matterbridge sets the speed setting to the
+ * percent's share of the speeds rounded up, which is then the step itself.
  *
  * @param {number} stepCount How many steps the unit takes (>= 1).
  * @param {number} step The step, from 1 for the slowest to `stepCount`.
@@ -100,9 +102,10 @@ export function fanStepToPercent(stepCount: number, step: number): number {
 }
 
 /**
- * Convert a Matter percent to a fan step
+ * Convert a Matter percent to the nearest fan step
  *
  * Edge cases:
+ *  - halfway between two steps -> the faster one
  *  - clamps to 1..`stepCount`, so 0 is the slowest step: the caller decides what off means
  *
  * @param {number} stepCount How many steps the unit takes (>= 1).
@@ -110,7 +113,7 @@ export function fanStepToPercent(stepCount: number, step: number): number {
  * @returns {number} The step, from 1 for the slowest to `stepCount`.
  */
 export function percentToFanStep(stepCount: number, percent: number): number {
-  return Math.min(Math.max(Math.ceil((stepCount * percent) / 100), 1), stepCount);
+  return Math.min(Math.max(Math.round((stepCount * percent) / 100), 1), stepCount);
 }
 
 /**

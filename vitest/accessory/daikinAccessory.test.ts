@@ -124,9 +124,9 @@ describe('DaikinAccessory', () => {
       expect(accessory.endpoint.deviceName).toBe('Living Room');
       expect(accessory.verticalSwitch?.deviceName).toBe('Living Room Vertical Swing');
       expect(accessory.horizontalSwitch?.deviceName).toBe('Living Room Horizontal Swing');
-      // The serial number is the MAC address of the adapter, with one letter more on each endpoint beside the air conditioner.
+      // The serial number is the MAC address of the adapter, with a dash and a letter on each endpoint beside the air conditioner.
       expect(accessory.endpoint.serialNumber).toBe(macOf('Living Room'));
-      expect(accessory.verticalSwitch?.serialNumber).toMatch(new RegExp(`^${macOf('Living Room')}[A-Z]$`));
+      expect(accessory.verticalSwitch?.serialNumber).toMatch(new RegExp(`^${macOf('Living Room')}-[A-Z]$`));
       expect(accessory.getStatus()).toEqual({ isReachable: false, lastError: undefined, state: undefined });
       await addAccessory(accessory);
       expect(accessory.endpoint.getAttribute(FanControl, 'speedMax')).toBe(6);
@@ -285,9 +285,16 @@ describe('DaikinAccessory', () => {
       expect(client.setState).toHaveBeenLastCalledWith({ fanSpeed: 'auto' });
       expect(accessory.endpoint.getAttribute(FanControl, 'fanMode')).toBe(FanControl.FanMode.Auto);
 
+      // A fan mode sets the middle percent of its third, 17, 50 or 84 %, which goes to the nearest speed as any percent does.
       await writeAsController(accessory.endpoint, 'FanControl', 'fanMode', FanControl.FanMode.High);
       await accessory.flushCommands();
-      expect(client.setState).toHaveBeenLastCalledWith({ fanSpeed: 'level5' });
+      expect(client.setState).toHaveBeenLastCalledWith({ fanSpeed: 'level4' });
+      await writeAsController(accessory.endpoint, 'FanControl', 'fanMode', FanControl.FanMode.Low);
+      await accessory.flushCommands();
+      expect(client.setState).toHaveBeenLastCalledWith({ fanSpeed: 'silent' });
+      await writeAsController(accessory.endpoint, 'FanControl', 'fanMode', FanControl.FanMode.Medium);
+      await accessory.flushCommands();
+      expect(client.setState).toHaveBeenLastCalledWith({ fanSpeed: 'level2' });
     });
 
     it('should set the slowest speed when a controller turns the fan off', async () => {
@@ -1039,7 +1046,7 @@ describe('DaikinAccessory', () => {
       const accessory = new DaikinAccessory({ config: separate, capabilities: createCapabilities(), reportedSensors, client, log, vendorId });
       expect(accessory.endpoints).toHaveLength(2);
       expect(accessory.humiditySensor?.deviceName).toBe('Pantry Humidity');
-      expect(accessory.humiditySensor?.serialNumber).toBe(`${macOf('Pantry')}R`);
+      expect(accessory.humiditySensor?.serialNumber).toBe(`${macOf('Pantry')}-R`);
       // The air conditioner keeps the humidity, as it keeps the room temperature.
       expect(accessory.endpoint.hasClusterServer(RelativeHumidityMeasurement)).toBe(true);
       await addAccessory(accessory);

@@ -48,8 +48,6 @@ export interface SetupState {
 export type DiscoveredDevice = DaikinDevice & {
   /** The adapter is that of a stored device. */
   isConfigured: boolean;
-  /** Another adapter answered with the same name, so the two cannot be told apart. */
-  hasDuplicateName: boolean;
   /** The adapter only answers registered terminals, and does not answer this plugin's yet. */
   needsRegistration: boolean;
 };
