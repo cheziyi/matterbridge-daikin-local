@@ -113,8 +113,7 @@ export function createAirConditionerEndpoint(identity: EndpointIdentity, layout:
   } else {
     endpoint.createDefaultHeatingThermostatClusterServer(23, heatSetpoint, heatLimits.min, heatLimits.max);
   }
-  // A fan of its own comes beside this fan control, never in place of it.
-  if (layout.hasFan) addFanControl(endpoint, layout);
+  if (layout.hasFan && !layout.hasSeparateFan) addFanControl(endpoint, layout);
   // No value until the first read. A humidity sensor of its own shows the humidity too, never instead.
   if (layout.hasHumidity) endpoint.createDefaultRelativeHumidityMeasurementClusterServer(null);
   endpoint.addRequiredClusters();

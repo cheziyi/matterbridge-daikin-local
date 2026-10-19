@@ -9,7 +9,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Changed
 
 - [devices]: Add the swing as the rocking of the fan control, a new choice beside the switches, the mode select and not shown: up and down for the vertical swing and left and right for the horizontal one, on the axes the unit swings on. The switches and the select take its place, so the fan control has no rocking beside them, as Apple Home is reported not to handle it well. The Google Home preset shows the rocking, where it showed no swing.
-- [devices]: Add a fan of its own beside the fan control of the air conditioner, instead of in place of it, so that the apps that show the fan speed on the air conditioner keep it. Both show the speed the unit holds, and setting either sets the unit.
 
 ## [0.8.0] - 2026-10-19
 

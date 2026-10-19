@@ -973,7 +973,7 @@ describe('DaikinAccessory', () => {
       await horizontal.dispose();
     });
 
-    it('should give a unit without a fan control its swing switches, and a fan of its own the rocking too', async () => {
+    it('should give a unit without a fan control its swing switches, and a fan of its own the rocking', async () => {
       const noFan = new DaikinAccessory({
         config: createDeviceConfig({ name: 'Vault', swingControl: 'native', fanControl: 'hidden' }),
         capabilities: createCapabilities(),
@@ -997,26 +997,25 @@ describe('DaikinAccessory', () => {
       await writeAsController(fan, 'FanControl', 'rockSetting', { rockLeftRight: true, rockUpDown: false, rockRound: false });
       await accessory.flushCommands();
       expect(client.setState).toHaveBeenLastCalledWith({ swingMode: 'horizontal' });
-      expect(accessory.endpoint.getAttribute(FanControl, 'rockSetting')).toEqual({ rockLeftRight: true, rockUpDown: false, rockRound: false });
+      expect(fan.getAttribute(FanControl, 'rockSetting')).toEqual({ rockLeftRight: true, rockUpDown: false, rockRound: false });
+      expect(accessory.endpoint.hasClusterServer(FanControl)).toBe(false);
       await accessory.dispose();
     });
   });
 
   describe('a unit whose fan is a device of its own', () => {
-    it('should put the fan control on a fan beside the one of the air conditioner, and keep the two the same', async () => {
+    it('should put the fan control on a fan, and none on the air conditioner', async () => {
       const client = createFakeClient();
       const config = createDeviceConfig({ name: 'Porch', swingControl: 'hidden', hasSeparateFan: true });
       const accessory = new DaikinAccessory({ config, capabilities: createCapabilities(), client, log, vendorId });
       expect(accessory.endpoints).toHaveLength(2);
       expect(accessory.fan?.deviceName).toBe('Porch Fan');
-      // The fan of its own comes beside the fan control of the air conditioner, never in place of it.
-      expect(accessory.endpoint.hasClusterServer(FanControl)).toBe(true);
+      expect(accessory.endpoint.hasClusterServer(FanControl)).toBe(false);
       await addAccessory(accessory);
       await accessory.refresh();
       // level3 is the fourth of silent, level1 to level5.
       expect(accessory.fan?.getAttribute(FanControl, 'percentSetting')).toBe(66);
       expect(accessory.fan?.getAttribute(FanControl, 'speedCurrent')).toBe(4);
-      expect(accessory.endpoint.getAttribute(FanControl, 'percentSetting')).toBe(66);
       expect(accessory.fan?.getAttribute(BridgedDeviceBasicInformation, 'reachable')).toBe(true);
 
       if (accessory.fan === undefined) throw new Error('The fan is missing');
@@ -1024,15 +1023,6 @@ describe('DaikinAccessory', () => {
       await accessory.flushCommands();
       expect(client.setState).toHaveBeenCalledWith({ fanSpeed: 'level5' });
       expect(accessory.fan.getAttribute(FanControl, 'percentSetting')).toBe(100);
-      expect(accessory.endpoint.getAttribute(FanControl, 'percentSetting')).toBe(100);
-      // The speed is read from the fan control it was set on.
-      await writeAsController(accessory.endpoint, 'FanControl', 'percentSetting', 33);
-      await accessory.flushCommands();
-      expect(client.setState).toHaveBeenLastCalledWith({ fanSpeed: 'level1' });
-      expect(accessory.fan.getAttribute(FanControl, 'percentSetting')).toBe(33);
-      await writeAsController(accessory.fan, 'FanControl', 'percentSetting', 100);
-      await accessory.flushCommands();
-      expect(client.setState).toHaveBeenLastCalledWith({ fanSpeed: 'level5' });
 
       // It is on and off with the air conditioner, and shows the speed the unit holds, also while the unit is off.
       expect(accessory.fan.getAttribute(OnOff, 'onOff')).toBe(true);

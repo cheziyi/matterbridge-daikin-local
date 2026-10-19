@@ -226,7 +226,7 @@ function fanSection(draft: Draft, controls: AvailableControls): HTMLElement {
           'separate-fan',
           draft.hasSeparateFan,
           'Show the fan as a device of its own',
-          `${placement(draft, 'Fan', false)}, beside the fan speed of the air conditioner, which stays for the apps that show it. For apps that show no fan speed on an air conditioner, or do not show it well. It always shows the speed the unit holds, also while the unit is off.`,
+          `${placement(draft, 'Fan', false)}, and the air conditioner has no fan speed of its own. For apps that show no fan speed on an air conditioner, or do not show it well. It always shows the speed the unit holds, also while the unit is off.`,
           (hasSeparateFan) => update(draft, { hasSeparateFan }),
         ),
     // A step of a fan that is hidden is no step.

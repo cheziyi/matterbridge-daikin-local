@@ -39,7 +39,7 @@ export interface AccessoryLayout {
   fanPositions: FanSpeed[];
   /** Whether the device has a fan control in Matter. */
   hasFan: boolean;
-  /** Whether the device has a fan of its own beside the air conditioner, with the same fan control. */
+  /** Whether that fan control is a fan of its own, instead of a part of the air conditioner. */
   hasSeparateFan: boolean;
   /** The axes the rocking of each fan control has, the swing of the unit: none when the device shows no rocking. */
   rockAxes: { vertical: boolean; horizontal: boolean };

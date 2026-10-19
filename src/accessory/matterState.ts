@@ -39,7 +39,7 @@ export interface AccessoryEndpoints {
   /** The switch of each mode that is exposed. */
   readonly modeSwitches: ReadonlyMap<SwitchedMode, MatterbridgeEndpoint>;
   readonly fanAutoSwitch: MatterbridgeEndpoint | undefined;
-  /** The fan of its own, beside the fan control of the air conditioner. */
+  /** The fan, when the fan control is not a part of the air conditioner. */
   readonly fan: MatterbridgeEndpoint | undefined;
   /** The switch of each special mode that is exposed. */
   readonly specialModeSwitches: ReadonlyMap<SpecialMode, MatterbridgeEndpoint>;
@@ -194,14 +194,14 @@ export async function applyState(endpoints: AccessoryEndpoints, layout: Accessor
   await applySensors(endpoints, layout, sensors);
   await endpoint.updateAttribute(Thermostat, 'thermostatRunningState', getRunningState(state, sensors));
   const axes = getSwingAxes(state.swingMode);
-  // A fan of its own shows what the fan control of the air conditioner does, and is on and off with it.
-  const fanControls = [layout.hasFan ? endpoint : undefined, endpoints.fan].filter((fanControl) => fanControl !== undefined);
-  for (const fanControl of fanControls) {
+  if (layout.hasFan) {
+    const fanControl = endpoints.fan ?? endpoint;
     await applyFanSpeed(fanControl, layout, state.fanSpeed);
     const { vertical, horizontal } = layout.rockAxes;
     if (vertical || horizontal)
       await fanControl.updateAttribute('FanControl', 'rockSetting', { rockLeftRight: horizontal && axes.horizontal, rockUpDown: vertical && axes.vertical, rockRound: false });
   }
+  // A fan of its own is on and off with the air conditioner, and keeps showing the speed the unit holds.
   await endpoints.fan?.updateAttribute(OnOff, 'onOff', state.power);
   await endpoints.verticalSwitch?.updateAttribute(OnOff, 'onOff', axes.vertical);
   await endpoints.horizontalSwitch?.updateAttribute(OnOff, 'onOff', axes.horizontal);

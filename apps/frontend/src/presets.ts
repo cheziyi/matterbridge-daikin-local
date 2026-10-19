@@ -53,7 +53,7 @@ export function presetExposure(name: PresetName, controls: AvailableControls): E
     modeReplacements: {},
     // Neither Home nor Google Home is known to show the auto fan mode, which the switch is beside.
     fanAutoControl: !isMatter && controls.hasFanAuto ? 'switch' : 'native',
-    // No preset adds a fan of its own beside the air conditioner: that is for an app that shows no fan speed there.
+    // No preset takes the fan off the air conditioner: that is for an app that shows no fan speed there.
     hasSeparateFan: false,
     // Matter has nothing for the special modes, so a switch is the one way to them.
     specialModeSwitches: isMatter ? [...controls.specialModes] : [],
