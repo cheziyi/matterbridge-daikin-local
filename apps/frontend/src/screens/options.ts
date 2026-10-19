@@ -59,7 +59,7 @@ function placement(draft: Draft, label: string, isTagged: boolean): string {
   return isTagged ? `It appears as a part of "${draft.name}", tagged "${label}"` : `It appears as a part of "${draft.name}"`;
 }
 
-function update(draft: Draft, change: Partial<Draft>): void {
+function update(draft: Draft, change: Partial<Exposure>): void {
   Object.assign(draft, change);
   render();
 }
@@ -94,10 +94,13 @@ function chips<T extends string>(group: string, label: string, values: readonly 
   );
 }
 
-// Written to the draft when the field is left, so that the page does not redraw under the typing.
+// Written to the draft as it is typed, without a redraw: a redraw when the field is left would replace the button that
+// the click leaving it is on, and lose that click.
 function nameSection(draft: Draft): HTMLElement {
   const input = h('input', { type: 'text', id: 'device-name', value: draft.name, maxLength: 32, autocomplete: 'off', spellcheck: false });
-  input.addEventListener('change', () => update(draft, { name: input.value.trim() }));
+  input.addEventListener('input', () => {
+    draft.name = input.value.trim();
+  });
   const told = draft.adapter.name;
   const toldText = told === undefined || told === '' ? 'Its adapter has no name of its own.' : `Its adapter is named "${told}" in its Daikin app, which other adapters can share.`;
   return h(
