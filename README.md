@@ -261,6 +261,8 @@ In the Options step, a preset fills in every choice above for what the unit can 
 | Google Home         | Steps      | Native rocking | Dry and fan switches | Switch   | None                  | Also on a sensor of its own | No             | No                           |
 | Full Matter support | Steps      | Native rocking | Native modes only    | Native   | All                   | On the air conditioner      | Yes            | Yes                          |
 
+The Google Home preset shows the swing as native rocking only on a unit whose fan speed can be set. On one whose fan speed cannot, there is no fan control to rock, and the swing is not shown and stays as it is, as with the Apple Home preset. The Full Matter support preset has the switches there instead, as native rocking falls back to them.
+
 ### One device or several
 
 The switches, the mode selects, a fan of its own and a humidity sensor of its own are parts of the air conditioner, which Matter calls a composed device, so they move between rooms with it. The outdoor temperature sensor is a device of its own either way, so that you can put it in another room than the air conditioner. The setup can make each of them a device of its own instead, beside the air conditioner. A Matter app then does not know that they belong together, so each is put in a room by itself: moving the air conditioner to another room leaves them where they were. A new device starts with the Apple Home preset, which makes each part a device of its own. The Google Home preset does too, and the Full Matter support preset makes it one composed device: see [Presets](#presets).

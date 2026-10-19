@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- [setup]: The Google Home preset shows no swing on a unit whose fan speed cannot be set, and keeps it as it is, as the Apple Home preset does, instead of the switches that native rocking falls back to there. The Full Matter support preset keeps the switches.
+
 ## [0.9.0] - 2026-10-19
 
 ### Changed

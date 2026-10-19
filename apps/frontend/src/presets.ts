@@ -18,7 +18,7 @@ export const presets: Record<PresetName, { title: string; text: string }> = {
   },
   google: {
     title: 'Google Home',
-    text: 'Fan speed as steps, the humidity on a sensor of its own too, and a switch for auto fan and for each of dry and fan, each a device of its own. The swing is the rocking of the fan.',
+    text: 'Fan speed as steps, the humidity on a sensor of its own too, and a switch for auto fan and for each of dry and fan, each a device of its own. The swing is the rocking of the fan, and is not shown and stays as it is on a unit whose fan speed cannot be set.',
   },
   matter: {
     title: 'Full Matter support',
@@ -33,15 +33,17 @@ export const presets: Record<PresetName, { title: string; text: string }> = {
  */
 export function presetExposure(name: PresetName, controls: AvailableControls): Exposure {
   const isMatter = name === 'matter';
-  // An app that shows every Matter control, and Google Home, get the rocking of the fan control, or its switches on a
-  // unit without a fan control. Home is reported to upset the rocking, and gets no switch for each axis either, so the
-  // swing stays as it is.
-  const swingControl: Exposure['swingControl'] = controls.hasSwing && name !== 'apple' ? 'native' : 'hidden';
+  const hasFan = controls.fanSteps.length > 0;
+  // An app that shows every Matter control gets the rocking of the fan control, or its switches on a unit without a fan
+  // control. Google Home gets the rocking only on the fan control, and on a unit without one keeps the swing as it is,
+  // as Home does. Home is reported to upset the rocking, and gets no switch for each axis either.
+  const showsSwing = controls.hasSwing && (isMatter || (name === 'google' && hasFan));
+  const swingControl: Exposure['swingControl'] = showsSwing ? 'native' : 'hidden';
   // Home and Google Home are reported to offer off, cool, heat and auto alone, so dry and fan get a switch each where
   // the unit has them.
   const modeSwitches = isMatter ? [] : controls.switchableModes.filter((mode) => mode === 'dehumidify' || mode === 'fan');
   return {
-    fanControl: controls.fanSteps.length === 0 ? 'hidden' : name === 'apple' ? 'percent' : 'steps',
+    fanControl: !hasFan ? 'hidden' : name === 'apple' ? 'percent' : 'steps',
     fanSpeedWhenHidden: 'keep',
     swingControl,
     swingModeWhenHidden: 'keep',
