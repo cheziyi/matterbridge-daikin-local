@@ -19,10 +19,10 @@ function describeExposure(device: StoredDevice): string {
   // What the unit cannot do is left out, whatever is stored for it. A unit the plugin has not asked yet is described as stored.
   const hasFan = device.controls === undefined || device.controls.fanSteps.length > 0;
   const hasSwing = device.controls === undefined || device.controls.hasSwing;
-  const fanPlace = device.hasSeparateFan ? ' on a fan of its own' : '';
+  const fanPlace = device.hasSeparateFan ? ', and on a fan of its own' : '';
   const autoStep = { native: '', switch: '', firstStep: ' with auto first', lastStep: ' with auto last' }[device.fanAutoControl];
   const fan = device.fanControl === 'hidden' ? 'fan speed not shown' : `fan speed as ${device.fanControl === 'steps' ? 'steps' : 'a percentage'}${autoStep}${fanPlace}`;
-  const swing = { switches: 'swing as switches', select: 'swing as a mode select', hidden: 'swing not shown' }[device.swingControl];
+  const swing = { native: 'swing on the fan', switches: 'swing as switches', select: 'swing as a mode select', hidden: 'swing not shown' }[device.swingControl];
   const controls = [hasFan ? fan : '', hasSwing ? swing : ''].filter((text) => text !== '').join(', ');
   const modeSwitches = device.modeControl === 'switches' ? device.modeSwitches.map((mode) => modeNames[mode]) : [];
   // Such as "dry mode as heat".

@@ -152,6 +152,9 @@ describe('DaikinAccessory', () => {
       expect(endpoint.getAttribute(FanControl, 'fanMode')).toBe(FanControl.FanMode.Medium);
       expect(accessory.verticalSwitch?.getAttribute(OnOff, 'onOff')).toBe(true);
       expect(accessory.horizontalSwitch?.getAttribute(OnOff, 'onOff')).toBe(false);
+      // The swing is the rocking of the fan control too, beside its switches.
+      expect(endpoint.getAttribute(FanControl, 'rockSupport')).toEqual({ rockLeftRight: true, rockUpDown: true, rockRound: false });
+      expect(endpoint.getAttribute(FanControl, 'rockSetting')).toEqual({ rockLeftRight: false, rockUpDown: true, rockRound: false });
       expect(accessory.getStatus()).toMatchObject({ isReachable: true, state: { mode: 'cool' } });
       expect(client.setState).not.toHaveBeenCalled();
     });
@@ -919,19 +922,101 @@ describe('DaikinAccessory', () => {
     });
   });
 
+  describe('a unit with its swing on the fan', () => {
+    it('should swing as the rocking of the fan control alone, on the axes the unit swings on', async () => {
+      const client = createFakeClient();
+      const config = createDeviceConfig({ name: 'Snug', swingControl: 'native' });
+      const accessory = new DaikinAccessory({ config, capabilities: createCapabilities(), client, log, vendorId, commandDelayInMs: 500 });
+      expect(accessory.verticalSwitch).toBeUndefined();
+      expect(accessory.endpoints).toHaveLength(1);
+      await addAccessory(accessory);
+      await accessory.refresh();
+      await writeAsController(accessory.endpoint, 'FanControl', 'rockSetting', { rockLeftRight: true, rockUpDown: true, rockRound: false });
+      await accessory.flushCommands();
+      expect(client.setState).toHaveBeenLastCalledWith({ swingMode: 'both' });
+      expect(accessory.endpoint.getAttribute(FanControl, 'rockSetting')).toEqual({ rockLeftRight: true, rockUpDown: true, rockRound: false });
+      await writeAsController(accessory.endpoint, 'FanControl', 'rockSetting', { rockLeftRight: false, rockUpDown: false, rockRound: false });
+      await accessory.flushCommands();
+      expect(client.setState).toHaveBeenLastCalledWith({ swingMode: 'off' });
+      await accessory.dispose();
+
+      // A unit that swings up and down alone rocks up and down alone.
+      const upDown = createCapabilities({ swingModes: ['off', 'vertical'] });
+      const vertical = new DaikinAccessory({
+        config: createDeviceConfig({ name: 'Alcove', swingControl: 'native' }),
+        capabilities: upDown,
+        client: createFakeClient({}, upDown),
+        log,
+        vendorId,
+      });
+      await addAccessory(vertical);
+      expect(vertical.endpoint.getAttribute(FanControl, 'rockSupport')).toEqual({ rockLeftRight: false, rockUpDown: true, rockRound: false });
+      await writeAsController(vertical.endpoint, 'FanControl', 'rockSetting', { rockLeftRight: false, rockUpDown: true, rockRound: false });
+      await vertical.flushCommands();
+      expect(vertical.endpoint.getAttribute(FanControl, 'rockSetting')).toEqual({ rockLeftRight: false, rockUpDown: true, rockRound: false });
+      await vertical.dispose();
+
+      // And one that swings left and right alone rocks left and right alone.
+      const leftRight = createCapabilities({ swingModes: ['off', 'horizontal'] });
+      const horizontalClient = createFakeClient({ swingMode: 'off' }, leftRight);
+      const horizontal = new DaikinAccessory({
+        config: createDeviceConfig({ name: 'Bay', swingControl: 'native' }),
+        capabilities: leftRight,
+        client: horizontalClient,
+        log,
+        vendorId,
+      });
+      await addAccessory(horizontal);
+      await writeAsController(horizontal.endpoint, 'FanControl', 'rockSetting', { rockLeftRight: true, rockUpDown: false, rockRound: false });
+      await horizontal.flushCommands();
+      expect(horizontalClient.setState).toHaveBeenLastCalledWith({ swingMode: 'horizontal' });
+      await horizontal.dispose();
+    });
+
+    it('should give a unit without a fan control its swing switches, and a fan of its own the rocking too', async () => {
+      const noFan = new DaikinAccessory({
+        config: createDeviceConfig({ name: 'Vault', swingControl: 'native', fanControl: 'hidden' }),
+        capabilities: createCapabilities(),
+        client: createFakeClient(),
+        log,
+        vendorId,
+      });
+      expect(noFan.endpoint.hasClusterServer(FanControl)).toBe(false);
+      expect(noFan.verticalSwitch).toBeDefined();
+      expect(noFan.horizontalSwitch).toBeDefined();
+      await noFan.dispose();
+
+      const client = createFakeClient();
+      const config = createDeviceConfig({ name: 'Loggia', swingControl: 'native', hasSeparateFan: true });
+      const accessory = new DaikinAccessory({ config, capabilities: createCapabilities(), client, log, vendorId, commandDelayInMs: 500 });
+      await addAccessory(accessory);
+      await accessory.refresh();
+      const fan = accessory.fan;
+      if (fan === undefined) throw new Error('The fan is missing');
+      expect(fan.getAttribute(FanControl, 'rockSetting')).toEqual({ rockLeftRight: false, rockUpDown: true, rockRound: false });
+      await writeAsController(fan, 'FanControl', 'rockSetting', { rockLeftRight: true, rockUpDown: false, rockRound: false });
+      await accessory.flushCommands();
+      expect(client.setState).toHaveBeenLastCalledWith({ swingMode: 'horizontal' });
+      expect(accessory.endpoint.getAttribute(FanControl, 'rockSetting')).toEqual({ rockLeftRight: true, rockUpDown: false, rockRound: false });
+      await accessory.dispose();
+    });
+  });
+
   describe('a unit whose fan is a device of its own', () => {
-    it('should put the fan control on a fan, and none on the air conditioner', async () => {
+    it('should put the fan control on a fan beside the one of the air conditioner, and keep the two the same', async () => {
       const client = createFakeClient();
       const config = createDeviceConfig({ name: 'Porch', swingControl: 'hidden', hasSeparateFan: true });
       const accessory = new DaikinAccessory({ config, capabilities: createCapabilities(), client, log, vendorId });
       expect(accessory.endpoints).toHaveLength(2);
       expect(accessory.fan?.deviceName).toBe('Porch Fan');
-      expect(accessory.endpoint.hasClusterServer(FanControl)).toBe(false);
+      // The fan of its own comes beside the fan control of the air conditioner, never in place of it.
+      expect(accessory.endpoint.hasClusterServer(FanControl)).toBe(true);
       await addAccessory(accessory);
       await accessory.refresh();
       // level3 is the fourth of silent, level1 to level5.
       expect(accessory.fan?.getAttribute(FanControl, 'percentSetting')).toBe(66);
       expect(accessory.fan?.getAttribute(FanControl, 'speedCurrent')).toBe(4);
+      expect(accessory.endpoint.getAttribute(FanControl, 'percentSetting')).toBe(66);
       expect(accessory.fan?.getAttribute(BridgedDeviceBasicInformation, 'reachable')).toBe(true);
 
       if (accessory.fan === undefined) throw new Error('The fan is missing');
@@ -939,6 +1024,15 @@ describe('DaikinAccessory', () => {
       await accessory.flushCommands();
       expect(client.setState).toHaveBeenCalledWith({ fanSpeed: 'level5' });
       expect(accessory.fan.getAttribute(FanControl, 'percentSetting')).toBe(100);
+      expect(accessory.endpoint.getAttribute(FanControl, 'percentSetting')).toBe(100);
+      // The speed is read from the fan control it was set on.
+      await writeAsController(accessory.endpoint, 'FanControl', 'percentSetting', 33);
+      await accessory.flushCommands();
+      expect(client.setState).toHaveBeenLastCalledWith({ fanSpeed: 'level1' });
+      expect(accessory.fan.getAttribute(FanControl, 'percentSetting')).toBe(33);
+      await writeAsController(accessory.fan, 'FanControl', 'percentSetting', 100);
+      await accessory.flushCommands();
+      expect(client.setState).toHaveBeenLastCalledWith({ fanSpeed: 'level5' });
 
       // It is on and off with the air conditioner, and shows the speed the unit holds, also while the unit is off.
       expect(accessory.fan.getAttribute(OnOff, 'onOff')).toBe(true);

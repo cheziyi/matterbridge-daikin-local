@@ -114,10 +114,10 @@ function ignore(): void {
 }
 
 /**
- * One Daikin air conditioner and the Matter endpoints that stand for it: a room air conditioner and, when they are
- * exposed, one on/off switch for each axis the unit swings on, for each mode, for the auto fan speed
- * and for each special mode, and a mode select for the mode and one for the swing. The fan control is a fan of its own
- * when it is exposed that way. The humidity of a unit that has given it is on the air conditioner, and on a sensor of
+ * One Daikin air conditioner and the Matter endpoints that stand for it: a room air conditioner, with a fan control
+ * whose rocking is the swing, and, when they are exposed, one on/off switch for each axis the unit swings on, for each
+ * mode, for the auto fan speed and for each special mode, and a mode select for the mode and one for the swing. A fan
+ * of its own with the same fan control comes beside the air conditioner when it is exposed that way. The humidity of a unit that has given it is on the air conditioner, and on a sensor of
  * its own too when one is asked for. A unit that has given its outdoor temperature gets a sensor for it, unless none is
  * asked for. The fan, the switches, the mode selects and the humidity sensor are each a device of their own in Matter, or parts of the air
  * conditioner when the device is exposed as a composed one. The outdoor temperature sensor is always a device of its own.
@@ -134,7 +134,7 @@ export class DaikinAccessory implements AccessoryEndpoints {
   /** The switch of each mode that is exposed. */
   readonly modeSwitches: ReadonlyMap<SwitchedMode, MatterbridgeEndpoint>;
   readonly fanAutoSwitch: MatterbridgeEndpoint | undefined;
-  /** The fan, when the fan control is not a part of the air conditioner. */
+  /** The fan of its own, beside the fan control of the air conditioner. */
   readonly fan: MatterbridgeEndpoint | undefined;
   /** The switch of each special mode that is exposed. */
   readonly specialModeSwitches: ReadonlyMap<SpecialMode, MatterbridgeEndpoint>;
@@ -168,6 +168,8 @@ export class DaikinAccessory implements AccessoryEndpoints {
 
   // What the controllers asked for since the last command was sent.
   private readonly pending = new PendingCommand();
+  /** The fan control a controller last set the speed on: the air conditioner, or the fan of its own. */
+  private fanWrittenOn: MatterbridgeEndpoint;
   // What the setpoints showed before the controllers wrote them since the last command, in the Matter encoding.
   private setpointsBefore: Partial<Record<SetpointKind, number>> = {};
   private hasPendingCommand = false;
@@ -195,10 +197,12 @@ export class DaikinAccessory implements AccessoryEndpoints {
     this.layout = getAccessoryLayout(this.config, this.capabilities, this.reportedSensors);
 
     this.endpoint = this.createAirConditioner();
+    this.fanWrittenOn = this.endpoint;
     if (this.layout.isComposed) this.parent = this.endpoint;
     if (this.layout.hasSeparateFan) this.fan = this.createFan();
-    if (this.layout.hasFan) this.subscribeFan(this.fan ?? this.endpoint);
-    if (this.config.swingControl === 'switches') {
+    if (this.layout.hasFan) this.subscribeFan(this.endpoint);
+    if (this.fan !== undefined) this.subscribeFan(this.fan);
+    if (this.layout.hasSwingSwitches) {
       if (this.capabilities.swingModes.includes('vertical')) this.verticalSwitch = this.createSwingSwitch('vertical');
       if (this.capabilities.swingModes.includes('horizontal')) this.horizontalSwitch = this.createSwingSwitch('horizontal');
     }
@@ -432,10 +436,22 @@ export class DaikinAccessory implements AccessoryEndpoints {
 
   private subscribeFan(endpoint: MatterbridgeEndpoint): void {
     const onFanWrite = (_value: unknown, _previous: unknown, context: ActionContext): void => {
-      if (isControllerWrite(context)) this.queueFan();
+      if (!isControllerWrite(context)) return;
+      this.fanWrittenOn = endpoint;
+      this.queueFan();
     };
     this.listen(endpoint, () => endpoint.subscribeAttribute(FanControl, 'fanMode', onFanWrite));
     this.listen(endpoint, () => endpoint.subscribeAttribute(FanControl, 'percentSetting', onFanWrite));
+    const { vertical, horizontal } = this.layout.rockAxes;
+    if (!vertical && !horizontal) return;
+    this.listen(endpoint, () =>
+      endpoint.subscribeAttribute('FanControl', 'rockSetting', (setting: { rockUpDown?: boolean; rockLeftRight?: boolean }, _previous: unknown, context: ActionContext) => {
+        if (!isControllerWrite(context)) return;
+        if (vertical) this.pending.requestSwing('vertical', setting.rockUpDown === true);
+        if (horizontal) this.pending.requestSwing('horizontal', setting.rockLeftRight === true);
+        this.scheduleCommand(`rocking ${JSON.stringify({ vertical: setting.rockUpDown === true, horizontal: setting.rockLeftRight === true })}`);
+      }),
+    );
   }
 
   // The code tells the switches of one device apart in their serial numbers.
@@ -582,7 +598,7 @@ export class DaikinAccessory implements AccessoryEndpoints {
       lastManualFanSpeed: this.lastManualFanSpeed,
       modeReplacements: this.layout.modeReplacements,
     };
-    const { control, specialModes } = this.pending.take(unit, () => readFanSpeed(this.fan ?? this.endpoint, this.layout.fanPositions));
+    const { control, specialModes } = this.pending.take(unit, () => readFanSpeed(this.fanWrittenOn, this.layout.fanPositions));
     const mode = control.mode ?? this.state?.mode;
     if (Object.keys(control).length > 0) {
       addHiddenSettings(control, this.config, this.capabilities);

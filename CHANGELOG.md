@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- [devices]: Show the swing as the rocking of the fan control, up and down for the vertical swing and left and right for the horizontal one, on the axes the unit swings on. The swing switches and the swing mode select come beside it, for the Matter apps that show no rocking, and the swing has a choice of its own for the rocking alone. The Apple Home and Google Home presets show the rocking alone, where they showed no swing.
+- [devices]: Add a fan of its own beside the fan control of the air conditioner, instead of in place of it, so that the apps that show the fan speed on the air conditioner keep it. Both show the speed the unit holds, and setting either sets the unit.
+
 ## [0.8.0] - 2026-10-19
 
 ### Changed

@@ -48,6 +48,7 @@ const glyphs = {
   switches:
     '<svg viewBox="0 0 48 28" aria-hidden="true"><path class="stroke" d="M12 4 V24 M7 9 L12 4 L17 9 M7 19 L12 24 L17 19"/><path class="stroke" d="M26 14 H46 M31 9 L26 14 L31 19 M41 9 L46 14 L41 19"/></svg>',
   select: '<svg viewBox="0 0 48 28" aria-hidden="true"><rect class="stroke" x="3" y="5" width="42" height="18" rx="4"/><path class="stroke" d="M31 12 L35 16 L39 12"/></svg>',
+  rocking: '<svg viewBox="0 0 48 28" aria-hidden="true"><path class="stroke" d="M8 20 Q24 0 40 20"/><path class="stroke" d="M8 13 V20 H15 M40 13 V20 H33"/></svg>',
 };
 
 // Home Assistant is the one app known to show a mode select.
@@ -225,7 +226,7 @@ function fanSection(draft: Draft, controls: AvailableControls): HTMLElement {
           'separate-fan',
           draft.hasSeparateFan,
           'Show the fan as a device of its own',
-          `${placement(draft, 'Fan', false)}, and the air conditioner has no fan speed of its own. For apps that show no fan speed on an air conditioner, or do not show it well. It always shows the speed the unit holds, also while the unit is off.`,
+          `${placement(draft, 'Fan', false)}, beside the fan speed of the air conditioner, which stays for the apps that show it. For apps that show no fan speed on an air conditioner, or do not show it well. It always shows the speed the unit holds, also while the unit is off.`,
           (hasSeparateFan) => update(draft, { hasSeparateFan }),
         ),
     // A step of a fan that is hidden is no step.
@@ -233,11 +234,15 @@ function fanSection(draft: Draft, controls: AvailableControls): HTMLElement {
   );
 }
 
-function swingSection(draft: Draft): HTMLElement {
+// The swing is natively the rocking of the fan control, which a unit whose fan speed is not shown has none of.
+function swingSection(draft: Draft, controls: AvailableControls): HTMLElement {
   const swingModes = draft.capabilities?.swingModes ?? [];
   if (swingModes.length === 0) return h('section', {}, h('h2', {}, 'Swing'), h('p', { class: 'help' }, 'This unit does not let apps move its louvers, so there is nothing to choose.'));
   const hasVertical = swingModes.includes('vertical');
   const hasHorizontal = swingModes.includes('horizontal');
+  const hasRocking = draft.fanControl !== 'hidden' && controls.fanSteps.length > 0;
+  const current = draft.swingControl === 'native' && !hasRocking ? 'switches' : draft.swingControl;
+  const rockingStays = hasRocking ? ' The rocking of the fan control stays as well.' : '';
   let switchText = 'One switch, for the up and down swing.';
   if (hasVertical && hasHorizontal) switchText = 'Two switches: one for the up and down swing, one for left and right.';
   else if (hasHorizontal) switchText = 'One switch, for the left and right swing.';
@@ -248,17 +253,28 @@ function swingSection(draft: Draft): HTMLElement {
     h(
       'div',
       { class: 'choices' },
-      choice('swing', 'switches', draft.swingControl, 'Switches', switchText, glyphs.switches, (swingControl) => update(draft, { swingControl })),
+      hasRocking
+        ? choice(
+            'swing',
+            'native',
+            current,
+            'On the fan only',
+            'The rocking of the fan control, as Matter has it: up and down for the vertical swing, left and right for the horizontal. Not every app shows it.',
+            glyphs.rocking,
+            (swingControl) => update(draft, { swingControl }),
+          )
+        : null,
+      choice('swing', 'switches', current, 'Switches', `${switchText}${rockingStays}`, glyphs.switches, (swingControl) => update(draft, { swingControl })),
       choice(
         'swing',
         'select',
-        draft.swingControl,
+        current,
         'A mode select',
-        `${placement(draft, 'Swing', true)}, and picks one of: ${swingModes.map((mode) => (mode === 'both' ? swingModeLabels[mode] : swingModeLabels[mode].toLowerCase())).join(', ')}. ${selectSupport}`,
+        `${placement(draft, 'Swing', true)}, and picks one of: ${swingModes.map((mode) => (mode === 'both' ? swingModeLabels[mode] : swingModeLabels[mode].toLowerCase())).join(', ')}.${rockingStays} ${selectSupport}`,
         glyphs.select,
         (swingControl) => update(draft, { swingControl }),
       ),
-      choice('swing', 'hidden', draft.swingControl, 'Not shown in Matter', 'No swing control. Pick below what the plugin does with the swing instead.', glyphs.hidden, (swingControl) =>
+      choice('swing', 'hidden', current, 'Not shown in Matter', 'No swing control. Pick below what the plugin does with the swing instead.', glyphs.hidden, (swingControl) =>
         update(draft, { swingControl }),
       ),
     ),
@@ -459,7 +475,7 @@ export function optionsScreen(): Child[] {
     nameSection(draft),
     presetSection(draft, controls),
     fanSection(draft, controls),
-    swingSection(draft),
+    swingSection(draft, controls),
     modeSection(draft, controls),
     specialSection(draft, controls),
     sensorSection(draft),

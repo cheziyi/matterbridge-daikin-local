@@ -56,28 +56,36 @@ export interface EndpointIdentity {
 /**
  * Add the fan control of a device, with the features its unit has
  *
+ * The swing of the unit is the rocking of the fan control: up and down for the vertical swing, and left and right for
+ * the horizontal one.
+ *
  * @param {MatterbridgeEndpoint} endpoint The air conditioner, or the fan of a device that has one of its own.
  * @param {AccessoryLayout} layout How the controls of the device are laid out.
  * @returns {void}
  */
 function addFanControl(endpoint: MatterbridgeEndpoint, layout: AccessoryLayout): void {
+  const features: FanControl.Feature[] = [];
   // Off and 0 are valid in every sequence; the first read replaces them with the unit's own speed.
-  const base = {
+  const state: Record<string, unknown> = {
     fanMode: FanControl.FanMode.Off,
     fanModeSequence: getFanModeSequence(layout.fanPositions.length, layout.hasFanAuto),
     percentSetting: 0,
     percentCurrent: 0,
   };
-  const speeds = { speedMax: layout.fanPositions.length, speedSetting: 0, speedCurrent: 0 };
-  if (layout.hasFanSteps && layout.hasFanAuto) {
-    endpoint.behaviors.require(MatterbridgeFanControlServer.with(FanControl.Feature.MultiSpeed, FanControl.Feature.Auto), { ...base, ...speeds });
-  } else if (layout.hasFanSteps) {
-    endpoint.behaviors.require(MatterbridgeFanControlServer.with(FanControl.Feature.MultiSpeed), { ...base, ...speeds });
-  } else if (layout.hasFanAuto) {
-    endpoint.behaviors.require(MatterbridgeFanControlServer.with(FanControl.Feature.Auto), base);
-  } else {
-    endpoint.behaviors.require(MatterbridgeFanControlServer.with(), base);
+  if (layout.hasFanSteps) {
+    features.push(FanControl.Feature.MultiSpeed);
+    Object.assign(state, { speedMax: layout.fanPositions.length, speedSetting: 0, speedCurrent: 0 });
   }
+  if (layout.hasFanAuto) features.push(FanControl.Feature.Auto);
+  const { vertical, horizontal } = layout.rockAxes;
+  if (vertical || horizontal) {
+    features.push(FanControl.Feature.Rocking);
+    Object.assign(state, {
+      rockSupport: { rockLeftRight: horizontal, rockUpDown: vertical, rockRound: false },
+      rockSetting: { rockLeftRight: false, rockUpDown: false, rockRound: false },
+    });
+  }
+  endpoint.behaviors.require(MatterbridgeFanControlServer.with(...features), state);
 }
 
 /**
@@ -105,7 +113,8 @@ export function createAirConditionerEndpoint(identity: EndpointIdentity, layout:
   } else {
     endpoint.createDefaultHeatingThermostatClusterServer(23, heatSetpoint, heatLimits.min, heatLimits.max);
   }
-  if (layout.hasFan && !layout.hasSeparateFan) addFanControl(endpoint, layout);
+  // A fan of its own comes beside this fan control, never in place of it.
+  if (layout.hasFan) addFanControl(endpoint, layout);
   // No value until the first read. A humidity sensor of its own shows the humidity too, never instead.
   if (layout.hasHumidity) endpoint.createDefaultRelativeHumidityMeasurementClusterServer(null);
   endpoint.addRequiredClusters();

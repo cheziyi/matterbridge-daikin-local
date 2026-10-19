@@ -33,9 +33,11 @@ export const presets: Record<PresetName, { title: string; text: string }> = {
  */
 export function presetExposure(name: PresetName, controls: AvailableControls): Exposure {
   const isMatter = name === 'matter';
-  // An app that shows every Matter control shows a mode select, which Matter has for what it has no cluster for. The
-  // other presets leave the swing as it is, rather than add a switch for each axis.
-  const swingControl: Exposure['swingControl'] = isMatter && controls.hasSwing ? 'select' : 'hidden';
+  // An app that shows every Matter control shows a mode select beside the rocking of the fan control. The other presets
+  // show the rocking alone, rather than add a switch for each axis, and a unit without a fan control has no rocking.
+  let swingControl: Exposure['swingControl'] = 'hidden';
+  if (controls.hasSwing && isMatter) swingControl = 'select';
+  else if (controls.hasSwing && controls.fanSteps.length > 0) swingControl = 'native';
   // Home and Google Home are reported to offer off, cool, heat and auto alone, so dry and fan get a switch each where
   // the unit has them.
   const modeSwitches = isMatter ? [] : controls.switchableModes.filter((mode) => mode === 'dehumidify' || mode === 'fan');
@@ -50,7 +52,7 @@ export function presetExposure(name: PresetName, controls: AvailableControls): E
     modeReplacements: {},
     // Neither Home nor Google Home is known to show the auto fan mode, which the switch is beside.
     fanAutoControl: !isMatter && controls.hasFanAuto ? 'switch' : 'native',
-    // No preset takes the fan off the air conditioner: that is for an app that shows no fan speed there.
+    // No preset adds a fan of its own beside the air conditioner: that is for an app that shows no fan speed there.
     hasSeparateFan: false,
     // Matter has nothing for the special modes, so a switch is the one way to them.
     specialModeSwitches: isMatter ? [...controls.specialModes] : [],
