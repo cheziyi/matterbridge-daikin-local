@@ -96,7 +96,8 @@ export function draftsFromAdapters(adapters: readonly Adapter[]): Draft[] {
 
 export function draftFromStored(device: StoredDevice): Draft {
   const { capabilities, controls, name, macAddress, host, protocol, requiresRegistration, usesHttps, requiresLocalPassword } = device;
-  const adapter: Adapter = { host, protocol, name, macAddress, requiresRegistration, usesHttps, requiresLocalPassword };
+  // The stored name is the one given in the setup page: the check in Connect reads the adapter's own.
+  const adapter: Adapter = { host, protocol, macAddress, requiresRegistration, usesHttps, requiresLocalPassword };
   return { adapter, name, isNew: false, capabilities, controls, ...pickExposure(device) };
 }
 

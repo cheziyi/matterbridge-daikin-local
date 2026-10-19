@@ -125,8 +125,8 @@ async function enterConnect(): Promise<void> {
 }
 
 export async function check(draft: Draft, key?: string): Promise<void> {
-  const device = { ...draft.adapter, name: draft.name === '' ? undefined : draft.name };
-  const body = { device, localPassword: draft.localPassword, key };
+  // The adapter as it announced itself: an adapter whose name is not known yet is asked for it.
+  const body = { device: draft.adapter, localPassword: draft.localPassword, key };
   const text = key === undefined ? `Checking ${draftLabel(draft)}…` : `Registering with ${draftLabel(draft)}…`;
   const reply = await busy(text, async () => api(key === undefined ? 'POST probe' : 'POST register', body));
   if (!reply.ok) {
