@@ -95,8 +95,9 @@ export function getAccessoryLayout(config: DaikinDeviceConfig, capabilities: Dai
   const hasAutoStep = hasFan && capabilities.fanSpeeds.includes('auto') && (config.fanAutoControl === 'firstStep' || config.fanAutoControl === 'lastStep');
   const hasAutoSwitch = config.fanAutoControl === 'switch' && hasFanAuto(capabilities);
   const swingsOn = (axis: 'vertical' | 'horizontal'): boolean => capabilities.swingModes.includes(axis) || capabilities.swingModes.includes('both');
-  // The rocking is the native place of the swing: it is on every fan control, beside the switches or the select.
-  const hasRocking = hasFan && config.swingControl !== 'hidden';
+  // The rocking is the native place of the swing, on every fan control. It is never beside the switches or the select:
+  // Apple Home is reported to upset it, so they take its place.
+  const hasRocking = hasFan && config.swingControl === 'native';
   let fanPositions = fanSteps;
   if (hasAutoStep) fanPositions = config.fanAutoControl === 'firstStep' ? ['auto', ...fanSteps] : [...fanSteps, 'auto'];
   return {

@@ -152,9 +152,9 @@ describe('DaikinAccessory', () => {
       expect(endpoint.getAttribute(FanControl, 'fanMode')).toBe(FanControl.FanMode.Medium);
       expect(accessory.verticalSwitch?.getAttribute(OnOff, 'onOff')).toBe(true);
       expect(accessory.horizontalSwitch?.getAttribute(OnOff, 'onOff')).toBe(false);
-      // The swing is the rocking of the fan control too, beside its switches.
-      expect(endpoint.getAttribute(FanControl, 'rockSupport')).toEqual({ rockLeftRight: true, rockUpDown: true, rockRound: false });
-      expect(endpoint.getAttribute(FanControl, 'rockSetting')).toEqual({ rockLeftRight: false, rockUpDown: true, rockRound: false });
+      // The switches take the place of the rocking of the fan control.
+      expect(endpoint.hasAttributeServer(FanControl, 'rockSupport')).toBe(false);
+      expect(endpoint.hasAttributeServer(FanControl, 'rockSetting')).toBe(false);
       expect(accessory.getStatus()).toMatchObject({ isReachable: true, state: { mode: 'cool' } });
       expect(client.setState).not.toHaveBeenCalled();
     });
@@ -1178,9 +1178,10 @@ describe('DaikinAccessory', () => {
       const capabilities = createCapabilities({ modes: ['cool', 'heat', 'dehumidify'], swingModes: ['off', 'vertical'] });
       const client = createFakeClient({ power: false, mode: 'heat', swingMode: 'vertical' });
       const accessory = new DaikinAccessory({ config, capabilities, reportedSensors: { hasHumidity: false, hasOutdoorTemperature: false }, client, log, vendorId });
-      // The select takes the place of the swing switches.
+      // The select takes the place of the swing switches, and of the rocking of the fan control.
       expect(accessory.endpoints).toEqual([accessory.endpoint, accessory.modeSelect, accessory.swingSelect]);
       expect(accessory.verticalSwitch).toBeUndefined();
+      expect(accessory.endpoint.hasAttributeServer(FanControl, 'rockSetting')).toBe(false);
       expect(accessory.modeSelect?.deviceName).toBe('Workshop Mode');
       expect(accessory.swingSelect?.deviceName).toBe('Workshop Swing');
       await addAccessory(accessory);

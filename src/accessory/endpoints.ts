@@ -56,8 +56,8 @@ export interface EndpointIdentity {
 /**
  * Add the fan control of a device, with the features its unit has
  *
- * The swing of the unit is the rocking of the fan control: up and down for the vertical swing, and left and right for
- * the horizontal one.
+ * When the swing is exposed on the fan, it is the rocking of the fan control: up and down for the vertical swing, and
+ * left and right for the horizontal one.
  *
  * @param {MatterbridgeEndpoint} endpoint The air conditioner, or the fan of a device that has one of its own.
  * @param {AccessoryLayout} layout How the controls of the device are laid out.

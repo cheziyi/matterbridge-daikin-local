@@ -42,9 +42,9 @@ export const FAN_CONTROLS = ['steps', 'percent', 'hidden'] as const;
 export type FanControlOption = (typeof FAN_CONTROLS)[number];
 
 /**
- * How the swing is exposed to Matter: natively, as the rocking of the fan control, alone or with a switch for each axis
- * or a mode select of the swing modes beside it, or nothing. The switches and the select are for apps that show no
- * rocking. A device without a fan control has no rocking, so its swing is natively nothing but the switches.
+ * How the swing is exposed to Matter: natively, as the rocking of the fan control, as a switch for each axis, as a mode
+ * select of the swing modes, or nothing. The switches and the select take the place of the rocking, for apps that show
+ * no rocking or do not handle it well. A device without a fan control has no rocking, so its swing is natively the switches.
  */
 export const SWING_CONTROLS = ['native', 'switches', 'select', 'hidden'] as const;
 

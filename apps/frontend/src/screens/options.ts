@@ -242,7 +242,7 @@ function swingSection(draft: Draft, controls: AvailableControls): HTMLElement {
   const hasHorizontal = swingModes.includes('horizontal');
   const hasRocking = draft.fanControl !== 'hidden' && controls.fanSteps.length > 0;
   const current = draft.swingControl === 'native' && !hasRocking ? 'switches' : draft.swingControl;
-  const rockingStays = hasRocking ? ' The rocking of the fan control stays as well.' : '';
+  const insteadOfRocking = hasRocking ? ' The fan control then has no rocking.' : '';
   let switchText = 'One switch, for the up and down swing.';
   if (hasVertical && hasHorizontal) switchText = 'Two switches: one for the up and down swing, one for left and right.';
   else if (hasHorizontal) switchText = 'One switch, for the left and right swing.';
@@ -258,19 +258,19 @@ function swingSection(draft: Draft, controls: AvailableControls): HTMLElement {
             'swing',
             'native',
             current,
-            'On the fan only',
-            'The rocking of the fan control, as Matter has it: up and down for the vertical swing, left and right for the horizontal. Not every app shows it.',
+            'On the fan',
+            'The rocking of the fan control, as Matter has it: up and down for the vertical swing, left and right for the horizontal. Not every app shows it, and Apple Home is reported not to handle it well.',
             glyphs.rocking,
             (swingControl) => update(draft, { swingControl }),
           )
         : null,
-      choice('swing', 'switches', current, 'Switches', `${switchText}${rockingStays}`, glyphs.switches, (swingControl) => update(draft, { swingControl })),
+      choice('swing', 'switches', current, 'Switches', `${switchText}${insteadOfRocking}`, glyphs.switches, (swingControl) => update(draft, { swingControl })),
       choice(
         'swing',
         'select',
         current,
         'A mode select',
-        `${placement(draft, 'Swing', true)}, and picks one of: ${swingModes.map((mode) => (mode === 'both' ? swingModeLabels[mode] : swingModeLabels[mode].toLowerCase())).join(', ')}.${rockingStays} ${selectSupport}`,
+        `${placement(draft, 'Swing', true)}, and picks one of: ${swingModes.map((mode) => (mode === 'both' ? swingModeLabels[mode] : swingModeLabels[mode].toLowerCase())).join(', ')}.${insteadOfRocking} ${selectSupport}`,
         glyphs.select,
         (swingControl) => update(draft, { swingControl }),
       ),

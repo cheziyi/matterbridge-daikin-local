@@ -115,9 +115,10 @@ function ignore(): void {
 
 /**
  * One Daikin air conditioner and the Matter endpoints that stand for it: a room air conditioner, with a fan control
- * whose rocking is the swing, and, when they are exposed, one on/off switch for each axis the unit swings on, for each
- * mode, for the auto fan speed and for each special mode, and a mode select for the mode and one for the swing. A fan
- * of its own with the same fan control comes beside the air conditioner when it is exposed that way. The humidity of a unit that has given it is on the air conditioner, and on a sensor of
+ * whose rocking is the swing when the swing is exposed on the fan, and, when they are exposed, one on/off switch for
+ * each axis the unit swings on, for each mode, for the auto fan speed and for each special mode, and a mode select for
+ * the mode and one for the swing. A fan of its own with the same fan control comes beside the air conditioner when it
+ * is exposed that way. The humidity of a unit that has given it is on the air conditioner, and on a sensor of
  * its own too when one is asked for. A unit that has given its outdoor temperature gets a sensor for it, unless none is
  * asked for. The fan, the switches, the mode selects and the humidity sensor are each a device of their own in Matter, or parts of the air
  * conditioner when the device is exposed as a composed one. The outdoor temperature sensor is always a device of its own.

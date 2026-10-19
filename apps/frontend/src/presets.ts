@@ -33,11 +33,12 @@ export const presets: Record<PresetName, { title: string; text: string }> = {
  */
 export function presetExposure(name: PresetName, controls: AvailableControls): Exposure {
   const isMatter = name === 'matter';
-  // An app that shows every Matter control shows a mode select beside the rocking of the fan control. The other presets
-  // show the rocking alone, rather than add a switch for each axis, and a unit without a fan control has no rocking.
+  // An app that shows every Matter control shows a mode select. Google Home gets the rocking of the fan control, which a
+  // unit without a fan control has none of. Home is reported to upset the rocking, and gets no switch for each axis
+  // either, so the swing stays as it is.
   let swingControl: Exposure['swingControl'] = 'hidden';
   if (controls.hasSwing && isMatter) swingControl = 'select';
-  else if (controls.hasSwing && controls.fanSteps.length > 0) swingControl = 'native';
+  else if (controls.hasSwing && name === 'google' && controls.fanSteps.length > 0) swingControl = 'native';
   // Home and Google Home are reported to offer off, cool, heat and auto alone, so dry and fan get a switch each where
   // the unit has them.
   const modeSwitches = isMatter ? [] : controls.switchableModes.filter((mode) => mode === 'dehumidify' || mode === 'fan');
