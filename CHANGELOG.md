@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- [devices]: Read the unit and write its state to Matter only while the Matter node is online. A poll that answered as the node went online, after a factory reset or at the start of the bridge, could hold the thermostat when the node writes its temperature, which failed the reset and left Matterbridge stuck. Only the read after a reset waited for the node before; every read does now, and nothing is written to the endpoints while the node is offline.
+
 ## [0.9.1] - 2026-10-19
 
 ### Changed

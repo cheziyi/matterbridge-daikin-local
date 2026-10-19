@@ -176,7 +176,7 @@ export class DaikinAccessory implements AccessoryEndpoints {
   private queue: Promise<void> = Promise.resolve();
   // What is subscribed on each endpoint, to subscribe it again after a factory reset of the Matter node.
   private readonly subscriptions = new Map<MatterbridgeEndpoint, (() => void)[]>();
-  // Whether a read waits for the node to come back online after a factory reset.
+  // Whether a read waits for the Matter node to be online, which the endpoints are written to only while it is.
   private isAwaitingOnline = false;
 
   /**
@@ -323,8 +323,10 @@ export class DaikinAccessory implements AccessoryEndpoints {
    * Read the state and the sensors of the unit and write them to the Matter endpoints
    *
    * A read that fails is logged, never thrown: after two failures in a row the endpoints are reported as unreachable.
+   * While the Matter node is offline, such as during a factory reset or before the bridge has started, the unit is not
+   * read: it is read once the node is online.
    *
-   * @returns {Promise<boolean>} True when the unit answered.
+   * @returns {Promise<boolean>} True when the unit answered. False when it did not, or the node is offline.
    */
   async refresh(): Promise<boolean> {
     return this.enqueue(async () => this.readAndApply(true));
@@ -426,26 +428,46 @@ export class DaikinAccessory implements AccessoryEndpoints {
       wasReset = false;
       for (const again of subscriptions) again();
       if (endpoint === this.endpoint) this.log.info(`"${this.name}" is subscribed again after the Matter node was reset`);
-      this.refreshWhenOnline(endpoint);
+      // The reset put every attribute back to its default: the state of the unit replaces them once the node is online.
+      void this.refresh();
     });
   }
 
   /**
-   * Write the state of the unit to Matter once the node is back online after a factory reset
+   * Whether the Matter node the endpoints are in is online, which they are written to only while it is
    *
-   * The reset put every attribute back to its default, and the endpoints come back one by one while the node is offline.
    * As the node goes online, the thermostat writes its temperature in a way that cannot wait for a write of the plugin,
-   * and the reset fails when one holds the thermostat then. One read, once every endpoint is back, replaces the defaults.
+   * and the node fails to start when one holds the thermostat then: after a factory reset, which takes the node offline
+   * and brings it back, and when the bridge starts. Endpoints that are in no node yet are written to as they are.
    *
-   * @param {MatterbridgeEndpoint} endpoint An endpoint of the device that came back.
+   * @returns {boolean} True while the node is online, or the endpoints are in no node.
+   */
+  private isNodeOnline(): boolean {
+    const node = this.getNode();
+    return node === undefined || node.lifecycle.isOnline;
+  }
+
+  // The Matter node the endpoints are registered in, which stays theirs through a factory reset.
+  private getNode(): Node | undefined {
+    let root = this.endpoint.owner;
+    if (root === undefined) return undefined;
+    while (root.owner !== undefined) root = root.owner;
+    return root instanceof Node ? root : undefined;
+  }
+
+  /**
+   * Read the unit once the node is online, and write its state to the endpoints then
+   *
    * @returns {void}
    */
-  private refreshWhenOnline(endpoint: MatterbridgeEndpoint): void {
+  private refreshWhenOnline(): void {
     if (this.isAwaitingOnline) return;
+    const node = this.getNode();
+    if (node === undefined) return;
     this.isAwaitingOnline = true;
     // The read is not awaited, so that the node goes online without waiting for the unit. It does nothing once the
     // device is disposed.
-    Node.forEndpoint(endpoint).lifecycle.online.once(() => {
+    node.lifecycle.online.once(() => {
       this.isAwaitingOnline = false;
       void this.refresh();
     });
@@ -635,10 +657,14 @@ export class DaikinAccessory implements AccessoryEndpoints {
    *
    * @param {boolean} shouldReadSensors Whether to read the sensors too, instead of keeping the readings of the last poll.
    * @param {Partial<Record<SetpointKind, number>>} [setpointsBefore] What the setpoints showed before the command just sent, which are put back while the unit is in a mode that takes none.
-   * @returns {Promise<boolean>} True when the unit answered.
+   * @returns {Promise<boolean>} True when the unit answered. False when it did not, or the node is offline and it was not read.
    */
   private async readAndApply(shouldReadSensors: boolean, setpointsBefore: Partial<Record<SetpointKind, number>> = {}): Promise<boolean> {
     if (this.isDisposed) return false;
+    if (!this.isNodeOnline()) {
+      this.refreshWhenOnline();
+      return false;
+    }
     let state: DaikinState;
     let sensors = this.sensors;
     try {

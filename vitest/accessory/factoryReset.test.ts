@@ -80,12 +80,19 @@ describe('a device when the Matter node is reset to factory defaults', () => {
       isOnlineAtRead.push(server.lifecycle.isOnline);
       return { state: await client.getState(), sensors: await client.getSensors() };
     });
+    // A poll while the node is offline for the reset reads nothing, and waits for the node instead.
+    const pollDuringReset = new Promise<boolean>((resolve) => {
+      server.lifecycle.offline.once(() => {
+        resolve(accessory.refresh());
+      });
+    });
     await server.erase();
+    expect(await pollDuringReset).toBe(false);
     await vi.waitFor(() => expect(info).toHaveBeenCalledWith('"Lounge" is subscribed again after the Matter node was reset'), { timeout: 5000 });
     // The reset put the air conditioner back to off: the state of the unit replaces it.
     await vi.waitFor(() => expect(accessory.endpoint.getAttribute(OnOff, 'onOff')).toBe(true), { timeout: 5000 });
     await vi.waitFor(() => expect(accessory.fan?.getAttribute(OnOff, 'onOff')).toBe(true), { timeout: 5000 });
-    // One read for every endpoint that came back.
+    // One read once the node is online, for the poll that waited and every endpoint that came back.
     expect(isOnlineAtRead).toEqual([true]);
   });
 
