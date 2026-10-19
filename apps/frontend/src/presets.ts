@@ -18,11 +18,11 @@ export const presets: Record<PresetName, { title: string; text: string }> = {
   },
   google: {
     title: 'Google Home',
-    text: 'Fan speed as steps, the humidity on a sensor of its own too, and a switch for auto fan and for each of dry and fan, each a device of its own. The swing is not shown and stays as it is.',
+    text: 'Fan speed as steps, the humidity on a sensor of its own too, and a switch for auto fan and for each of dry and fan, each a device of its own. The swing is the rocking of the fan.',
   },
   matter: {
     title: 'Full Matter support',
-    text: 'For apps that show every Matter control: fan speed as steps with its auto mode, the swing as a mode select, a switch for each special mode and the outdoor temperature, all as one device.',
+    text: 'For apps that show every Matter control: fan speed as steps with its auto mode, the swing as the rocking of the fan, a switch for each special mode and the outdoor temperature, all as one device.',
   },
 };
 
@@ -33,12 +33,13 @@ export const presets: Record<PresetName, { title: string; text: string }> = {
  */
 export function presetExposure(name: PresetName, controls: AvailableControls): Exposure {
   const isMatter = name === 'matter';
-  // An app that shows every Matter control shows a mode select. Google Home gets the rocking of the fan control, which a
-  // unit without a fan control has none of. Home is reported to upset the rocking, and gets no switch for each axis
-  // either, so the swing stays as it is.
+  // An app that shows every Matter control, and Google Home, get the rocking of the fan control, which a unit without a
+  // fan control has none of: the first gets a mode select instead. Home is reported to upset the rocking, and gets no
+  // switch for each axis either, so the swing stays as it is.
+  const hasRocking = controls.hasSwing && controls.fanSteps.length > 0;
   let swingControl: Exposure['swingControl'] = 'hidden';
-  if (controls.hasSwing && isMatter) swingControl = 'select';
-  else if (controls.hasSwing && name === 'google' && controls.fanSteps.length > 0) swingControl = 'native';
+  if (hasRocking && name !== 'apple') swingControl = 'native';
+  else if (controls.hasSwing && isMatter) swingControl = 'select';
   // Home and Google Home are reported to offer off, cool, heat and auto alone, so dry and fan get a switch each where
   // the unit has them.
   const modeSwitches = isMatter ? [] : controls.switchableModes.filter((mode) => mode === 'dehumidify' || mode === 'fan');
