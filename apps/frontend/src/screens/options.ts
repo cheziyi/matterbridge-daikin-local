@@ -258,7 +258,7 @@ function swingSection(draft: Draft, controls: AvailableControls): HTMLElement {
             'swing',
             'native',
             current,
-            'On the fan',
+            'Native rocking',
             'The rocking of the fan control, as Matter has it: up and down for the vertical swing, left and right for the horizontal. Not every app shows it, and Apple Home is reported not to handle it well.',
             glyphs.rocking,
             (swingControl) => update(draft, { swingControl }),

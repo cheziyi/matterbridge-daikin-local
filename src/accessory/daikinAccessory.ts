@@ -115,7 +115,7 @@ function ignore(): void {
 
 /**
  * One Daikin air conditioner and the Matter endpoints that stand for it: a room air conditioner, with a fan control
- * whose rocking is the swing when the swing is exposed on the fan, and, when they are exposed, one on/off switch for
+ * whose rocking is the swing when the swing is exposed as native rocking, and, when they are exposed, one on/off switch for
  * each axis the unit swings on, for each mode, for the auto fan speed and for each special mode, and a mode select for
  * the mode and one for the swing. The fan control is a fan of its own when it is exposed that way. The humidity of a
  * unit that has given it is on the air conditioner, and on a sensor of its own too when one is asked for. A unit that has given its outdoor temperature gets a sensor for it, unless none is

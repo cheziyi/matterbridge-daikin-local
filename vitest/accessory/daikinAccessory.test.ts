@@ -922,7 +922,7 @@ describe('DaikinAccessory', () => {
     });
   });
 
-  describe('a unit with its swing on the fan', () => {
+  describe('a unit with its swing as native rocking', () => {
     it('should swing as the rocking of the fan control alone, on the axes the unit swings on', async () => {
       const client = createFakeClient();
       const config = createDeviceConfig({ name: 'Snug', swingControl: 'native' });
