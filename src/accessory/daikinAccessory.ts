@@ -434,36 +434,29 @@ export class DaikinAccessory implements AccessoryEndpoints {
   }
 
   /**
-   * Whether the Matter node the endpoints are in is online, which they are written to only while it is
+   * The Matter node the endpoints are in while it is offline, which they are written to only while it is online
    *
    * As the node goes online, the thermostat writes its temperature in a way that cannot wait for a write of the plugin,
    * and the node fails to start when one holds the thermostat then: after a factory reset, which takes the node offline
    * and brings it back, and when the bridge starts. Endpoints that are in no node yet are written to as they are.
+   * The node stays theirs through a factory reset.
    *
-   * @returns {boolean} True while the node is online, or the endpoints are in no node.
+   * @returns {Node | undefined} The node while it is offline. Undefined while it is online, or the endpoints are in no node.
    */
-  private isNodeOnline(): boolean {
-    const node = this.getNode();
-    return node === undefined || node.lifecycle.isOnline;
-  }
-
-  // The Matter node the endpoints are registered in, which stays theirs through a factory reset.
-  private getNode(): Node | undefined {
+  private getOfflineNode(): Node | undefined {
     let root = this.endpoint.owner;
-    if (root === undefined) return undefined;
-    while (root.owner !== undefined) root = root.owner;
-    return root instanceof Node ? root : undefined;
+    while (root?.owner !== undefined) root = root.owner;
+    return root instanceof Node && !root.lifecycle.isOnline ? root : undefined;
   }
 
   /**
    * Read the unit once the node is online, and write its state to the endpoints then
    *
+   * @param {Node} node The node the endpoints are in, while it is offline.
    * @returns {void}
    */
-  private refreshWhenOnline(): void {
+  private refreshWhenOnline(node: Node): void {
     if (this.isAwaitingOnline) return;
-    const node = this.getNode();
-    if (node === undefined) return;
     this.isAwaitingOnline = true;
     // The read is not awaited, so that the node goes online without waiting for the unit. It does nothing once the
     // device is disposed.
@@ -661,8 +654,9 @@ export class DaikinAccessory implements AccessoryEndpoints {
    */
   private async readAndApply(shouldReadSensors: boolean, setpointsBefore: Partial<Record<SetpointKind, number>> = {}): Promise<boolean> {
     if (this.isDisposed) return false;
-    if (!this.isNodeOnline()) {
-      this.refreshWhenOnline();
+    const offlineNode = this.getOfflineNode();
+    if (offlineNode !== undefined) {
+      this.refreshWhenOnline(offlineNode);
       return false;
     }
     let state: DaikinState;

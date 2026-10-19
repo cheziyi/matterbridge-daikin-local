@@ -1354,6 +1354,15 @@ describe('DaikinAccessory', () => {
     expect(pending.take(unit, vi.fn()).control).toEqual({ mode: 'cool' });
   });
 
+  it('should read the unit at once when its endpoints are in no Matter node yet', async () => {
+    const client = createFakeClient();
+    const accessory = new DaikinAccessory({ config: createDeviceConfig({ name: 'Annex' }), capabilities: createCapabilities(), client, log, vendorId });
+    // There is no node to wait for.
+    expect(await accessory.refresh()).toBe(true);
+    expect(client.getStateAndSensors).toHaveBeenCalledOnce();
+    await accessory.dispose();
+  });
+
   it('should refuse a unit that neither cools nor heats', () => {
     const capabilities = createCapabilities({ modes: ['fan'] });
     expect(() => new DaikinAccessory({ config: createDeviceConfig(), capabilities, client: createFakeClient(), log, vendorId })).toThrow('neither cools nor heats');
