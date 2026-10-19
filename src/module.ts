@@ -74,7 +74,7 @@ export default function initializePlugin(matterbridge: PlatformMatterbridge, log
 }
 
 /**
- * The platform: it stores the devices by the MAC address of their adapter, keeps their addresses and names up to date, exposes each one to Matter and serves the
+ * The platform: it stores the devices by the MAC address of their adapter, keeps their addresses up to date, exposes each one to Matter and serves the
  * guided setup.
  */
 export class DaikinPlatform extends MatterbridgeDynamicPlatform implements SetupPlatform {
@@ -273,7 +273,7 @@ export class DaikinPlatform extends MatterbridgeDynamicPlatform implements Setup
         // An adapter that requires registration may know this plugin already: it is asked, so the page only announces
         // the KEY where it is still needed.
         const needsRegistration = device.requiresRegistration === true && !isConfigured && (await this.probe(device)).status !== 'ready';
-        return { ...device, isConfigured, needsRegistration, hasDuplicateName: device.name !== undefined && found.filter((other) => other.name === device.name).length > 1 };
+        return { ...device, isConfigured, needsRegistration };
       }),
     );
   }
@@ -357,7 +357,7 @@ export class DaikinPlatform extends MatterbridgeDynamicPlatform implements Setup
   }
 
   /**
-   * Search the network and store the address and the name of each stored device that answered with a new one
+   * Search the network and store the address of each stored device whose adapter answered from a new one
    *
    * A device is matched by the MAC address of its adapter. A failed search is logged, never thrown.
    *
@@ -480,10 +480,9 @@ export class DaikinPlatform extends MatterbridgeDynamicPlatform implements Setup
   private async applyDiscoveredAddresses(found: DaikinDevice[]): Promise<void> {
     await this.enqueueChange(async () => {
       const devices = this.devices.map((stored) => {
-        const updated = getDiscoveredUpdate(stored, this.devices, found, this.log);
+        const updated = getDiscoveredUpdate(stored, found, this.log);
         if (updated === undefined) return stored;
         if (updated.host !== stored.host) this.log.notice(`"${stored.name}" moved from ${stored.host} to ${updated.host}`);
-        if (updated.name !== stored.name) this.log.notice(`"${stored.name}" is now named "${updated.name}"`);
         return updated;
       });
       if (devices.some((device, index) => device !== this.devices[index])) await this.reconcile(devices);

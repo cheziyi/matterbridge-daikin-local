@@ -59,7 +59,7 @@ function placement(draft: Draft, label: string, isTagged: boolean): string {
   return isTagged ? `It appears as a part of "${draft.name}", tagged "${label}"` : `It appears as a part of "${draft.name}"`;
 }
 
-function update(draft: Draft, change: Partial<Exposure>): void {
+function update(draft: Draft, change: Partial<Draft>): void {
   Object.assign(draft, change);
   render();
 }
@@ -91,6 +91,21 @@ function chips<T extends string>(group: string, label: string, values: readonly 
       const input = h('input', { type: 'checkbox', id, checked: picked.includes(value), onchange: () => onpick(values.filter((other) => (other === value ? input.checked : picked.includes(other)))) });
       return h('label', { class: 'chip', for: id }, input, labels[value]);
     }),
+  );
+}
+
+// Written to the draft when the field is left, so that the page does not redraw under the typing.
+function nameSection(draft: Draft): HTMLElement {
+  const input = h('input', { type: 'text', id: 'device-name', value: draft.name, maxLength: 32, autocomplete: 'off', spellcheck: false });
+  input.addEventListener('change', () => update(draft, { name: input.value.trim() }));
+  const told = draft.adapter.name;
+  const toldText = told === undefined || told === '' ? 'Its adapter has no name of its own.' : `Its adapter is named "${told}" in its Daikin app, which other adapters can share.`;
+  return h(
+    'section',
+    {},
+    h('h2', {}, h('label', { for: 'device-name' }, 'Name in Matter')),
+    h('p', { class: 'help' }, `${toldText} The name here is what your Matter apps show, up to 32 characters, and no two air conditioners of this plugin share one. A new name of the adapter does not change it.`),
+    h('div', { class: 'inline-form' }, input),
   );
 }
 
@@ -429,6 +444,7 @@ export function optionsScreen(): Child[] {
     steps(),
     unitStrip(),
     unitHeader(draft, `Options for the air conditioner at ${draft.adapter.host}. Power, mode and temperature always appear in Matter: choose how the rest appears.`),
+    nameSection(draft),
     presetSection(draft, controls),
     fanSection(draft, controls),
     swingSection(draft),

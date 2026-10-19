@@ -39,7 +39,7 @@ import { BridgedDeviceBasicInformation, FanControl, ModeSelect, OnOff, Thermosta
 import { type DaikinDeviceConfig, SWITCHED_MODES, type SwitchedMode } from '../config.js';
 import { addReportedSensors, getSwitchableSpecialModes, noReportedSensors, type ReportedSensors } from '../controls.js';
 import { getErrorMessage } from '../errors.js';
-import { modeSelectChoices, type SelectChoices, swingSelectChoices, toModeOptions, toOperatingMode } from '../mapping.js';
+import { getFanModePick, getFanModeScale, modeSelectChoices, type SelectChoices, swingSelectChoices, toModeOptions, toOperatingMode } from '../mapping.js';
 import {
   createAirConditionerEndpoint,
   createFanEndpoint,
@@ -434,7 +434,19 @@ export class DaikinAccessory implements AccessoryEndpoints {
     const onFanWrite = (_value: unknown, _previous: unknown, context: ActionContext): void => {
       if (isControllerWrite(context)) this.queueFan();
     };
-    this.listen(endpoint, () => endpoint.subscribeAttribute(FanControl, 'fanMode', onFanWrite));
+    const scale = getFanModeScale(this.layout.fanPositions.length);
+    this.listen(endpoint, () =>
+      endpoint.subscribeAttribute(FanControl, 'fanMode', (fanMode: FanControl.FanMode, _previous: FanControl.FanMode, context: ActionContext) => {
+        if (!isControllerWrite(context)) return;
+        const pick = getFanModePick(fanMode, endpoint.getAttribute(FanControl, 'percentSetting'), scale);
+        if (pick === undefined) {
+          this.queueFan();
+          return;
+        }
+        this.pending.requestFanModePick(pick);
+        this.scheduleCommand(`fan mode ${FanControl.FanMode[fanMode]} for the ${pick} speed`);
+      }),
+    );
     this.listen(endpoint, () => endpoint.subscribeAttribute(FanControl, 'percentSetting', onFanWrite));
   }
 

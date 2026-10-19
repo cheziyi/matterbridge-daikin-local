@@ -118,14 +118,20 @@ export function createAirConditionerEndpoint(identity: EndpointIdentity, layout:
  * @param {DeviceTypeDefinition} deviceType What the endpoint is in Matter.
  * @param {EndpointIdentity} identity The device the endpoint belongs to.
  * @param {string} key What tells the endpoint apart in the endpoint id, such as `fan-auto`.
- * @param {string} code What tells the endpoint apart in the serial number: one letter.
+ * @param {string} code What tells the endpoint apart in the serial number, after a dash: one letter.
  * @param {string} label What the endpoint is, such as `Auto Fan`. It follows the device name in the name of the endpoint.
  * @returns {MatterbridgeEndpoint} The endpoint.
  */
 function createExtraEndpoint(deviceType: DeviceTypeDefinition, identity: EndpointIdentity, key: string, code: string, label: string): MatterbridgeEndpoint {
   return new MatterbridgeEndpoint([deviceType, bridgedNode, powerSource], { id: `${identity.serial}-${key}` })
     .createDefaultIdentifyClusterServer()
-    .createDefaultBridgedDeviceBasicInformationClusterServer(composeDeviceName(identity.name, label), `${identity.serial}${code}`, identity.vendorId, vendorName, `Daikin ${label}`)
+    .createDefaultBridgedDeviceBasicInformationClusterServer(
+      composeDeviceName(identity.name, label),
+      `${identity.serial}-${code}`,
+      identity.vendorId,
+      vendorName,
+      `Daikin ${label}`,
+    )
     .createDefaultPowerSourceWiredClusterServer();
 }
 
@@ -170,7 +176,7 @@ function getNumberTag(airConditioner: MatterbridgeEndpoint, deviceType: DeviceTy
  *
  * @param {EndpointIdentity} identity The device the endpoint belongs to.
  * @param {string} key What tells the switch apart in the endpoint id, such as `fan-auto`.
- * @param {string} code What tells the switch apart in the serial number: one letter.
+ * @param {string} code What tells the switch apart in the serial number, after a dash: one letter.
  * @param {string} label What the switch is, such as `Auto Fan`. It follows the device name in the name of the switch.
  * @param {MatterbridgeEndpoint} [airConditioner] The air conditioner the switch is a part of. Left out, the switch is a device of its own.
  * @returns {MatterbridgeEndpoint} The endpoint, with its clusters and nothing subscribed yet.
@@ -188,7 +194,7 @@ export function createSwitchEndpoint(identity: EndpointIdentity, key: string, co
  *
  * @param {EndpointIdentity} identity The device the endpoint belongs to.
  * @param {string} key What tells the select apart in the endpoint id, such as `swing-select`.
- * @param {string} code What tells the select apart in the serial number: one letter.
+ * @param {string} code What tells the select apart in the serial number, after a dash: one letter.
  * @param {string} label What the select picks, such as `Swing`. It follows the device name in the name of the select, and is the description of its cluster.
  * @param {ModeSelect.ModeOption[]} supportedModes The modes it picks from: at least one.
  * @param {MatterbridgeEndpoint} [airConditioner] The air conditioner the select is a part of. Left out, the select is a device of its own.

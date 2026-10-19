@@ -24,7 +24,7 @@
 import type { DaikinCapabilities, DaikinControl, DaikinState, FanSpeed, OperatingMode, SpecialMode } from 'daikin-local-control';
 
 import { type DaikinDeviceConfig, KEEP_SETTING, type ModeReplacements } from '../config.js';
-import { clampTemperature, getTemperatureRange, resolveSwingMode, type SwingChange } from '../mapping.js';
+import { clampTemperature, type FanModePick, getPickedSpeed, getTemperatureRange, resolveSwingMode, type SwingChange } from '../mapping.js';
 
 export type SwingAxis = keyof SwingChange;
 
@@ -79,6 +79,7 @@ export class PendingCommand {
   private specialModes: Partial<Record<SpecialMode, boolean>> = {};
   private fanAuto: boolean | undefined;
   private isFanSpeedRequested = false;
+  private fanModePick: FanModePick | undefined;
 
   /**
    * Get the mode a controller asked for
@@ -152,6 +153,17 @@ export class PendingCommand {
   }
 
   /**
+   * Ask for the speed a fan mode a controller picked stands for: Low the slowest speed, Medium the middle one, High the
+   * fastest
+   *
+   * @param {FanModePick} pick The speed the fan mode stands for.
+   * @returns {void}
+   */
+  requestFanModePick(pick: FanModePick): void {
+    this.fanModePick = pick;
+  }
+
+  /**
    * Take what was asked for, as the command to send, and start collecting again
    *
    * Edge cases:
@@ -169,7 +181,10 @@ export class PendingCommand {
     const target = this.resolveSetpoint(mode, unit);
     if (mode !== undefined && target !== undefined) control.targetTemperatureInC = clampTemperature(target, getTemperatureRange(unit.capabilities, mode));
     // An app turns a fan off by setting it to off or 0 as well: turning the unit off keeps the speed it holds.
-    if (this.isFanSpeedRequested && control.power !== false) {
+    // A fan mode picked stands for a speed of its own, wherever the percent it set falls.
+    if (this.fanModePick !== undefined && control.power !== false) {
+      control.fanSpeed = getPickedSpeed(unit.fanSteps, this.fanModePick);
+    } else if (this.isFanSpeedRequested && control.power !== false) {
       const fanSpeed = readFanSpeed();
       if (fanSpeed !== undefined) control.fanSpeed = fanSpeed;
     }
@@ -187,6 +202,7 @@ export class PendingCommand {
     this.specialModes = {};
     this.fanAuto = undefined;
     this.isFanSpeedRequested = false;
+    this.fanModePick = undefined;
     return { control, specialModes };
   }
 

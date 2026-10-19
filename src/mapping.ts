@@ -89,7 +89,9 @@ export function getFanSteps(fanSpeeds: readonly FanSpeed[]): FanSpeed[] {
 /**
  * Convert a fan step to the Matter percent that stands for it
  *
- * The percent is the top of the step's share of 100, rounded down, so that `percentToFanStep` turns it back into the same step.
+ * The percent is the top of the step's share of 100, rounded down, so that `percentToFanStep` turns it back into the same
+ * step. Rounded down rather than to the nearest: the fan control server of Matterbridge sets the speed setting to the
+ * percent's share of the speeds rounded up, which is then the step itself.
  *
  * @param {number} stepCount How many steps the unit takes (>= 1).
  * @param {number} step The step, from 1 for the slowest to `stepCount`.
@@ -100,9 +102,10 @@ export function fanStepToPercent(stepCount: number, step: number): number {
 }
 
 /**
- * Convert a Matter percent to a fan step
+ * Convert a Matter percent to the nearest fan step
  *
  * Edge cases:
+ *  - halfway between two steps -> the faster one
  *  - clamps to 1..`stepCount`, so 0 is the slowest step: the caller decides what off means
  *
  * @param {number} stepCount How many steps the unit takes (>= 1).
@@ -110,7 +113,7 @@ export function fanStepToPercent(stepCount: number, step: number): number {
  * @returns {number} The step, from 1 for the slowest to `stepCount`.
  */
 export function percentToFanStep(stepCount: number, percent: number): number {
-  return Math.min(Math.max(Math.ceil((stepCount * percent) / 100), 1), stepCount);
+  return Math.min(Math.max(Math.round((stepCount * percent) / 100), 1), stepCount);
 }
 
 /**
@@ -124,6 +127,60 @@ export function getFanModeSequence(stepCount: number, hasAuto: boolean): FanCont
   if (stepCount >= 3) return hasAuto ? FanControl.FanModeSequence.OffLowMedHighAuto : FanControl.FanModeSequence.OffLowMedHigh;
   if (stepCount === 2) return hasAuto ? FanControl.FanModeSequence.OffLowHighAuto : FanControl.FanModeSequence.OffLowHigh;
   return hasAuto ? FanControl.FanModeSequence.OffHighAuto : FanControl.FanModeSequence.OffHigh;
+}
+
+/**
+ * List the fan modes of a fan control between off and auto, from the slowest third of the percent to the fastest
+ *
+ * @param {number} stepCount How many steps the fan control has (>= 1).
+ * @returns {FanControl.FanMode[]} Low, Medium and High, as many as `getFanModeSequence` gives the fan control.
+ */
+export function getFanModeScale(stepCount: number): FanControl.FanMode[] {
+  if (stepCount >= 3) return [FanControl.FanMode.Low, FanControl.FanMode.Medium, FanControl.FanMode.High];
+  return stepCount === 2 ? [FanControl.FanMode.Low, FanControl.FanMode.High] : [FanControl.FanMode.High];
+}
+
+/** The speed a fan mode a controller picks stands for: the slowest speed, the middle one or the fastest. */
+export type FanModePick = 'slowest' | 'middle' | 'fastest';
+
+/**
+ * Tell which speed a fan mode a controller picked stands for, from what the fan control holds after the pick
+ *
+ * A controller that picks a fan mode makes the fan control server of Matterbridge set the percent to the middle of that
+ * fan mode's share of 100, and one that sets a percent makes it set the fan mode the percent falls in. The two look the
+ * same afterwards but for the percent, so a fan mode that holds the middle percent of its share was picked.
+ *
+ * Edge cases:
+ *  - a percent set to exactly that middle, such as 84 % for High, counts as the fan mode picked
+ *  - Off, Auto and a fan mode outside the scale -> undefined
+ *
+ * @param {FanControl.FanMode} fanMode The fan mode the fan control holds.
+ * @param {unknown} percent The percent the fan control holds.
+ * @param {readonly FanControl.FanMode[]} scale The fan modes of the fan control from Low to High: see `getFanModeScale`.
+ * @returns {FanModePick | undefined} The speed the fan mode stands for, or undefined when no fan mode was picked.
+ */
+export function getFanModePick(fanMode: FanControl.FanMode, percent: unknown, scale: readonly FanControl.FanMode[]): FanModePick | undefined {
+  const index = scale.indexOf(fanMode);
+  if (index === -1) return undefined;
+  // As Matterbridge cuts 100 into the fan modes of the sequence.
+  const start = index === 0 ? 1 : Math.floor((100 * index) / scale.length) + 1;
+  const end = Math.floor((100 * (index + 1)) / scale.length);
+  if (percent !== Math.round((start + end) / 2)) return undefined;
+  if (index === scale.length - 1) return 'fastest';
+  return index === 0 ? 'slowest' : 'middle';
+}
+
+/**
+ * Find the speed a fan mode pick stands for
+ *
+ * @param {readonly T[]} speeds The fan speeds a controller can pick, slowest first, without `auto`.
+ * @param {FanModePick} pick The fan mode pick.
+ * @returns {T} The first speed, the one nearest 50 % or the last.
+ */
+export function getPickedSpeed<T>(speeds: readonly T[], pick: FanModePick): T {
+  if (pick === 'slowest') return speeds[0];
+  if (pick === 'fastest') return speeds[speeds.length - 1];
+  return speeds[percentToFanStep(speeds.length, 50) - 1];
 }
 
 /**

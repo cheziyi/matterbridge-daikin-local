@@ -15,6 +15,7 @@ export function button(label: string, onclick: () => void, kind: 'primary' | 'qu
 export function notice(): Child {
   if (view.isBusy) return h('p', { class: 'notice working', role: 'status' }, h('span', { class: 'spinner' }), view.busyText);
   if (view.error !== '') return h('p', { class: 'notice problem', role: 'alert' }, view.error);
+  if (view.info !== '') return h('p', { class: 'notice', role: 'status' }, view.info);
   return null;
 }
 

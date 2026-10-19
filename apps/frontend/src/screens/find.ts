@@ -9,16 +9,15 @@ import { goHome, lookUp, search, startQueue } from '../actions.js';
 import type { FoundAdapter } from '../api.js';
 import { button, notice, steps } from '../components.js';
 import { type Child, h } from '../dom.js';
-import { draftFromAdapter } from '../exposure.js';
+import { draftsFromAdapters } from '../exposure.js';
 import { render } from '../render.js';
 import { view } from '../state.js';
 
 function foundRow(adapter: FoundAdapter): HTMLElement {
-  const isSelectable = !adapter.isConfigured && !adapter.hasDuplicateName;
+  const isSelectable = !adapter.isConfigured;
   const notes: string[] = [];
   if (adapter.isConfigured) notes.push('Already set up.');
-  if (adapter.hasDuplicateName) notes.push('Another adapter has the same name. Give each its own name in its Daikin app, then search again.');
-  if (adapter.name === undefined) notes.push('It has not told its name yet. If it has none, you will name it after connecting.');
+  if (adapter.name === undefined) notes.push('It has not told its name yet: you will name it in its options.');
   if (isSelectable && adapter.needsRegistration) notes.push('Asks for the KEY printed on its label.');
   else if (isSelectable && adapter.requiresRegistration) notes.push('Already registered with this plugin, so it will not ask for its KEY.');
   if (isSelectable && adapter.requiresLocalPassword) notes.push('Asks for its child lock code.');
@@ -46,7 +45,7 @@ function foundRow(adapter: FoundAdapter): HTMLElement {
 }
 
 export function findScreen(): Child[] {
-  const chosen = view.found.filter((adapter) => view.selected.has(adapter.host) && !adapter.isConfigured && !adapter.hasDuplicateName);
+  const chosen = view.found.filter((adapter) => view.selected.has(adapter.host) && !adapter.isConfigured);
   const host = h('input', { type: 'text', id: 'host', placeholder: '192.168.1.50', spellcheck: false, autocomplete: 'off' });
   const lookUpHost = (): void => {
     if (host.value.trim() !== '') void lookUp(host.value.trim());
@@ -75,7 +74,7 @@ export function findScreen(): Child[] {
       { class: 'footer' },
       button('Search again', () => void search()),
       button('Cancel', goHome),
-      button(continueLabel, () => startQueue(chosen.map(draftFromAdapter)), 'primary', chosen.length === 0),
+      button(continueLabel, () => startQueue(draftsFromAdapters(chosen)), 'primary', chosen.length === 0),
     ),
   ];
 }

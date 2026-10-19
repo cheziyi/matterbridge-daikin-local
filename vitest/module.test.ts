@@ -258,10 +258,11 @@ describe('DaikinPlatform', () => {
       found({ name: undefined, host: '192.168.1.61' }),
     ]);
     expect(await platform.discoverForSetup()).toEqual([
-      expect.objectContaining({ name: 'Living Room', isConfigured: true, hasDuplicateName: false, needsRegistration: false }),
-      expect.objectContaining({ host: '192.168.1.60', isConfigured: false, hasDuplicateName: true }),
-      expect.objectContaining({ host: '192.168.1.62', isConfigured: false, hasDuplicateName: true }),
-      expect.objectContaining({ host: '192.168.1.61', isConfigured: false, hasDuplicateName: false }),
+      expect.objectContaining({ name: 'Living Room', isConfigured: true, needsRegistration: false }),
+      // Two adapters with one name are each offered: each device gets a name of its own in the setup page.
+      expect.objectContaining({ host: '192.168.1.60', isConfigured: false }),
+      expect.objectContaining({ host: '192.168.1.62', isConfigured: false }),
+      expect.objectContaining({ host: '192.168.1.61', isConfigured: false }),
     ]);
     expect(saveConfig).not.toHaveBeenCalled();
   });
@@ -476,28 +477,23 @@ describe('DaikinPlatform', () => {
     expect(platform.getDevices()).toHaveLength(3);
   });
 
-  it('should follow a device by its MAC address to a new address and a new name', async () => {
+  it('should follow a device by its MAC address to a new address, and keep its name whatever its adapter is named', async () => {
     discover.mockResolvedValueOnce([found({ name: 'Larder', host: '192.168.1.71', macAddress: 'a408eacc0070' })]);
     expect(await platform.discoverForSetup()).toEqual([expect.objectContaining({ name: 'Larder', isConfigured: true })]);
     expect(log.notice).toHaveBeenCalledWith('"Pantry" moved from 192.168.1.70 to 192.168.1.71');
-    expect(log.notice).toHaveBeenCalledWith('"Pantry" is now named "Larder"');
-    expect(log.info).toHaveBeenCalledWith('"Pantry" stopped');
-    expect(log.info).toHaveBeenCalledWith('"Larder" started at 192.168.1.71 with 1 Matter endpoint(s)');
+    // A new address connects the device anew, without building it again in Matter.
+    expect(log.info).not.toHaveBeenCalledWith('"Pantry" stopped');
     // What is known about the unit is kept under its MAC address, so the unit is not asked again.
     expect(unitAt('192.168.1.71').getCapabilities).not.toHaveBeenCalled();
-    expect((await platform.getSetupState()).devices[2]).toMatchObject({ name: 'Larder', host: '192.168.1.71', capabilities: expect.anything() });
+    expect((await platform.getSetupState()).devices[2]).toMatchObject({ name: 'Pantry', host: '192.168.1.71', capabilities: expect.anything() });
   });
 
-  it('should rename a device whose adapter was renamed where it is', async () => {
-    discover.mockResolvedValueOnce([found({ name: 'Scullery', host: '192.168.1.71', macAddress: 'A4:08:EA:CC:00:70' })]);
-    await platform.updateAddresses();
-    expect(log.notice).toHaveBeenCalledWith('"Larder" is now named "Scullery"');
-    // The serial number is the MAC address, which a new name does not change.
-    expect(platform.getDeviceBySerialNumber('A4:08:EA:CC:00:70')?.deviceName).toBe('Scullery');
-    expect(log.notice).not.toHaveBeenCalledWith(expect.stringContaining('moved from'));
-    discover.mockResolvedValueOnce([found({ name: 'Larder', host: '192.168.1.71', macAddress: 'A4:08:EA:CC:00:70' })]);
-    await platform.updateAddresses();
+  it('should build a device again under the name it is given in the setup page', async () => {
+    await platform.saveDevice(createDeviceConfig({ name: 'Larder', host: '192.168.1.71', swingControl: 'hidden', macAddress: 'A4:08:EA:CC:00:70' }));
+    expect(log.info).toHaveBeenCalledWith('"Pantry" stopped');
     expect(log.info).toHaveBeenCalledWith('"Larder" started at 192.168.1.71 with 1 Matter endpoint(s)');
+    // The serial number is the MAC address, which a new name does not change.
+    expect(platform.getDeviceBySerialNumber('A4:08:EA:CC:00:70')?.deviceName).toBe('Larder');
   });
 
   it('should keep the name of a device whose adapter takes the name of another device, or none', async () => {
@@ -511,6 +507,13 @@ describe('DaikinPlatform', () => {
       'Bedroom@192.168.1.52',
       'Larder@192.168.1.71',
     ]);
+    // An adapter that changed its requirements where it is takes them, without a notice of a new address.
+    discover.mockResolvedValueOnce([found({ name: 'Larder', host: '192.168.1.71', macAddress: 'A4:08:EA:CC:00:70', usesHttps: true })]);
+    await platform.updateAddresses();
+    expect((await platform.getSetupState()).devices[2]).toMatchObject({ name: 'Larder', usesHttps: true });
+    expect(log.notice).not.toHaveBeenCalledWith(expect.stringContaining('moved from'));
+    discover.mockResolvedValueOnce([found({ name: 'Larder', host: '192.168.1.71', macAddress: 'A4:08:EA:CC:00:70' })]);
+    await platform.updateAddresses();
   });
 
   it('should refuse a name another device has, and rename a device saved under its MAC address', async () => {

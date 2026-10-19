@@ -33,6 +33,8 @@ export const view = {
   isBusy: false,
   busyText: '',
   error: '',
+  /** A note for the user that is no problem, such as what to do after a change. */
+  info: '',
   confirmingRemoval: '',
 };
 

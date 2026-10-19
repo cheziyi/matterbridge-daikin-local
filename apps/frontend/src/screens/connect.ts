@@ -8,37 +8,7 @@
 import { check, goHome, skipDraft } from '../actions.js';
 import { button, notice, steps, unitHeader, unitStrip } from '../components.js';
 import { type Child, h } from '../dom.js';
-import { render } from '../render.js';
 import { currentDraft, type Draft, view } from '../state.js';
-
-/** Asks for the name of a unit whose adapter has none. */
-function nameForm(draft: Draft): HTMLElement {
-  const name = h('input', { type: 'text', id: 'device-name', maxLength: 32, autocomplete: 'off' });
-  const submit = (): void => {
-    const value = name.value.trim();
-    if (value === '') return;
-    if (view.setup?.devices.some((device) => device.name === value)) {
-      view.error = `"${value}" is already the name of another air conditioner. Pick a different one.`;
-      render();
-      return;
-    }
-    draft.name = value;
-    view.error = '';
-    view.screen = 'options';
-    render();
-  };
-  return h(
-    'div',
-    { class: 'field' },
-    h('label', { for: 'device-name' }, 'Name this air conditioner'),
-    h(
-      'p',
-      { class: 'help' },
-      'Its adapter has no name of its own. This is the name it gets in Matter, up to 32 characters. Name the adapter in its Daikin app later and the plugin takes that name instead.',
-    ),
-    h('div', { class: 'inline-form' }, name, button('Continue', submit, 'primary')),
-  );
-}
 
 function lockCodeForm(draft: Draft, isRejected: boolean): HTMLElement {
   const code = h('input', { type: 'password', id: 'lock-code', inputMode: 'numeric', autocomplete: 'off', maxLength: 64 });
@@ -95,7 +65,6 @@ function keyForm(draft: Draft, isRejected: boolean): HTMLElement {
 /** What the adapter wants before the page can go on, or why the page cannot: nothing while the check has no answer. */
 function credentialForm(draft: Draft): Child {
   const status = draft.probe?.status;
-  if (status === 'ready' && draft.name === '') return nameForm(draft);
   if (status === 'localPasswordRequired' || status === 'localPasswordRejected') return lockCodeForm(draft, status === 'localPasswordRejected');
   if (status === 'registrationRequired' || status === 'registrationRejected') return keyForm(draft, status === 'registrationRejected');
   if (status === 'unreachable') {
@@ -108,7 +77,7 @@ function credentialForm(draft: Draft): Child {
 export function connectScreen(): Child[] {
   const draft = currentDraft();
   if (draft === undefined) return [notice()];
-  const canRetry = draft.probe?.status === 'unreachable' || draft.probe?.status === 'failed' || (view.error !== '' && draft.name !== '');
+  const canRetry = draft.probe?.status === 'unreachable' || draft.probe?.status === 'failed' || view.error !== '';
   return [
     steps(),
     unitStrip(),

@@ -142,7 +142,10 @@ export interface DaikinDeviceExposure {
  * change.
  */
 export interface DaikinDeviceConfig extends DaikinDeviceExposure {
-  /** The name the adapter announces. It is the name of the device in Matter, and no two stored devices share one. */
+  /**
+   * The name of the device in Matter, given in the setup page: no two stored devices share one. It starts as the name
+   * the adapter announces, which several adapters can share, and a new name of the adapter does not change it.
+   */
   name: string;
   /** Twelve upper case hexadecimal digits in pairs joined by colons, such as `A4:08:EA:CC:91:D4`. */
   macAddress: string;
