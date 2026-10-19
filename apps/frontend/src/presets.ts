@@ -33,13 +33,10 @@ export const presets: Record<PresetName, { title: string; text: string }> = {
  */
 export function presetExposure(name: PresetName, controls: AvailableControls): Exposure {
   const isMatter = name === 'matter';
-  // An app that shows every Matter control, and Google Home, get the rocking of the fan control, which a unit without a
-  // fan control has none of: the first gets a mode select instead. Home is reported to upset the rocking, and gets no
-  // switch for each axis either, so the swing stays as it is.
-  const hasRocking = controls.hasSwing && controls.fanSteps.length > 0;
-  let swingControl: Exposure['swingControl'] = 'hidden';
-  if (hasRocking && name !== 'apple') swingControl = 'native';
-  else if (controls.hasSwing && isMatter) swingControl = 'select';
+  // An app that shows every Matter control, and Google Home, get the rocking of the fan control, or its switches on a
+  // unit without a fan control. Home is reported to upset the rocking, and gets no switch for each axis either, so the
+  // swing stays as it is.
+  const swingControl: Exposure['swingControl'] = controls.hasSwing && name !== 'apple' ? 'native' : 'hidden';
   // Home and Google Home are reported to offer off, cool, heat and auto alone, so dry and fan get a switch each where
   // the unit has them.
   const modeSwitches = isMatter ? [] : controls.switchableModes.filter((mode) => mode === 'dehumidify' || mode === 'fan');
@@ -80,6 +77,8 @@ export function matchesPreset(draft: Draft, name: PresetName, controls: Availabl
   const hasFixedFanSpeed = chosen.fanControl === 'hidden' && chosen.fanSpeedWhenHidden !== 'keep';
   if (!controls.hasFanAuto || (isAutoStep && chosen.fanControl === 'hidden') || hasFixedFanSpeed) chosen.fanAutoControl = 'native';
   if (!controls.hasSwing) Object.assign(chosen, { swingControl: 'hidden', swingModeWhenHidden: 'keep' });
+  // Without a fan control, the rocking is the switches.
+  if (chosen.fanControl === 'hidden' && chosen.swingControl === 'switches') chosen.swingControl = 'native';
   // The switches are a choice only while they are chosen, and both they and the replacements only for what the unit
   // has. A mode select shows nothing more than the thermostat on a unit without a dry or a fan mode.
   chosen.modeSwitches = chosen.modeControl === 'switches' ? controls.switchableModes.filter((mode) => chosen.modeSwitches.includes(mode)) : [];
