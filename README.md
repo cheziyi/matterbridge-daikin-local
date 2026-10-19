@@ -258,7 +258,7 @@ In the Options step, a preset fills in every choice above for what the unit can 
 | Preset              | Fan speed  | Swing          | Modes                | Auto fan | Special mode switches | Humidity                    | Outdoor sensor | Parts of the air conditioner |
 | ------------------- | ---------- | -------------- | -------------------- | -------- | --------------------- | --------------------------- | -------------- | ---------------------------- |
 | Apple Home          | Percentage | Not shown      | Dry and fan switches | Switch   | None                  | Also on a sensor of its own | No             | No                           |
-| Google Home         | Steps      | Native rocking | Dry and fan switches | Switch   | None                  | Also on a sensor of its own | No             | No                           |
+| Google Home         | Steps      | Not shown      | Dry and fan switches | Switch   | None                  | Also on a sensor of its own | No             | No                           |
 | Full Matter support | Steps      | Native rocking | Native modes only    | Native   | All                   | On the air conditioner      | Yes            | Yes                          |
 
 ### One device or several
