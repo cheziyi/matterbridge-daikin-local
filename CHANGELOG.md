@@ -4,11 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.9.0] - 2026-10-19
 
 ### Changed
 
-- [devices]: Add the swing as the rocking of the fan control, a new choice named Native rocking beside the switches, the mode select and not shown: up and down for the vertical swing and left and right for the horizontal one, on the axes the unit swings on. The switches and the select take its place, so the fan control has no rocking beside them, as Apple Home is reported not to handle it well. The Google Home preset shows the rocking, where it showed no swing.
+- [devices]: Add the swing as the rocking of the fan control, a new choice named Native rocking beside the switches, the mode select and not shown: up and down for the vertical swing and left and right for the horizontal one, on the axes the unit swings on. The switches and the select take its place, so the fan control has no rocking beside them, as Apple Home is reported not to handle it well. The Google Home and the Full Matter support presets show the rocking, where they showed no swing and a mode select, or the switches on a unit whose fan speed cannot be set.
 
 ### Fixed
 

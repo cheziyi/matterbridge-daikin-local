@@ -233,7 +233,7 @@ Each Matter mode the unit lacks can run one of its modes instead, as you pick, s
 
 ### Mode selects
 
-A mode select is the Matter device type that picks one value from a list, as a drop-down does. The setup can add one for the mode, named `<name> Mode`, on a unit with a dry or a fan mode, and one for the swing, named `<name> Swing`, as a choice under [Swing](#swing). Each lists only what the unit has, and is chosen instead of the switches: the mode select under [Modes](#modes), and the swing select under [Swing](#swing), instead of the rocking of the fan control as well. The Full Matter support preset adds the swing select, and no preset adds the mode select.
+A mode select is the Matter device type that picks one value from a list, as a drop-down does. The setup can add one for the mode, named `<name> Mode`, on a unit with a dry or a fan mode, and one for the swing, named `<name> Swing`, as a choice under [Swing](#swing). Each lists only what the unit has, and is chosen instead of the switches: the mode select under [Modes](#modes), and the swing select under [Swing](#swing), instead of the rocking of the fan control as well. No preset adds either.
 
 | Mode select | Lists                                                                    | Picking a value                                                                                                                              |
 | ----------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -259,7 +259,7 @@ In the Options step, a preset fills in every choice above for what the unit can 
 | ------------------- | ---------- | -------------- | -------------------- | -------- | --------------------- | --------------------------- | -------------- | ---------------------------- |
 | Apple Home          | Percentage | Not shown      | Dry and fan switches | Switch   | None                  | Also on a sensor of its own | No             | No                           |
 | Google Home         | Steps      | Native rocking | Dry and fan switches | Switch   | None                  | Also on a sensor of its own | No             | No                           |
-| Full Matter support | Steps      | A mode select  | Native modes only    | Native   | All                   | On the air conditioner      | Yes            | Yes                          |
+| Full Matter support | Steps      | Native rocking | Native modes only    | Native   | All                   | On the air conditioner      | Yes            | Yes                          |
 
 ### One device or several
 
