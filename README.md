@@ -258,10 +258,8 @@ In the Options step, a preset fills in every choice above for what the unit can 
 | Preset              | Fan speed  | Swing          | Modes                | Auto fan | Special mode switches | Humidity                    | Outdoor sensor | Parts of the air conditioner |
 | ------------------- | ---------- | -------------- | -------------------- | -------- | --------------------- | --------------------------- | -------------- | ---------------------------- |
 | Apple Home          | Percentage | Not shown      | Dry and fan switches | Switch   | None                  | Also on a sensor of its own | No             | No                           |
-| Google Home         | Steps      | Native rocking | Dry and fan switches | Switch   | None                  | Also on a sensor of its own | No             | No                           |
+| Google Home         | Steps      | Not shown      | Dry and fan switches | Switch   | None                  | Also on a sensor of its own | No             | No                           |
 | Full Matter support | Steps      | Native rocking | Native modes only    | Native   | All                   | On the air conditioner      | Yes            | Yes                          |
-
-The Google Home preset shows the swing as native rocking only on a unit whose fan speed can be set. On one whose fan speed cannot, there is no fan control to rock, and the swing is not shown and stays as it is, as with the Apple Home preset. The Full Matter support preset has the switches there instead, as native rocking falls back to them.
 
 ### One device or several
 

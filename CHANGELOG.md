@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
-- [setup]: The Google Home preset shows no swing on a unit whose fan speed cannot be set, and keeps it as it is, as the Apple Home preset does, instead of the switches that native rocking falls back to there. The Full Matter support preset keeps the switches.
+- [setup]: The Google Home preset shows no swing again and keeps it as it is, as the Apple Home preset does, instead of the rocking of the fan, or the switches on a unit whose fan speed cannot be set. The Full Matter support preset keeps the rocking.
 
 ## [0.9.0] - 2026-10-19
 
