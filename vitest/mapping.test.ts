@@ -10,10 +10,7 @@ import {
   clampTemperature,
   composeDeviceName,
   fanStepToPercent,
-  getFanModePick,
-  getFanModeScale,
   getFanModeSequence,
-  getPickedSpeed,
   getFanSteps,
   getSwingAxes,
   getTemperatureRange,
@@ -43,22 +40,6 @@ describe('mapping', () => {
     }
     expect(fanStepToPercent(6, 6)).toBe(100);
     expect(fanStepToPercent(6, 1)).toBe(16);
-  });
-
-  it('should tell a fan mode a controller picked from one a percent set, for every scale of fan modes', () => {
-    expect(getFanModeScale(6)).toEqual([FanControl.FanMode.Low, FanControl.FanMode.Medium, FanControl.FanMode.High]);
-    expect(getFanModeScale(2)).toEqual([FanControl.FanMode.Low, FanControl.FanMode.High]);
-    expect(getFanModeScale(1)).toEqual([FanControl.FanMode.High]);
-    const scale = getFanModeScale(6);
-    expect(getFanModePick(FanControl.FanMode.Low, 17, scale)).toBe('slowest');
-    expect(getFanModePick(FanControl.FanMode.Medium, 50, scale)).toBe('middle');
-    expect(getFanModePick(FanControl.FanMode.High, 84, scale)).toBe('fastest');
-    expect(getFanModePick(FanControl.FanMode.High, 83, scale)).toBeUndefined();
-    expect(getFanModePick(FanControl.FanMode.Auto, null, scale)).toBeUndefined();
-    expect(getFanModePick(FanControl.FanMode.Low, 26, getFanModeScale(2))).toBe('slowest');
-    expect(getFanModePick(FanControl.FanMode.High, 51, getFanModeScale(1))).toBe('fastest');
-    expect(getPickedSpeed(['silent', 'level1', 'level2', 'level3', 'level4', 'level5'], 'middle')).toBe('level2');
-    expect(getPickedSpeed(['level1'], 'slowest')).toBe('level1');
   });
 
   it('should convert any percent to a step of the unit', () => {

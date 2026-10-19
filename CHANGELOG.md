@@ -15,7 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Fixed
 
 - [devices]: Set the speed nearest the percent a Matter app sets, as the README says, instead of the one above it.
-- [devices]: **Breaking:** make the fan modes Low, Medium and High set the slowest speed, the one nearest 50 % and the fastest, instead of the speed above the percentage Matterbridge gives each, the middle of its third. Low on a unit with Silent and Level 1 to 5 now sets Silent instead of Level 1.
+- [devices]: **Breaking:** the fan modes Low, Medium and High follow, since Matterbridge sets each to the middle percentage of its third: on a unit with Silent and Level 1 to 5 they set Silent, Level 2 and Level 4 instead of Level 1, Level 2 and Level 5, and with auto as the first step Low sets auto.
 
 ## [0.7.0] - 2026-10-15
 

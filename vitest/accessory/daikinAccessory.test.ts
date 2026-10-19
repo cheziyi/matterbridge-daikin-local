@@ -285,16 +285,15 @@ describe('DaikinAccessory', () => {
       expect(client.setState).toHaveBeenLastCalledWith({ fanSpeed: 'auto' });
       expect(accessory.endpoint.getAttribute(FanControl, 'fanMode')).toBe(FanControl.FanMode.Auto);
 
-      // The fan modes stand for the slowest, the middle and the fastest speed, wherever the percent they set falls.
+      // A fan mode sets the middle percent of its third, 17, 50 or 84 %, which goes to the nearest speed as any percent does.
       await writeAsController(accessory.endpoint, 'FanControl', 'fanMode', FanControl.FanMode.High);
       await accessory.flushCommands();
-      expect(client.setState).toHaveBeenLastCalledWith({ fanSpeed: 'level5' });
+      expect(client.setState).toHaveBeenLastCalledWith({ fanSpeed: 'level4' });
       await writeAsController(accessory.endpoint, 'FanControl', 'fanMode', FanControl.FanMode.Low);
       await accessory.flushCommands();
       expect(client.setState).toHaveBeenLastCalledWith({ fanSpeed: 'silent' });
       await writeAsController(accessory.endpoint, 'FanControl', 'fanMode', FanControl.FanMode.Medium);
       await accessory.flushCommands();
-      // The third of silent, level1 to level5: the speed nearest 50 %.
       expect(client.setState).toHaveBeenLastCalledWith({ fanSpeed: 'level2' });
     });
 

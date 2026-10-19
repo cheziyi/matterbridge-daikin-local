@@ -130,60 +130,6 @@ export function getFanModeSequence(stepCount: number, hasAuto: boolean): FanCont
 }
 
 /**
- * List the fan modes of a fan control between off and auto, from the slowest third of the percent to the fastest
- *
- * @param {number} stepCount How many steps the fan control has (>= 1).
- * @returns {FanControl.FanMode[]} Low, Medium and High, as many as `getFanModeSequence` gives the fan control.
- */
-export function getFanModeScale(stepCount: number): FanControl.FanMode[] {
-  if (stepCount >= 3) return [FanControl.FanMode.Low, FanControl.FanMode.Medium, FanControl.FanMode.High];
-  return stepCount === 2 ? [FanControl.FanMode.Low, FanControl.FanMode.High] : [FanControl.FanMode.High];
-}
-
-/** The speed a fan mode a controller picks stands for: the slowest speed, the middle one or the fastest. */
-export type FanModePick = 'slowest' | 'middle' | 'fastest';
-
-/**
- * Tell which speed a fan mode a controller picked stands for, from what the fan control holds after the pick
- *
- * A controller that picks a fan mode makes the fan control server of Matterbridge set the percent to the middle of that
- * fan mode's share of 100, and one that sets a percent makes it set the fan mode the percent falls in. The two look the
- * same afterwards but for the percent, so a fan mode that holds the middle percent of its share was picked.
- *
- * Edge cases:
- *  - a percent set to exactly that middle, such as 84 % for High, counts as the fan mode picked
- *  - Off, Auto and a fan mode outside the scale -> undefined
- *
- * @param {FanControl.FanMode} fanMode The fan mode the fan control holds.
- * @param {unknown} percent The percent the fan control holds.
- * @param {readonly FanControl.FanMode[]} scale The fan modes of the fan control from Low to High: see `getFanModeScale`.
- * @returns {FanModePick | undefined} The speed the fan mode stands for, or undefined when no fan mode was picked.
- */
-export function getFanModePick(fanMode: FanControl.FanMode, percent: unknown, scale: readonly FanControl.FanMode[]): FanModePick | undefined {
-  const index = scale.indexOf(fanMode);
-  if (index === -1) return undefined;
-  // As Matterbridge cuts 100 into the fan modes of the sequence.
-  const start = index === 0 ? 1 : Math.floor((100 * index) / scale.length) + 1;
-  const end = Math.floor((100 * (index + 1)) / scale.length);
-  if (percent !== Math.round((start + end) / 2)) return undefined;
-  if (index === scale.length - 1) return 'fastest';
-  return index === 0 ? 'slowest' : 'middle';
-}
-
-/**
- * Find the speed a fan mode pick stands for
- *
- * @param {readonly T[]} speeds The fan speeds a controller can pick, slowest first, without `auto`.
- * @param {FanModePick} pick The fan mode pick.
- * @returns {T} The first speed, the one nearest 50 % or the last.
- */
-export function getPickedSpeed<T>(speeds: readonly T[], pick: FanModePick): T {
-  if (pick === 'slowest') return speeds[0];
-  if (pick === 'fastest') return speeds[speeds.length - 1];
-  return speeds[percentToFanStep(speeds.length, 50) - 1];
-}
-
-/**
  * Pick the Thermostat features for a unit
  *
  * @param {readonly OperatingMode[]} modes The operating modes the unit offers.
