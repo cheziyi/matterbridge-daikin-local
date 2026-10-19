@@ -33,7 +33,7 @@ import {
 } from 'daikin-local-control';
 import type { MatterbridgeEndpoint } from 'matterbridge';
 import type { AnsiLogger } from 'matterbridge/logger';
-import type { ActionContext } from 'matterbridge/matter';
+import { type ActionContext, Node } from 'matterbridge/matter';
 import { BridgedDeviceBasicInformation, FanControl, ModeSelect, OnOff, Thermostat } from 'matterbridge/matter/clusters';
 
 import { type DaikinDeviceConfig, SWITCHED_MODES, type SwitchedMode } from '../config.js';
@@ -176,6 +176,8 @@ export class DaikinAccessory implements AccessoryEndpoints {
   private queue: Promise<void> = Promise.resolve();
   // What is subscribed on each endpoint, to subscribe it again after a factory reset of the Matter node.
   private readonly subscriptions = new Map<MatterbridgeEndpoint, (() => void)[]>();
+  // Whether a read waits for the node to come back online after a factory reset.
+  private isAwaitingOnline = false;
 
   /**
    * Create the endpoints of a device from what it accepts and how it is configured
@@ -424,8 +426,27 @@ export class DaikinAccessory implements AccessoryEndpoints {
       wasReset = false;
       for (const again of subscriptions) again();
       if (endpoint === this.endpoint) this.log.info(`"${this.name}" is subscribed again after the Matter node was reset`);
-      // The reset put every attribute back to its default, and the endpoints come back one by one: the state of the
-      // unit replaces the defaults of each as it comes back, and does nothing once the device is disposed.
+      this.refreshWhenOnline(endpoint);
+    });
+  }
+
+  /**
+   * Write the state of the unit to Matter once the node is back online after a factory reset
+   *
+   * The reset put every attribute back to its default, and the endpoints come back one by one while the node is offline.
+   * As the node goes online, the thermostat writes its temperature in a way that cannot wait for a write of the plugin,
+   * and the reset fails when one holds the thermostat then. One read, once every endpoint is back, replaces the defaults.
+   *
+   * @param {MatterbridgeEndpoint} endpoint An endpoint of the device that came back.
+   * @returns {void}
+   */
+  private refreshWhenOnline(endpoint: MatterbridgeEndpoint): void {
+    if (this.isAwaitingOnline) return;
+    this.isAwaitingOnline = true;
+    // The read is not awaited, so that the node goes online without waiting for the unit. It does nothing once the
+    // device is disposed.
+    Node.forEndpoint(endpoint).lifecycle.online.once(() => {
+      this.isAwaitingOnline = false;
       void this.refresh();
     });
   }

@@ -74,11 +74,19 @@ describe('a device when the Matter node is reset to factory defaults', () => {
   it('should subscribe again once the node is back, and write the state of the unit again', async () => {
     client.state.power = true;
     const info = vi.spyOn(log, 'info');
+    // The unit is read once the node is online, never while its endpoints come back.
+    const isOnlineAtRead: boolean[] = [];
+    client.getStateAndSensors.mockImplementation(async () => {
+      isOnlineAtRead.push(server.lifecycle.isOnline);
+      return { state: await client.getState(), sensors: await client.getSensors() };
+    });
     await server.erase();
     await vi.waitFor(() => expect(info).toHaveBeenCalledWith('"Lounge" is subscribed again after the Matter node was reset'), { timeout: 5000 });
     // The reset put the air conditioner back to off: the state of the unit replaces it.
     await vi.waitFor(() => expect(accessory.endpoint.getAttribute(OnOff, 'onOff')).toBe(true), { timeout: 5000 });
     await vi.waitFor(() => expect(accessory.fan?.getAttribute(OnOff, 'onOff')).toBe(true), { timeout: 5000 });
+    // One read for every endpoint that came back.
+    expect(isOnlineAtRead).toEqual([true]);
   });
 
   it('should take the writes of a controller to each endpoint after the reset', async () => {
