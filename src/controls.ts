@@ -70,6 +70,17 @@ export function getModeReplacements(wanted: ModeReplacements, modes: readonly Op
   return Object.fromEntries(kept.filter(([, replacement]) => replacement !== 'auto' || profile === 'heatCool'));
 }
 
+/**
+ * Tell whether a unit swings both up and down and left and right
+ *
+ * @param {Pick<DaikinCapabilities, 'swingModes'>} capabilities What the unit accepts.
+ * @returns {boolean} True when it swings on each axis, alone or with the other.
+ */
+function swingsOnBothAxes(capabilities: Pick<DaikinCapabilities, 'swingModes'>): boolean {
+  const swingsOn = (axis: 'vertical' | 'horizontal'): boolean => capabilities.swingModes.includes(axis) || capabilities.swingModes.includes('both');
+  return swingsOn('vertical') && swingsOn('horizontal');
+}
+
 /** The controls and the switches a device can have in Matter, given what its unit accepts: what the setup page offers. */
 export interface AvailableControls {
   /** The fan speeds a controller can pick, slowest first, without `auto`. Empty when apps cannot set the fan speed. */
@@ -78,6 +89,8 @@ export interface AvailableControls {
   hasFanAuto: boolean;
   /** Whether apps can move the louvers. */
   hasSwing: boolean;
+  /** Whether the louvers swing both up and down and left and right, so that the rocking can have one axis alone. */
+  swingsOnBothAxes: boolean;
   /** The modes of the unit, which can each get a switch. */
   switchableModes: SwitchedMode[];
   /** The thermostat modes the unit lacks, which one of its modes can be shown as. */
@@ -99,6 +112,7 @@ export function getAvailableControls(capabilities: ExposedCapabilities): Availab
     fanSteps: getFanSteps(capabilities.fanSpeeds),
     hasFanAuto: hasFanAuto(capabilities),
     hasSwing: capabilities.swingModes.length > 0,
+    swingsOnBothAxes: swingsOnBothAxes(capabilities),
     switchableModes: SWITCHED_MODES.filter((mode) => capabilities.modes.includes(mode)),
     lackingModes: THERMOSTAT_MODES.filter((mode) => !capabilities.modes.includes(mode)),
     specialModes: getSwitchableSpecialModes(capabilities),
@@ -110,7 +124,7 @@ export function getAvailableControls(capabilities: ExposedCapabilities): Availab
  *
  * @param {DaikinDeviceConfig} device The device.
  * @param {ExposedCapabilities} capabilities What its unit accepts.
- * @returns {DaikinDeviceConfig} The device, with a fixed fan speed or swing mode the unit lacks replaced by `keep`, an auto fan switch or step that cannot hold replaced by the native fan mode, and without the switches, the mode select, the mode replacements and the fan the unit has no use for.
+ * @returns {DaikinDeviceConfig} The device, with a fixed fan speed or swing mode the unit lacks replaced by `keep`, one rocking axis alone on a unit that does not swing on both replaced by both, an auto fan switch or step that cannot hold replaced by the native fan mode, and without the switches, the mode select, the mode replacements and the fan the unit has no use for.
  */
 export function fitToCapabilities(device: DaikinDeviceConfig, capabilities: ExposedCapabilities): DaikinDeviceConfig {
   const fanSpeedWhenHidden = device.fanSpeedWhenHidden !== KEEP_SETTING && capabilities.fanSpeeds.includes(device.fanSpeedWhenHidden) ? device.fanSpeedWhenHidden : KEEP_SETTING;
@@ -132,6 +146,8 @@ export function fitToCapabilities(device: DaikinDeviceConfig, capabilities: Expo
   return {
     ...device,
     fanSpeedWhenHidden,
+    // The rocking has one axis alone only on a unit that swings on both.
+    swingAxes: swingsOnBothAxes(capabilities) ? device.swingAxes : 'both',
     swingModeWhenHidden,
     modeControl: isOfUse[device.modeControl] ? device.modeControl : 'native',
     modeSwitches,

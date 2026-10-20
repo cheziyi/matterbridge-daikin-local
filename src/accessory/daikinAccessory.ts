@@ -200,10 +200,8 @@ export class DaikinAccessory implements AccessoryEndpoints {
     if (this.layout.isComposed) this.parent = this.endpoint;
     if (this.layout.hasSeparateFan) this.fan = this.createFan();
     if (this.layout.hasFan) this.subscribeFan(this.fan ?? this.endpoint);
-    if (this.layout.hasSwingSwitches) {
-      if (this.capabilities.swingModes.includes('vertical')) this.verticalSwitch = this.createSwingSwitch('vertical');
-      if (this.capabilities.swingModes.includes('horizontal')) this.horizontalSwitch = this.createSwingSwitch('horizontal');
-    }
+    if (this.layout.swingSwitchAxes.vertical) this.verticalSwitch = this.createSwingSwitch('vertical');
+    if (this.layout.swingSwitchAxes.horizontal) this.horizontalSwitch = this.createSwingSwitch('horizontal');
     const modeSwitches = new Map<SwitchedMode, MatterbridgeEndpoint>();
     for (const mode of SWITCHED_MODES) {
       const hasModeSwitch = this.config.modeControl === 'switches' && this.config.modeSwitches.includes(mode) && this.capabilities.modes.includes(mode);

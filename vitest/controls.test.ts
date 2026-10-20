@@ -30,6 +30,15 @@ describe('controls', () => {
     expect(fitToCapabilities({ ...switches, modeSwitches: ['dehumidify'] }, unit)).toEqual(createDeviceConfig());
   });
 
+  it('should keep one rocking axis alone only on a unit that swings on both', () => {
+    const wanted = createDeviceConfig({ swingControl: 'native', swingAxes: 'horizontal' });
+    expect(fitToCapabilities(wanted, createCapabilities())).toEqual(wanted);
+    expect(fitToCapabilities(wanted, createCapabilities({ swingModes: ['off', 'both'] }))).toEqual(wanted);
+    expect(fitToCapabilities(wanted, createCapabilities({ swingModes: ['off', 'vertical'] }))).toEqual(createDeviceConfig({ swingControl: 'native' }));
+    expect(getAvailableControls(createCapabilities({ swingModes: ['off', 'both'] })).swingsOnBothAxes).toBe(true);
+    expect(getAvailableControls(createCapabilities({ swingModes: ['off', 'horizontal'] })).swingsOnBothAxes).toBe(false);
+  });
+
   it('should keep the mode select of a unit with a dry or a fan mode', () => {
     const wanted = createDeviceConfig({ modeControl: 'select' });
     expect(fitToCapabilities(wanted, createCapabilities({ modes: ['cool', 'dehumidify'] })).modeControl).toBe('select');
@@ -127,6 +136,7 @@ describe('controls', () => {
       fanSteps: ['silent', 'level1', 'level2', 'level3', 'level4', 'level5'],
       hasFanAuto: true,
       hasSwing: true,
+      swingsOnBothAxes: true,
       switchableModes: ['auto', 'cool', 'heat', 'dehumidify', 'fan'],
       lackingModes: [],
       specialModes: ['powerful', 'econo', 'streamer'],
@@ -135,6 +145,7 @@ describe('controls', () => {
       fanSteps: [],
       hasFanAuto: false,
       hasSwing: false,
+      swingsOnBothAxes: false,
       switchableModes: ['heat'],
       lackingModes: ['auto', 'cool', 'dehumidify', 'fan'],
       specialModes: [],

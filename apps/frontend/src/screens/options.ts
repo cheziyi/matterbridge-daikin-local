@@ -259,7 +259,7 @@ function swingSection(draft: Draft, controls: AvailableControls): HTMLElement {
             'native',
             current,
             'Native rocking',
-            'The rocking of the fan control, as Matter has it: up and down for the vertical swing, left and right for the horizontal. Not every app shows it, and Apple Home is reported not to handle it well.',
+            'The rocking of the fan control, as Matter has it: up and down for the vertical swing, left and right for the horizontal. Not every app shows it, and Apple Home shows it as a single Oscillate on/off.',
             glyphs.rocking,
             (swingControl) => update(draft, { swingControl }),
           )
@@ -278,6 +278,8 @@ function swingSection(draft: Draft, controls: AvailableControls): HTMLElement {
         update(draft, { swingControl }),
       ),
     ),
+    // A switch is for an axis the unit swings on alone, and the rocking also for one it swings on with the other.
+    (current === 'native' && controls.swingsOnBothAxes) || (current === 'switches' && hasVertical && hasHorizontal) ? swingAxesField(draft, current === 'native') : null,
     draft.swingControl === 'hidden'
       ? h(
           'div',
@@ -291,6 +293,29 @@ function swingSection(draft: Draft, controls: AvailableControls): HTMLElement {
           ),
         )
       : null,
+  );
+}
+
+// Apple Home shows the rocking as one Oscillate on/off, so one axis alone is what it turns on and off. One switch alone
+// is for whoever wants one axis in Matter and not the other.
+function swingAxesField(draft: Draft, isRocking: boolean): HTMLElement {
+  const pick = (swingAxes: Exposure['swingAxes']): void => update(draft, { swingAxes });
+  const otherAxis = 'The other axis has no control in Matter, and stays as it is.';
+  const help = isRocking
+    ? 'Some apps, such as Apple Home, show the rocking as a single Oscillate on/off. One axis alone makes that switch swing the louvers on it.'
+    : 'One switch alone, for the axis picked, instead of a switch for each axis.';
+  return h(
+    'div',
+    { class: 'field' },
+    h('h3', { id: 'swing-axes-title' }, isRocking ? 'Rocking axes' : 'Switch axes'),
+    h('p', { class: 'help' }, help),
+    h(
+      'div',
+      { 'class': 'choices', 'role': 'radiogroup', 'aria-labelledby': 'swing-axes-title' },
+      radio('swing-axes', 'both', draft.swingAxes, 'Both axes', isRocking ? 'Up and down, and left and right, each rocking on its own.' : 'A switch for up and down, and one for left and right.', pick),
+      radio('swing-axes', 'vertical', draft.swingAxes, 'Up and down alone', otherAxis, pick),
+      radio('swing-axes', 'horizontal', draft.swingAxes, 'Left and right alone', otherAxis, pick),
+    ),
   );
 }
 

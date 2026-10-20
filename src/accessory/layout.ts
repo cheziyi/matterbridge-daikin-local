@@ -23,7 +23,7 @@
 
 import type { DaikinCapabilities, FanSpeed, OperatingMode, SwingMode, TemperatureRange } from 'daikin-local-control';
 
-import { type DaikinDeviceConfig, type ModeReplacements, THERMOSTAT_MODES } from '../config.js';
+import { type DaikinDeviceConfig, type ModeReplacements, type SwingAxesOption, THERMOSTAT_MODES } from '../config.js';
 import { getModeReplacements, hasFanAuto, type ReportedSensors } from '../controls.js';
 import { getFanSteps, getTemperatureRange, getThermostatProfile, type ModeSelectValue, type ThermostatProfile } from '../mapping.js';
 
@@ -43,8 +43,8 @@ export interface AccessoryLayout {
   hasSeparateFan: boolean;
   /** The axes the rocking of each fan control has, the swing of the unit: none when the device shows no rocking. */
   rockAxes: { vertical: boolean; horizontal: boolean };
-  /** Whether the device has an on/off switch for each axis the unit swings on. */
-  hasSwingSwitches: boolean;
+  /** The axes that have an on/off switch: none when the device has no swing switches. */
+  swingSwitchAxes: { vertical: boolean; horizontal: boolean };
   /** Whether the fan control has the Matter fan mode Auto: the unit takes the `auto` fan speed, and it is no step. */
   hasFanAuto: boolean;
   /** Whether the `auto` fan speed is a step of the fan control. */
@@ -98,6 +98,11 @@ export function getAccessoryLayout(config: DaikinDeviceConfig, capabilities: Dai
   // The rocking is the native place of the swing, on every fan control. It is never beside the switches or the select:
   // Apple Home is reported to upset it, so they take its place.
   const hasRocking = hasFan && config.swingControl === 'native';
+  // Without a fan control, the swing has no rocking, and its switches stand for it.
+  const hasSwitches = config.swingControl === 'switches' || (config.swingControl === 'native' && !hasFan);
+  // A switch is for an axis the unit swings on alone.
+  const switchable = { vertical: hasSwitches && capabilities.swingModes.includes('vertical'), horizontal: hasSwitches && capabilities.swingModes.includes('horizontal') };
+  const rockable = { vertical: hasRocking && swingsOn('vertical'), horizontal: hasRocking && swingsOn('horizontal') };
   let fanPositions = fanSteps;
   if (hasAutoStep) fanPositions = config.fanAutoControl === 'firstStep' ? ['auto', ...fanSteps] : [...fanSteps, 'auto'];
   return {
@@ -107,9 +112,8 @@ export function getAccessoryLayout(config: DaikinDeviceConfig, capabilities: Dai
     fanPositions,
     hasFan,
     hasSeparateFan: hasFan && config.hasSeparateFan,
-    rockAxes: { vertical: hasRocking && swingsOn('vertical'), horizontal: hasRocking && swingsOn('horizontal') },
-    // Without a fan control, the swing has no rocking, and its switches stand for it.
-    hasSwingSwitches: config.swingControl === 'switches' || (config.swingControl === 'native' && !hasFan),
+    rockAxes: pickAxes(rockable, config.swingAxes),
+    swingSwitchAxes: pickAxes(switchable, config.swingAxes),
     // A step takes the place of the fan mode Auto, which holds no percent: the two cannot show at once. A switch is an endpoint of its own beside it.
     hasFanAuto: capabilities.fanSpeeds.includes('auto') && !hasAutoStep,
     hasFanAutoStep: hasAutoStep,
@@ -124,4 +128,16 @@ export function getAccessoryLayout(config: DaikinDeviceConfig, capabilities: Dai
     hasOutdoorTemperature: reportedSensors.hasOutdoorTemperature && config.hasOutdoorTemperatureSensor,
     isComposed: config.isComposed,
   };
+}
+
+/**
+ * Keep one axis alone, when it is picked and is among those given: the other then has no control in Matter
+ *
+ * @param {{ vertical: boolean; horizontal: boolean }} axes The axes the control can have.
+ * @param {SwingAxesOption} picked The axes picked.
+ * @returns {{ vertical: boolean; horizontal: boolean }} The axes the control has.
+ */
+function pickAxes(axes: { vertical: boolean; horizontal: boolean }, picked: SwingAxesOption): { vertical: boolean; horizontal: boolean } {
+  if (picked === 'both' || !axes[picked]) return axes;
+  return { vertical: picked === 'vertical', horizontal: picked === 'horizontal' };
 }

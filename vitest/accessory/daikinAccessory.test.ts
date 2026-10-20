@@ -973,6 +973,70 @@ describe('DaikinAccessory', () => {
       await horizontal.dispose();
     });
 
+    it('should rock on one axis alone when it is picked, and keep the other as it is', async () => {
+      // The unit swings up and down already.
+      const client = createFakeClient({ swingMode: 'vertical' });
+      const config = createDeviceConfig({ name: 'Cupola', swingControl: 'native', swingAxes: 'horizontal' });
+      const accessory = new DaikinAccessory({ config, capabilities: createCapabilities(), client, log, vendorId, commandDelayInMs: 500 });
+      await addAccessory(accessory);
+      await accessory.refresh();
+      expect(accessory.endpoint.getAttribute(FanControl, 'rockSupport')).toEqual({ rockLeftRight: true, rockUpDown: false, rockRound: false });
+      expect(accessory.endpoint.getAttribute(FanControl, 'rockSetting')).toEqual({ rockLeftRight: false, rockUpDown: false, rockRound: false });
+      await writeAsController(accessory.endpoint, 'FanControl', 'rockSetting', { rockLeftRight: true, rockUpDown: false, rockRound: false });
+      await accessory.flushCommands();
+      expect(client.setState).toHaveBeenLastCalledWith({ swingMode: 'both' });
+      expect(accessory.endpoint.getAttribute(FanControl, 'rockSetting')).toEqual({ rockLeftRight: true, rockUpDown: false, rockRound: false });
+      await writeAsController(accessory.endpoint, 'FanControl', 'rockSetting', { rockLeftRight: false, rockUpDown: false, rockRound: false });
+      await accessory.flushCommands();
+      expect(client.setState).toHaveBeenLastCalledWith({ swingMode: 'vertical' });
+      await accessory.dispose();
+
+      // On a unit that does not swing on the axis picked, the rocking has the axes it swings on.
+      const upDown = createCapabilities({ swingModes: ['off', 'vertical'] });
+      const vertical = new DaikinAccessory({
+        config: createDeviceConfig({ name: 'Turret', swingControl: 'native', swingAxes: 'horizontal' }),
+        capabilities: upDown,
+        client: createFakeClient({}, upDown),
+        log,
+        vendorId,
+      });
+      await addAccessory(vertical);
+      expect(vertical.endpoint.getAttribute(FanControl, 'rockSupport')).toEqual({ rockLeftRight: false, rockUpDown: true, rockRound: false });
+      await vertical.dispose();
+    });
+
+    it('should have one swing switch alone when one axis is picked, and keep the other as it is', async () => {
+      // The unit swings up and down already.
+      const client = createFakeClient({ swingMode: 'vertical' });
+      const config = createDeviceConfig({ name: 'Lanai', swingControl: 'switches', swingAxes: 'horizontal' });
+      const accessory = new DaikinAccessory({ config, capabilities: createCapabilities(), client, log, vendorId, commandDelayInMs: 500 });
+      expect(accessory.verticalSwitch).toBeUndefined();
+      await addAccessory(accessory);
+      await accessory.refresh();
+      const horizontalSwitch = accessory.horizontalSwitch;
+      if (horizontalSwitch === undefined) throw new Error('The horizontal swing switch is missing');
+      expect(horizontalSwitch.getAttribute(OnOff, 'onOff')).toBe(false);
+      await writeAsController(horizontalSwitch, 'OnOff', 'onOff', true);
+      await accessory.flushCommands();
+      expect(client.setState).toHaveBeenLastCalledWith({ swingMode: 'both' });
+      await writeAsController(horizontalSwitch, 'OnOff', 'onOff', false);
+      await accessory.flushCommands();
+      expect(client.setState).toHaveBeenLastCalledWith({ swingMode: 'vertical' });
+      await accessory.dispose();
+
+      // The switches that stand for the rocking of a unit without a fan control take the axis picked as well.
+      const noFan = new DaikinAccessory({
+        config: createDeviceConfig({ name: 'Belfry', swingControl: 'native', fanControl: 'hidden', swingAxes: 'vertical' }),
+        capabilities: createCapabilities(),
+        client: createFakeClient(),
+        log,
+        vendorId,
+      });
+      expect(noFan.verticalSwitch).toBeDefined();
+      expect(noFan.horizontalSwitch).toBeUndefined();
+      await noFan.dispose();
+    });
+
     it('should give a unit without a fan control its swing switches, and a fan of its own the rocking', async () => {
       const noFan = new DaikinAccessory({
         config: createDeviceConfig({ name: 'Vault', swingControl: 'native', fanControl: 'hidden' }),

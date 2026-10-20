@@ -14,11 +14,11 @@ export type PresetName = 'apple' | 'google' | 'matter';
 export const presets: Record<PresetName, { title: string; text: string }> = {
   apple: {
     title: 'Apple Home',
-    text: 'Fan speed as a percentage, the humidity on a sensor of its own too, and a switch for auto fan and for each of dry and fan, each a device of its own. The swing is not shown and stays as it is.',
+    text: 'Fan speed as a percentage, the swing as the rocking of the fan on one axis, the humidity on a sensor of its own too, and a switch for auto fan and for each of dry and fan, each a device of its own.',
   },
   google: {
     title: 'Google Home',
-    text: 'Fan speed as steps, the humidity on a sensor of its own too, and a switch for auto fan and for each of dry and fan, each a device of its own. The swing is not shown and stays as it is.',
+    text: 'Fan speed as steps, the swing as the rocking of the fan on one axis, the humidity on a sensor of its own too, and a switch for auto fan and for each of dry and fan, each a device of its own.',
   },
   matter: {
     title: 'Full Matter support',
@@ -33,10 +33,12 @@ export const presets: Record<PresetName, { title: string; text: string }> = {
  */
 export function presetExposure(name: PresetName, controls: AvailableControls): Exposure {
   const isMatter = name === 'matter';
-  // An app that shows every Matter control gets the rocking of the fan control, or its switches on a unit without a fan
-  // control. Home is reported to upset the rocking, and the other presets leave the swing as it is, rather than add a
-  // switch for each axis.
-  const swingControl: Exposure['swingControl'] = isMatter && controls.hasSwing ? 'native' : 'hidden';
+  // An app that shows every Matter control gets the rocking of the fan control on every axis, or its switches on a unit
+  // without a fan control. Home shows the rocking as a single Oscillate on/off, so it gets one axis alone, left and right
+  // where the unit swings on both, and Google Home gets the same. Both leave the swing as it is on a unit without a fan
+  // control, rather than add a switch for each axis.
+  const hasRocking = controls.hasSwing && (isMatter || controls.fanSteps.length > 0);
+  const swingControl: Exposure['swingControl'] = hasRocking ? 'native' : 'hidden';
   // Home and Google Home are reported to offer off, cool, heat and auto alone, so dry and fan get a switch each where
   // the unit has them.
   const modeSwitches = isMatter ? [] : controls.switchableModes.filter((mode) => mode === 'dehumidify' || mode === 'fan');
@@ -44,6 +46,7 @@ export function presetExposure(name: PresetName, controls: AvailableControls): E
     fanControl: controls.fanSteps.length === 0 ? 'hidden' : name === 'apple' ? 'percent' : 'steps',
     fanSpeedWhenHidden: 'keep',
     swingControl,
+    swingAxes: !isMatter && hasRocking && controls.swingsOnBothAxes ? 'horizontal' : 'both',
     swingModeWhenHidden: 'keep',
     // An app that shows every Matter control has dry and fan among the modes of the thermostat.
     modeControl: modeSwitches.length > 0 ? 'switches' : 'native',
@@ -79,6 +82,8 @@ export function matchesPreset(draft: Draft, name: PresetName, controls: Availabl
   if (!controls.hasSwing) Object.assign(chosen, { swingControl: 'hidden', swingModeWhenHidden: 'keep' });
   // Without a fan control, the rocking is the switches.
   if (chosen.fanControl === 'hidden' && chosen.swingControl === 'switches') chosen.swingControl = 'native';
+  // The axes show only for the rocking or the switches of a unit that swings on both axes.
+  if ((chosen.swingControl !== 'native' && chosen.swingControl !== 'switches') || !controls.swingsOnBothAxes) chosen.swingAxes = 'both';
   // The switches are a choice only while they are chosen, and both they and the replacements only for what the unit
   // has. A mode select shows nothing more than the thermostat on a unit without a dry or a fan mode.
   chosen.modeSwitches = chosen.modeControl === 'switches' ? controls.switchableModes.filter((mode) => chosen.modeSwitches.includes(mode)) : [];

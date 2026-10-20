@@ -192,14 +192,18 @@ A switch or a step is for Matter apps that show no Auto fan mode. A step takes t
 
 ### Swing
 
-| Option         | In Matter                                                                                                                                                                                                                                              |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Native rocking | The rocking of the fan control, as Matter has it: up and down for the vertical swing, left and right for the horizontal one, and both for 3D, on the axes the unit swings on. Not every app shows it, and Apple Home is reported not to handle it well |
-| Switches       | One on/off switch for each axis the unit swings on, named `<name> Vertical Swing` and `<name> Horizontal Swing`. A unit that swings on one axis gets one switch. They appear as outlets, the on/off device type every Matter app supports              |
-| Mode select    | One mode select named `<name> Swing`, with Off, Vertical, Horizontal and 3D for the swing modes the unit has. Few Matter apps show it: see [Mode selects](#mode-selects)                                                                               |
-| Not shown      | No swing control. The swing either stays as it is, or is set to the mode you pick each time the plugin sends a command                                                                                                                                 |
+| Option         | In Matter                                                                                                                                                                                                                                                  |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Native rocking | The rocking of the fan control, as Matter has it: up and down for the vertical swing, left and right for the horizontal one, and both for 3D, on the axes the unit swings on. Not every app shows it, and Apple Home shows it as a single Oscillate on/off |
+| Switches       | One on/off switch for each axis the unit swings on, named `<name> Vertical Swing` and `<name> Horizontal Swing`. A unit that swings on one axis gets one switch. They appear as outlets, the on/off device type every Matter app supports                  |
+| Mode select    | One mode select named `<name> Swing`, with Off, Vertical, Horizontal and 3D for the swing modes the unit has. Few Matter apps show it: see [Mode selects](#mode-selects)                                                                                   |
+| Not shown      | No swing control. The swing either stays as it is, or is set to the mode you pick each time the plugin sends a command                                                                                                                                     |
 
 The switches and the select are for the Matter apps that show no rocking, or do not handle it well: they take its place, so the fan control has no rocking beside them. A unit whose fan speed is not shown has no fan control, and so no rocking: native rocking falls back to the switches. Fixed louver positions are not controlled from Matter.
+
+On a unit that swings on both axes, native rocking and the switches can have one axis alone: up and down, or left and right. For the rocking, this is for the Matter apps that show it as a single on/off, such as the Oscillate switch of Apple Home, which then turns the swing on that axis on and off. For the switches, it is one switch instead of two. The other axis has no control in Matter and stays as it is.
+
+The Apple Home and Google Home presets pick native rocking on one axis: left and right, or up and down on a unit that swings only up and down. A unit whose fan speed cannot be set has no rocking, so they leave its swing out of Matter and as it is.
 
 ### Modes
 
@@ -255,11 +259,11 @@ Matter has no control for Powerful, Econo and Streamer, so the setup can add a s
 
 In the Options step, a preset fills in every choice above for what the unit can do. You can change any of them afterwards. A new air conditioner starts with the Apple Home preset, and one already set up keeps its own choices.
 
-| Preset              | Fan speed  | Swing          | Modes                | Auto fan | Special mode switches | Humidity                    | Outdoor sensor | Parts of the air conditioner |
-| ------------------- | ---------- | -------------- | -------------------- | -------- | --------------------- | --------------------------- | -------------- | ---------------------------- |
-| Apple Home          | Percentage | Not shown      | Dry and fan switches | Switch   | None                  | Also on a sensor of its own | No             | No                           |
-| Google Home         | Steps      | Not shown      | Dry and fan switches | Switch   | None                  | Also on a sensor of its own | No             | No                           |
-| Full Matter support | Steps      | Native rocking | Native modes only    | Native   | All                   | On the air conditioner      | Yes            | Yes                          |
+| Preset              | Fan speed  | Swing               | Modes                | Auto fan | Special mode switches | Humidity                    | Outdoor sensor | Parts of the air conditioner |
+| ------------------- | ---------- | ------------------- | -------------------- | -------- | --------------------- | --------------------------- | -------------- | ---------------------------- |
+| Apple Home          | Percentage | Rocking on one axis | Dry and fan switches | Switch   | None                  | Also on a sensor of its own | No             | No                           |
+| Google Home         | Steps      | Rocking on one axis | Dry and fan switches | Switch   | None                  | Also on a sensor of its own | No             | No                           |
+| Full Matter support | Steps      | Native rocking      | Native modes only    | Native   | All                   | On the air conditioner      | Yes            | Yes                          |
 
 ### One device or several
 

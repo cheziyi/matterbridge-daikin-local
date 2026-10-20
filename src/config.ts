@@ -51,6 +51,16 @@ export const SWING_CONTROLS = ['native', 'switches', 'select', 'hidden'] as cons
 export type SwingControlOption = (typeof SWING_CONTROLS)[number];
 
 /**
+ * The axes the native rocking of the fan control or the swing switches have: every axis the unit swings on, or one of
+ * them alone. One axis alone is for apps that show the rocking as a single on/off, such as the oscillate of Apple Home,
+ * or for a single switch: the other axis then stays as it is. On a unit that does not swing on the axis picked, the
+ * rocking or the switches have every axis the unit swings on.
+ */
+export const SWING_AXES = ['both', 'vertical', 'horizontal'] as const;
+
+export type SwingAxesOption = (typeof SWING_AXES)[number];
+
+/**
  * How the auto fan speed is exposed to Matter: natively, as the fan mode Auto of the fan control, as an on/off switch
  * beside that fan mode, or as a step of the fan control below the slowest speed of the unit or above its fastest, in
  * place of the fan mode. Each but the native fan mode alone is for apps that show no fan mode Auto.
@@ -113,6 +123,8 @@ export interface DaikinDeviceExposure {
   /** The fan speed sent with every command while the fan is hidden, or `keep`. */
   fanSpeedWhenHidden: HiddenFanSpeed;
   swingControl: SwingControlOption;
+  /** The axes of the rocking or of the switches while `swingControl` is `native` or `switches`: see `SWING_AXES`. */
+  swingAxes: SwingAxesOption;
   /** The swing mode sent with every command while the swing is hidden, or `keep`. */
   swingModeWhenHidden: HiddenSwingMode;
   /** How the dry and fan modes are exposed besides the thermostat: see `MODE_CONTROLS`. */
@@ -347,6 +359,7 @@ export function parseDeviceConfig(value: unknown, report?: (message: string) => 
     fanControl: isMember(FAN_CONTROLS, raw.fanControl) ? raw.fanControl : useDefault('fanControl', 'steps'),
     fanSpeedWhenHidden: isMember(hiddenFanSpeeds, raw.fanSpeedWhenHidden) ? raw.fanSpeedWhenHidden : useDefault('fanSpeedWhenHidden', KEEP_SETTING),
     swingControl: isMember(SWING_CONTROLS, raw.swingControl) ? raw.swingControl : useDefault('swingControl', 'switches'),
+    swingAxes: isMember(SWING_AXES, raw.swingAxes) ? raw.swingAxes : useDefault('swingAxes', 'both'),
     swingModeWhenHidden: isMember(hiddenSwingModes, raw.swingModeWhenHidden) ? raw.swingModeWhenHidden : useDefault('swingModeWhenHidden', KEEP_SETTING),
     modeControl: isMember(MODE_CONTROLS, raw.modeControl) ? raw.modeControl : useDefault('modeControl', 'native'),
     modeSwitches: SWITCHED_MODES.filter((mode) => modeSwitches.includes(mode)),
@@ -476,6 +489,7 @@ export function hasSameExposure(left: DaikinDeviceConfig, right: DaikinDeviceCon
     left.specialModeSwitches.join() === right.specialModeSwitches.join() &&
     left.fanControl === right.fanControl &&
     left.swingControl === right.swingControl &&
+    left.swingAxes === right.swingAxes &&
     left.modeControl === right.modeControl &&
     left.modeSwitches.join() === right.modeSwitches.join() &&
     THERMOSTAT_MODES.every((mode) => left.modeReplacements[mode] === right.modeReplacements[mode])
