@@ -14,6 +14,7 @@ export function pickExposure(source: Exposure): Exposure {
     fanControl,
     fanSpeedWhenHidden,
     swingControl,
+    swingAxes,
     swingModeWhenHidden,
     modeControl,
     modeSwitches,
@@ -29,6 +30,7 @@ export function pickExposure(source: Exposure): Exposure {
     fanControl,
     fanSpeedWhenHidden,
     swingControl,
+    swingAxes,
     swingModeWhenHidden,
     modeControl,
     modeSwitches: [...modeSwitches],
@@ -49,6 +51,7 @@ const defaultExposure: Exposure = {
   fanControl: 'steps',
   fanSpeedWhenHidden: 'keep',
   swingControl: 'switches',
+  swingAxes: 'both',
   swingModeWhenHidden: 'keep',
   modeControl: 'native',
   modeSwitches: [],
@@ -102,7 +105,7 @@ export function draftFromStored(device: StoredDevice): Draft {
 }
 
 // What a unit the plugin told nothing about can have: no control and no switch.
-export const noControls: AvailableControls = { fanSteps: [], hasFanAuto: false, hasSwing: false, switchableModes: [], lackingModes: [], specialModes: [] };
+export const noControls: AvailableControls = { fanSteps: [], hasFanAuto: false, hasSwing: false, swingsOnBothAxes: false, switchableModes: [], lackingModes: [], specialModes: [] };
 
 /**
  * Whether a mode of the unit can be shown as a thermostat mode, given what its other modes are shown as, as

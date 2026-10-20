@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - 2026-10-20
+
+### Added
+
+- [devices]: Native rocking and the swing switches can have one axis alone, up and down or left and right, on a unit that swings on both: the rocking for the Matter apps that show it as a single on/off, such as the Oscillate switch of Apple Home, and the switches as one switch instead of two. The other axis has no control in Matter and stays as it is. A device stored before the setting has both axes, as before.
+
+### Changed
+
+- [setup]: The Apple Home and Google Home presets show the swing as native rocking on one axis, left and right, or up and down on a unit that swings only up and down, where they showed no swing. A unit whose fan speed cannot be set has no rocking, so they still leave its swing out of Matter and as it is.
+
 ## [0.9.2] - 2026-10-19
 
 ### Fixed
