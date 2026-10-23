@@ -40,6 +40,7 @@ import { type DaikinDeviceConfig, SWITCHED_MODES, type SwitchedMode, withExposur
 import { addReportedSensors, getSwitchableSpecialModes, noReportedSensors, type ReportedSensors } from '../controls.js';
 import { getErrorMessage } from '../errors.js';
 import { modeSelectChoices, type SelectChoices, swingSelectChoices, toModeOptions, toOperatingMode } from '../mapping.js';
+import { EndpointIds } from '../platform/endpointIds.js';
 import {
   applyDeviceLabel,
   createAirConditionerEndpoint,
@@ -85,6 +86,8 @@ export interface DaikinAccessoryOptions {
   log: AnsiLogger;
   /** The vendor id of the bridge, used for the bridged device information. */
   vendorId: number;
+  /** The endpoint ids of the device, which give an endpoint that comes back after it was taken away a new id. Defaults to the base ids. */
+  ids?: EndpointIds;
   /** How long to collect the writes of a controller before sending them. Defaults to 300 milliseconds. */
   commandDelayInMs?: number;
 }
@@ -199,7 +202,7 @@ export class DaikinAccessory implements AccessoryEndpoints {
     this.log = options.log;
     this.commandDelayInMs = options.commandDelayInMs ?? defaultCommandDelayInMs;
     this.name = options.config.name;
-    this.identity = { label: this.name, serial: options.config.macAddress, vendorId: options.vendorId };
+    this.identity = { label: this.name, serial: options.config.macAddress, vendorId: options.vendorId, ids: options.ids ?? new EndpointIds() };
     this.layout = getAccessoryLayout(this.config, this.capabilities, this.reportedSensors);
 
     this.endpoint = this.createAirConditioner();

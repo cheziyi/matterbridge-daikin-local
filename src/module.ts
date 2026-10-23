@@ -47,6 +47,7 @@ import { addReportedSensors, fitToCapabilities, getAvailableControls, hasSameCon
 import { getErrorMessage } from './errors.js';
 import { CapabilityStore } from './platform/capabilityStore.js';
 import { getDiscoveredUpdate } from './platform/discovery.js';
+import { EndpointIds } from './platform/endpointIds.js';
 import { parseSetupRevision, SetupRevisions } from './platform/setupRevisions.js';
 import { identifyHost, probeDevice, type ProbeResult, registerWithDevice } from './setup/probe.js';
 import { type DiscoveredDevice, handleSetupRequest, type SetupDevice, type SetupPlatform, type SetupState } from './setup/setupApi.js';
@@ -568,12 +569,14 @@ export class DaikinPlatform extends MatterbridgeDynamicPlatform implements Setup
         this.checkedCapabilities.add(device.macAddress);
       }
       const reportedSensors = (await this.capabilityStore.readSensors(device)) ?? noReportedSensors;
-      const accessory = new DaikinAccessory({ config: device, capabilities, reportedSensors, client, log: this.log, vendorId: this.matterbridge.aggregatorVendorId });
+      const ids = new EndpointIds(await this.capabilityStore.readEndpointIds(device));
+      const accessory = new DaikinAccessory({ config: device, capabilities, reportedSensors, client, log: this.log, vendorId: this.matterbridge.aggregatorVendorId, ids });
       for (const endpoint of accessory.endpoints) {
         await this.registerDevice(endpoint);
         registered.push(endpoint);
       }
       await accessory.clearReadings();
+      await this.capabilityStore.writeEndpointIds(device, ids.toStore());
       this.accessories.set(device.macAddress, accessory);
       this.startErrors.delete(device.macAddress);
       // A device that starts is built from its stored options.

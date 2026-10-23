@@ -3,7 +3,7 @@
  * @description This file contains the store of what each unit accepts, kept in the platform storage.
  * @author Calvin Che
  * @created 2026-10-13
- * @version 1.0.0
+ * @version 1.1.0
  * @license Apache-2.0
  *
  * Copyright 2026 Calvin Che.
@@ -27,6 +27,7 @@ import type { NodeStorage } from 'node-persist-manager';
 
 import type { DaikinDeviceConfig } from '../config.js';
 import type { ReportedSensors } from '../controls.js';
+import { isStoredEndpointIds, type StoredEndpointIds } from './endpointIds.js';
 
 /** The device whose unit is described: only the MAC address of its adapter is read. */
 type StoredUnit = Pick<DaikinDeviceConfig, 'macAddress'>;
@@ -79,8 +80,18 @@ function getSensorsKey(device: StoredUnit): string {
 }
 
 /**
- * What each unit accepts and which readings it has given, kept between restarts so that a device starts without asking
- * its unit first.
+ * Get the key the endpoint ids of the device of a unit are stored under
+ *
+ * @param {StoredUnit} device The device.
+ * @returns {string} The storage key.
+ */
+function getEndpointIdsKey(device: StoredUnit): string {
+  return `endpointIds:${device.macAddress}`;
+}
+
+/**
+ * What each unit accepts, which readings it has given and the endpoint ids of its device, kept between restarts so that
+ * a device starts without asking its unit first, and comes back as it was.
  */
 export class CapabilityStore {
   private readonly getStorage: () => NodeStorage | undefined;
@@ -139,7 +150,31 @@ export class CapabilityStore {
   }
 
   /**
-   * Forget what is known about a unit
+   * Read the endpoint ids the device of a unit was built with
+   *
+   * @param {StoredUnit} device The device.
+   * @returns {Promise<StoredEndpointIds | undefined>} The stored ids, or undefined when none are stored or they cannot be read.
+   */
+  async readEndpointIds(device: StoredUnit): Promise<StoredEndpointIds | undefined> {
+    const stored: unknown = await this.getStorage()?.get(getEndpointIdsKey(device));
+    return isStoredEndpointIds(stored) ? stored : undefined;
+  }
+
+  /**
+   * Store the endpoint ids the device of a unit was built with
+   *
+   * @param {StoredUnit} device The device.
+   * @param {StoredEndpointIds} ids The ids.
+   * @returns {Promise<void>} Resolves when the ids are stored.
+   */
+  async writeEndpointIds(device: StoredUnit, ids: StoredEndpointIds): Promise<void> {
+    await this.getStorage()?.set(getEndpointIdsKey(device), ids);
+  }
+
+  /**
+   * Forget what is known about a unit, except the endpoint ids of its device
+   *
+   * The ids stay so that a device added again gives an endpoint that was taken away before a new id: see `EndpointIds`.
    *
    * @param {StoredUnit} device The device.
    * @returns {Promise<void>} Resolves when its capabilities and its readings are removed.

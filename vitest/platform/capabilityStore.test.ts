@@ -68,13 +68,30 @@ describe('capabilityStore', () => {
     expect(entries.size).toBe(0);
   });
 
+  test('should keep the endpoint ids of a device, through its removal', async () => {
+    const store = new CapabilityStore(() => storage);
+    const ids = { built: [macOf('Living Room'), 'vertical-swing'], generations: { 'vertical-swing': 1 } };
+    expect(await store.readEndpointIds(device)).toBeUndefined();
+    await store.writeEndpointIds(device, ids);
+    expect(entries.get(`endpointIds:${macOf('Living Room')}`)).toEqual(ids);
+    entries.set(`endpointIds:${macOf('Living Room')}`, { built: 'vertical-swing', generations: {} });
+    expect(await store.readEndpointIds(device)).toBeUndefined();
+    await store.writeEndpointIds(device, ids);
+    // A device added again gives an endpoint that was taken away before a new id, so the ids outlive the device.
+    await store.remove(device);
+    expect(await store.readEndpointIds(device)).toEqual(ids);
+    expect(entries.size).toBe(1);
+  });
+
   test('should store and read nothing until the platform storage is there', async () => {
     const store = new CapabilityStore(() => undefined);
     await store.write(device, createCapabilities());
     await store.writeSensors(device, { hasHumidity: true, hasOutdoorTemperature: true });
+    await store.writeEndpointIds(device, { built: [], generations: {} });
     await store.remove(device);
     expect(await store.read(device)).toBeUndefined();
     expect(await store.readSensors(device)).toBeUndefined();
+    expect(await store.readEndpointIds(device)).toBeUndefined();
     expect(entries.size).toBe(0);
   });
 });

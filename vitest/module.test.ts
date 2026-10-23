@@ -779,6 +779,48 @@ describe('DaikinPlatform', () => {
     await restarted.unregisterAllDevices();
   });
 
+  test('should give an endpoint that comes back after it was taken away a new id, so that it gets a new endpoint number', async () => {
+    const terminalUuid = platform.getTerminalUuid();
+    const mac = macOf('Veranda');
+    const withFan = createDeviceConfig({ name: 'Veranda', host: '192.168.1.99', hasSeparateFan: true });
+    const startWith = async (devices: DaikinDeviceConfig[]): Promise<DaikinPlatform> => {
+      const started = new DaikinPlatform(matterbridge, log, createConfig({ terminalUuid, devices }));
+      addMatterbridge(started);
+      await started.onStart();
+      return started;
+    };
+    const stop = async (started: DaikinPlatform): Promise<void> => {
+      await started.onShutdown();
+      await started.unregisterAllDevices();
+    };
+
+    // Never built before: every endpoint has its base id.
+    const first = await startWith([withFan]);
+    expect(first.getDeviceById(`${mac}-fan`)).toBeDefined();
+    expect(first.getDeviceById(`${mac}-vertical-swing`)).toBeDefined();
+    await stop(first);
+
+    // The fan is taken away. matter.js still holds the endpoint number its id had.
+    const second = await startWith([{ ...withFan, hasSeparateFan: false }]);
+    expect(second.getDeviceById(`${mac}-fan`)).toBeUndefined();
+    await stop(second);
+
+    // Brought back, the fan has a new id, so that it gets a new endpoint number instead of its old one: for the Matter
+    // apps it is a new device, not the one they lost. The air conditioner and the switches, which stayed, keep their ids.
+    const third = await startWith([withFan]);
+    expect(third.getDeviceById(`${mac}-fan`)).toBeUndefined();
+    expect(third.getDeviceById(`${mac}-fan-1`)).toBeDefined();
+    expect(third.getDeviceById(mac)).toBeDefined();
+    expect(third.getDeviceById(`${mac}-vertical-swing`)).toBeDefined();
+
+    // The ids outlive a removal of the device: added again, the fan keeps its new id, and a removal erased its number.
+    expect(await third.removeDevice(mac)).toBe(true);
+    await third.saveDevice(withFan);
+    expect(third.getDeviceById(`${mac}-fan-1`)).toBeDefined();
+    expect(await third.removeDevice(mac)).toBe(true);
+    await stop(third);
+  });
+
   test('should store again a device it cannot read until a device takes its place', async () => {
     const terminalUuid = platform.getTerminalUuid();
     // A device as a later version might store it, and one without the MAC address of its adapter.
