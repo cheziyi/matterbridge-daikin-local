@@ -39,6 +39,7 @@ import { isValidBoolean, isValidNumber, isValidObject, isValidString } from 'mat
 /** How the fan speed is exposed to Matter. */
 export const FAN_CONTROLS = ['steps', 'percent', 'hidden'] as const;
 
+/** How the fan speed is exposed to Matter: one of `FAN_CONTROLS`. */
 export type FanControlOption = (typeof FAN_CONTROLS)[number];
 
 /**
@@ -48,6 +49,7 @@ export type FanControlOption = (typeof FAN_CONTROLS)[number];
  */
 export const SWING_CONTROLS = ['native', 'switches', 'select', 'hidden'] as const;
 
+/** How the swing is exposed to Matter: one of `SWING_CONTROLS`. */
 export type SwingControlOption = (typeof SWING_CONTROLS)[number];
 
 /**
@@ -58,6 +60,7 @@ export type SwingControlOption = (typeof SWING_CONTROLS)[number];
  */
 export const SWING_AXES = ['both', 'vertical', 'horizontal'] as const;
 
+/** The axes of the native rocking or of the swing switches: one of `SWING_AXES`. */
 export type SwingAxesOption = (typeof SWING_AXES)[number];
 
 /**
@@ -67,6 +70,7 @@ export type SwingAxesOption = (typeof SWING_AXES)[number];
  */
 export const FAN_AUTO_CONTROLS = ['native', 'switch', 'firstStep', 'lastStep'] as const;
 
+/** How the auto fan speed is exposed to Matter: one of `FAN_AUTO_CONTROLS`. */
 export type FanAutoControlOption = (typeof FAN_AUTO_CONTROLS)[number];
 
 /**
@@ -77,6 +81,7 @@ export type FanAutoControlOption = (typeof FAN_AUTO_CONTROLS)[number];
  */
 export const MODE_CONTROLS = ['native', 'select', 'switches'] as const;
 
+/** How the modes are exposed to Matter besides the thermostat: one of `MODE_CONTROLS`. */
 export type ModeControlOption = (typeof MODE_CONTROLS)[number];
 
 /** Every mode, in the order of the Thermostat system modes. */
@@ -85,6 +90,7 @@ export const THERMOSTAT_MODES = ['auto', 'cool', 'heat', 'dehumidify', 'fan'] as
 /** The modes that can each get an on/off switch: every mode. */
 export const SWITCHED_MODES = THERMOSTAT_MODES;
 
+/** A mode that can get an on/off switch: one of `SWITCHED_MODES`. */
 export type SwitchedMode = (typeof SWITCHED_MODES)[number];
 
 /**
@@ -96,15 +102,20 @@ export type ModeReplacements = Partial<Record<OperatingMode, OperatingMode>>;
 /** The value of a hidden setting that leaves the unit as it is. */
 export const KEEP_SETTING = 'keep';
 
+/** The fan speed sent with every command while the fan control is hidden, or `keep` to leave the unit as it is. */
 export type HiddenFanSpeed = typeof KEEP_SETTING | FanSpeed;
 
+/** The swing mode sent with every command while the swing is hidden, or `keep` to leave the unit as it is. */
 export type HiddenSwingMode = typeof KEEP_SETTING | SwingMode;
 
 const hiddenFanSpeeds = [KEEP_SETTING, ...FAN_SPEEDS] as const;
 const hiddenSwingModes = [KEEP_SETTING, ...SWING_MODES] as const;
 
+/** How often, in seconds, the state of each unit is read unless the configuration says otherwise. */
 export const defaultPollIntervalInSeconds = 5;
+/** The shortest poll interval accepted, in seconds. */
 export const minPollIntervalInSeconds = 2;
+/** The longest poll interval accepted, in seconds, which is also the longest state age for a command. */
 export const maxPollIntervalInSeconds = 3600;
 
 /**
@@ -175,6 +186,7 @@ export interface DaikinDeviceConfig extends DaikinDeviceExposure {
   localPassword?: string;
 }
 
+/** The configuration of the platform as Matterbridge stores it: the devices and the terminal uuid are written by the plugin itself, the rest in the config editor. */
 export type DaikinPlatformConfig = BasePlatformConfig & {
   /** 32 lower case hexadecimal digits, or what an edit by hand left there: see `normalizeTerminalUuid`. */
   terminalUuid?: string;

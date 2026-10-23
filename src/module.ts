@@ -1,13 +1,14 @@
 /**
  * @file src/module.ts
  * @description This file contains the Matterbridge platform for Daikin air conditioners controlled over the local network.
- * @author Luca Liguori
- * @contributor Calvin Che
- * @created 2025-06-15
- * @version 3.0.0
+ * @author Calvin Che
+ * @contributor Luca Liguori
+ * @created 2026-10-12
+ * @version 1.0.0
  * @license Apache-2.0
  *
- * Copyright 2025, 2026, 2027 Luca Liguori.
+ * Copyright 2026 Calvin Che.
+ * Copyright 2025, 2026 Luca Liguori, for the platform scaffolding from the Matterbridge plugin template.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.

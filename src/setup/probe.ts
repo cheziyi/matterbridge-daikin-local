@@ -42,14 +42,17 @@ export const probeTimeoutInMs = 5000;
 /** What a check of an adapter found. */
 export const PROBE_STATUSES = ['ready', 'localPasswordRequired', 'localPasswordRejected', 'registrationRequired', 'registrationRejected', 'unreachable', 'failed'] as const;
 
+/** What a check of an adapter found: one of `PROBE_STATUSES`. */
 export type ProbeStatus = (typeof PROBE_STATUSES)[number];
 
+/** What a check presents to an adapter. */
 export interface ProbeCredentials {
   terminalUuid: string;
   /** The child lock code, when the user gave one. */
   localPassword?: string;
 }
 
+/** What a check of an adapter found, with what it read from the unit when the adapter answered. */
 export interface ProbeResult {
   status: ProbeStatus;
   /** The device with the credentials it turned out to need. */

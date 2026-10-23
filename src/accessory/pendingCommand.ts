@@ -26,8 +26,10 @@ import type { DaikinCapabilities, DaikinControl, DaikinState, FanSpeed, Operatin
 import { type DaikinDeviceConfig, KEEP_SETTING, type ModeReplacements } from '../config.js';
 import { clampTemperature, getTemperatureRange, resolveSwingMode, type SwingChange } from '../mapping.js';
 
+/** An axis the louvers swing on. */
 export type SwingAxis = keyof SwingChange;
 
+/** One of Matter's two setpoints. */
 export type SetpointKind = 'cool' | 'heat';
 
 /** The unit as it was last read, which a command is worked out against. */

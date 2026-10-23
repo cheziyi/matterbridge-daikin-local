@@ -74,6 +74,7 @@ const modeSwitchNames: Readonly<Record<SwitchedMode, { key: string; code: string
 /** What each special mode is called in Matter and in the log: Daikin's own names. */
 const specialModeLabels: Readonly<Record<SpecialMode, string>> = { powerful: 'Powerful', econo: 'Econo', streamer: 'Streamer' };
 
+/** What a device is built from: its stored configuration, what its unit accepts, the readings the unit has given and the client that reaches it. */
 export interface DaikinAccessoryOptions {
   config: DaikinDeviceConfig;
   capabilities: DaikinCapabilities;

@@ -7,7 +7,7 @@
 import { getErrorMessage } from '../src/errors.js';
 
 describe('errors', () => {
-  it('should describe any thrown value in one line', () => {
+  test('should describe any thrown value in one line', () => {
     expect(getErrorMessage(new Error('boom'))).toBe('boom');
     expect(getErrorMessage('plain')).toBe('plain');
   });

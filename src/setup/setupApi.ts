@@ -40,6 +40,7 @@ export type SetupDevice = Omit<DaikinDeviceConfig, 'localPassword'> & {
   controls?: AvailableControls;
 };
 
+/** What the setup page shows of the plugin: the stored devices, each with how it is doing. */
 export interface SetupState {
   devices: SetupDevice[];
 }
