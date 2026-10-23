@@ -261,6 +261,7 @@ describe('config', () => {
     expect(hasSameExposure(device, createDeviceConfig({ hasSeparateHumiditySensor: true }))).toBe(false);
     expect(hasSameExposure(device, createDeviceConfig({ isComposed: true }))).toBe(false);
     // A new name is a new name in Matter, so the device is built again.
-    expect(hasSameExposure(device, createDeviceConfig({ name: 'Lounge' }))).toBe(false);
+    // The name is the label of the device in Matter, which changes in place: no part of the exposure.
+    expect(hasSameExposure(device, createDeviceConfig({ name: 'Lounge' }))).toBe(true);
   });
 });

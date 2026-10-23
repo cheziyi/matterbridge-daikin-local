@@ -167,6 +167,8 @@ async function applySelect<T extends string>(endpoint: MatterbridgeEndpoint | un
 export async function applySensors(endpoints: AccessoryEndpoints, layout: AccessoryLayout, sensors: DaikinSensors): Promise<void> {
   const { endpoint } = endpoints;
   const indoor = sensors.indoorTemperatureInC === null ? null : toMatterTemperature(sensors.indoorTemperatureInC);
+  // The measured temperature is what the thermostat server of matter.js takes as its input, but written alone it leaves
+  // the local temperature as it was, in matter.js 0.17: so the local temperature is written too.
   await endpoint.updateAttribute('Thermostat', 'externalMeasuredIndoorTemperature', indoor);
   await endpoint.updateAttribute(Thermostat, 'localTemperature', indoor);
   // Matter counts both in hundredths: of a percent, and of a degree.

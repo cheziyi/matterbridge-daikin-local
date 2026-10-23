@@ -60,7 +60,7 @@ describe('a device when the Matter node is reset to factory defaults', () => {
     vi.restoreAllMocks();
   });
 
-  it('should take the writes of a controller before the reset', async () => {
+  test('should take the writes of a controller before the reset', async () => {
     client = createFakeClient({ fanSpeed: 'level3' });
     const config = createDeviceConfig({ name: 'Lounge', swingControl: 'hidden', hasSeparateFan: true, fanAutoControl: 'switch' });
     accessory = new DaikinAccessory({ config, capabilities: createCapabilities(), client, log, vendorId, commandDelayInMs: 500 });
@@ -71,7 +71,7 @@ describe('a device when the Matter node is reset to factory defaults', () => {
     expect(client.setState).toHaveBeenCalledExactlyOnceWith({ power: false });
   });
 
-  it('should subscribe again once the node is back, and write the state of the unit again', async () => {
+  test('should subscribe again once the node is back, and write the state of the unit again', async () => {
     client.state.power = true;
     const info = vi.spyOn(log, 'info');
     // The unit is read once the node is online, never while its endpoints come back.
@@ -96,7 +96,7 @@ describe('a device when the Matter node is reset to factory defaults', () => {
     expect(isOnlineAtRead).toEqual([true]);
   });
 
-  it('should take the writes of a controller to each endpoint after the reset', async () => {
+  test('should take the writes of a controller to each endpoint after the reset', async () => {
     if (accessory.fan === undefined || accessory.fanAutoSwitch === undefined) throw new Error('The fan or the auto fan switch is missing');
     await writeAsController(accessory.endpoint, 'OnOff', 'onOff', false);
     await accessory.flushCommands();

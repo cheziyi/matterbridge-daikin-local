@@ -3,7 +3,7 @@
  * @description This file contains the builders of the Matter endpoints of one air conditioner.
  * @author Calvin Che
  * @created 2026-10-13
- * @version 1.0.0
+ * @version 1.1.0
  * @license Apache-2.0
  *
  * Copyright 2026 Calvin Che.
@@ -27,6 +27,7 @@ import {
   fan,
   humiditySensor,
   MatterbridgeEndpoint,
+  type MatterbridgeEndpointOptions,
   modeSelect,
   onOffPlugInUnit,
   powerSource,
@@ -35,22 +36,97 @@ import {
 } from 'matterbridge';
 import { MatterbridgeFanControlServer } from 'matterbridge/behaviors';
 import { CommonNumberTag } from 'matterbridge/matter';
-import { FanControl, type ModeSelect } from 'matterbridge/matter/clusters';
-import type { Semtag } from 'matterbridge/matter/types';
+import { BridgedDeviceBasicInformation, FanControl, type ModeSelect } from 'matterbridge/matter/clusters';
+import type { EndpointNumber, Semtag } from 'matterbridge/matter/types';
 
+import { maxDeviceNameLength } from '../config.js';
 import { clampTemperature, composeDeviceName, getFanModeSequence } from '../mapping.js';
 import type { AccessoryLayout } from './layout.js';
 
 const vendorName = 'Daikin';
 
+/** The endpoint number each endpoint of a device has, by endpoint id, which the endpoints of a device built again keep. */
+export type EndpointNumbers = ReadonlyMap<string, EndpointNumber>;
+
 /** What every endpoint of a device says about the device it belongs to. */
 export interface EndpointIdentity {
-  /** The device name. */
-  name: string;
+  /** The name the user gave the device: the label of the device in Matter, which is what the Matter apps show. */
+  label: string;
   /** The serial number of the device: the MAC address of its adapter, which neither a new address nor a new name changes. */
   serial: string;
   /** The vendor id of the bridge, used for the bridged device information. */
   vendorId: number;
+  /** The endpoint number each endpoint had before the device was built again, by endpoint id. Each keeps it, so that the Matter apps keep knowing it. */
+  numbers?: EndpointNumbers;
+}
+
+/** What each endpoint beside the air conditioner is, such as `Auto Fan`, for the endpoints that are devices of their own in Matter. */
+const labels = new WeakMap<MatterbridgeEndpoint, string>();
+
+/**
+ * Get the name of a device in Matterbridge, which never changes
+ *
+ * Matterbridge derives the unique id of a bridged device from its name, which the Matter apps use to tell a device they
+ * know from a new one. The name is therefore made of the serial number, and the name the user gives the device is its
+ * label: see `getDeviceLabel`.
+ *
+ * @param {string} serial The serial number of the device.
+ * @returns {string} The name, such as `Daikin A4:08:EA:CC:91:D4`.
+ */
+export function getDeviceName(serial: string): string {
+  return `${vendorName} ${serial}`;
+}
+
+/**
+ * Get the label of an endpoint of a device, which the Matter apps show as its name: the name the user gave the device,
+ * followed by what the endpoint is when it is not the air conditioner
+ *
+ * @param {MatterbridgeEndpoint} endpoint The endpoint: the air conditioner, or a device of its own beside it.
+ * @param {string} name The name the user gave the device.
+ * @returns {string} The label, of at most 32 characters.
+ */
+export function getDeviceLabel(endpoint: MatterbridgeEndpoint, name: string): string {
+  const label = labels.get(endpoint);
+  return label === undefined ? name.slice(0, maxDeviceNameLength) : composeDeviceName(name, label);
+}
+
+/**
+ * Write the name the user gave a device to the endpoints that are devices of their own in Matter
+ *
+ * @param {readonly MatterbridgeEndpoint[]} endpoints The endpoints: the air conditioner, and the devices of their own beside it.
+ * @param {string} name The name the user gave the device.
+ * @returns {Promise<void>} Resolves when every label is written.
+ */
+export async function applyDeviceLabel(endpoints: readonly MatterbridgeEndpoint[], name: string): Promise<void> {
+  for (const endpoint of endpoints) await endpoint.updateAttribute(BridgedDeviceBasicInformation, 'nodeLabel', getDeviceLabel(endpoint, name));
+}
+
+/**
+ * Give an endpoint its label from the start, before it is active
+ *
+ * @param {MatterbridgeEndpoint} endpoint The endpoint, with its bridged device basic information created.
+ * @param {EndpointIdentity} identity The device the endpoint belongs to.
+ * @param {string} [label] What the endpoint is, such as `Auto Fan`, for a device of its own beside the air conditioner.
+ * @returns {MatterbridgeEndpoint} The endpoint.
+ */
+function setInitialLabel(endpoint: MatterbridgeEndpoint, identity: EndpointIdentity, label?: string): MatterbridgeEndpoint {
+  if (label !== undefined) labels.set(endpoint, label);
+  // oxlint-disable-next-line typescript/no-non-null-assertion -- the bridged device basic information was just created
+  endpoint.getClusterServerOptions(BridgedDeviceBasicInformation)!.nodeLabel = getDeviceLabel(endpoint, identity.label);
+  return endpoint;
+}
+
+/**
+ * Build the options of an endpoint beyond its id: the number it had when the device is built again, and its tag
+ *
+ * @param {EndpointIdentity} identity The device the endpoint belongs to.
+ * @param {string} id The endpoint id.
+ * @param {Semtag} [tag] What tells the endpoint apart for a Matter app, for a part of the air conditioner.
+ * @returns {MatterbridgeEndpointOptions} The options.
+ */
+function getEndpointOptions(identity: EndpointIdentity, id: string, tag?: Semtag): MatterbridgeEndpointOptions {
+  const number = identity.numbers?.get(id);
+  return { ...(number === undefined ? {} : { number }), ...(tag === undefined ? {} : { tagList: [tag] }) };
 }
 
 /**
@@ -97,11 +173,12 @@ function addFanControl(endpoint: MatterbridgeEndpoint, layout: AccessoryLayout):
  * @returns {MatterbridgeEndpoint} The endpoint, with its clusters and nothing subscribed yet.
  */
 export function createAirConditionerEndpoint(identity: EndpointIdentity, layout: AccessoryLayout): MatterbridgeEndpoint {
-  const endpoint = new MatterbridgeEndpoint([roomAirConditioner, bridgedNode, powerSource], { id: identity.serial })
+  const endpoint = new MatterbridgeEndpoint([roomAirConditioner, bridgedNode, powerSource], { id: identity.serial, ...getEndpointOptions(identity, identity.serial) })
     .createDefaultIdentifyClusterServer()
-    .createDefaultBridgedDeviceBasicInformationClusterServer(identity.name, identity.serial, identity.vendorId, vendorName, 'Daikin Air Conditioner')
+    .createDefaultBridgedDeviceBasicInformationClusterServer(getDeviceName(identity.serial), identity.serial, identity.vendorId, vendorName, 'Daikin Air Conditioner')
     .createDefaultPowerSourceWiredClusterServer()
     .createDeadFrontOnOffClusterServer(false);
+  setInitialLabel(endpoint, identity);
 
   const { profile, heatLimits, coolLimits } = layout;
   const heatSetpoint = clampTemperature(21, heatLimits);
@@ -127,20 +204,22 @@ export function createAirConditionerEndpoint(identity: EndpointIdentity, layout:
  * @param {EndpointIdentity} identity The device the endpoint belongs to.
  * @param {string} key What tells the endpoint apart in the endpoint id, such as `fan-auto`.
  * @param {string} code What tells the endpoint apart in the serial number, after a dash: one letter.
- * @param {string} label What the endpoint is, such as `Auto Fan`. It follows the device name in the name of the endpoint.
+ * @param {string} label What the endpoint is, such as `Auto Fan`. It follows the name of the device in the name and in the label of the endpoint.
  * @returns {MatterbridgeEndpoint} The endpoint.
  */
 function createExtraEndpoint(deviceType: DeviceTypeDefinition, identity: EndpointIdentity, key: string, code: string, label: string): MatterbridgeEndpoint {
-  return new MatterbridgeEndpoint([deviceType, bridgedNode, powerSource], { id: `${identity.serial}-${key}` })
+  const id = `${identity.serial}-${key}`;
+  const endpoint = new MatterbridgeEndpoint([deviceType, bridgedNode, powerSource], { id, ...getEndpointOptions(identity, id) })
     .createDefaultIdentifyClusterServer()
     .createDefaultBridgedDeviceBasicInformationClusterServer(
-      composeDeviceName(identity.name, label),
+      `${getDeviceName(identity.serial)} ${label}`,
       `${identity.serial}-${code}`,
       identity.vendorId,
       vendorName,
       `Daikin ${label}`,
     )
     .createDefaultPowerSourceWiredClusterServer();
+  return setInitialLabel(endpoint, identity, label);
 }
 
 /**
@@ -150,13 +229,14 @@ function createExtraEndpoint(deviceType: DeviceTypeDefinition, identity: Endpoin
  * between the rooms of a Matter app with the air conditioner, and is unreachable when the air conditioner is.
  *
  * @param {MatterbridgeEndpoint} airConditioner The air conditioner the endpoint is a part of.
+ * @param {EndpointIdentity} identity The device the endpoint belongs to.
  * @param {DeviceTypeDefinition} deviceType What the endpoint is in Matter.
  * @param {string} key What tells the endpoint apart in the endpoint id, such as `fan-auto`.
  * @param {Semtag} [tag] What tells the endpoint apart for a Matter app.
  * @returns {MatterbridgeEndpoint} The endpoint.
  */
-function createPartEndpoint(airConditioner: MatterbridgeEndpoint, deviceType: DeviceTypeDefinition, key: string, tag?: Semtag): MatterbridgeEndpoint {
-  return airConditioner.addChildDeviceType(key, deviceType, tag === undefined ? {} : { tagList: [tag] }).createDefaultIdentifyClusterServer();
+function createPartEndpoint(airConditioner: MatterbridgeEndpoint, identity: EndpointIdentity, deviceType: DeviceTypeDefinition, key: string, tag?: Semtag): MatterbridgeEndpoint {
+  return airConditioner.addChildDeviceType(key, deviceType, getEndpointOptions(identity, key, tag)).createDefaultIdentifyClusterServer();
 }
 
 /**
@@ -193,7 +273,7 @@ export function createSwitchEndpoint(identity: EndpointIdentity, key: string, co
   const endpoint =
     airConditioner === undefined
       ? createExtraEndpoint(onOffPlugInUnit, identity, key, code, label)
-      : createPartEndpoint(airConditioner, onOffPlugInUnit, key, getNumberTag(airConditioner, onOffPlugInUnit, label));
+      : createPartEndpoint(airConditioner, identity, onOffPlugInUnit, key, getNumberTag(airConditioner, onOffPlugInUnit, label));
   return endpoint.addRequiredClusters();
 }
 
@@ -219,7 +299,7 @@ export function createModeSelectEndpoint(
   const endpoint =
     airConditioner === undefined
       ? createExtraEndpoint(modeSelect, identity, key, code, label)
-      : createPartEndpoint(airConditioner, modeSelect, key, getNumberTag(airConditioner, modeSelect, label));
+      : createPartEndpoint(airConditioner, identity, modeSelect, key, getNumberTag(airConditioner, modeSelect, label));
   // Matter refuses a current or a start-up mode that is not one of the modes.
   const { mode } = supportedModes[0];
   return endpoint.createDefaultModeSelectClusterServer(label, supportedModes, mode, mode).addRequiredClusters();
@@ -235,7 +315,7 @@ export function createModeSelectEndpoint(
  * @returns {MatterbridgeEndpoint} The endpoint, with its clusters and nothing subscribed yet.
  */
 export function createFanEndpoint(identity: EndpointIdentity, layout: AccessoryLayout, airConditioner?: MatterbridgeEndpoint): MatterbridgeEndpoint {
-  const endpoint = airConditioner === undefined ? createExtraEndpoint(fan, identity, 'fan', 'N', 'Fan') : createPartEndpoint(airConditioner, fan, 'fan');
+  const endpoint = airConditioner === undefined ? createExtraEndpoint(fan, identity, 'fan', 'N', 'Fan') : createPartEndpoint(airConditioner, identity, fan, 'fan');
   addFanControl(endpoint, layout);
   endpoint.createOnOffClusterServer(false);
   return endpoint.addRequiredClusters();
@@ -250,7 +330,9 @@ export function createFanEndpoint(identity: EndpointIdentity, layout: AccessoryL
  */
 export function createHumidityEndpoint(identity: EndpointIdentity, airConditioner?: MatterbridgeEndpoint): MatterbridgeEndpoint {
   const endpoint =
-    airConditioner === undefined ? createExtraEndpoint(humiditySensor, identity, 'humidity', 'R', 'Humidity') : createPartEndpoint(airConditioner, humiditySensor, 'humidity');
+    airConditioner === undefined
+      ? createExtraEndpoint(humiditySensor, identity, 'humidity', 'R', 'Humidity')
+      : createPartEndpoint(airConditioner, identity, humiditySensor, 'humidity');
   return endpoint.createDefaultRelativeHumidityMeasurementClusterServer(null).addRequiredClusters();
 }
 

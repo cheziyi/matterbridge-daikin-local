@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] - Dev branch
+
+### Changed
+
+- [devices]: The name of a device in Matterbridge is made of the MAC address of its adapter, such as `Daikin A4:08:EA:CC:91:D4`, and the name given in the setup page is the label of the device, which the Matter apps show. Matterbridge derives the identity of a device from its name, so a new name no longer builds the device again: it is written to the label of each endpoint that is a device of its own, and the apps keep the device with its room and its automations. A device stored before gets its new name in Matterbridge at the first start, which the apps may take for a new device once more.
+- [devices]: A device built again, for a change of its options, a reading its unit gives for the first time or a unit that accepts other settings, keeps the endpoint number of each of its endpoints, so that the Matter apps keep knowing them. Matterbridge forgets the numbers when it takes the endpoints away, and the device got new ones.
+- [platform]: The units are read, the polls started and the network searched once Matterbridge has configured the plugin, when its Matter node is online, instead of at the start, as Matterbridge recommends. Nothing is written to Matter while the node comes online.
+
 ## [0.10.0] - 2026-10-20
 
 ### Added

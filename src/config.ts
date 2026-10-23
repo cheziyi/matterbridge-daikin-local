@@ -3,7 +3,7 @@
  * @description This file contains the plugin configuration model and its validation.
  * @author Calvin Che
  * @created 2026-10-12
- * @version 1.0.0
+ * @version 1.1.0
  * @license Apache-2.0
  *
  * Copyright 2026 Calvin Che.
@@ -488,11 +488,10 @@ export function hasSameConnection(left: DaikinDeviceConfig, right: DaikinDeviceC
  *
  * @param {DaikinDeviceConfig} left One device.
  * @param {DaikinDeviceConfig} right The other device.
- * @returns {boolean} True when both have the same name in Matter, the same controls, switches and sensors, and the same endpoints for them.
+ * @returns {boolean} True when both have the same controls, switches and sensors, and the same endpoints for them. The name is no part of it: it is the label of the device in Matter, which changes in place.
  */
 export function hasSameExposure(left: DaikinDeviceConfig, right: DaikinDeviceConfig): boolean {
   return (
-    left.name === right.name &&
     left.fanAutoControl === right.fanAutoControl &&
     left.hasSeparateFan === right.hasSeparateFan &&
     left.hasOutdoorTemperatureSensor === right.hasOutdoorTemperatureSensor &&

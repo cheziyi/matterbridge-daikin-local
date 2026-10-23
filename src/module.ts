@@ -4,7 +4,7 @@
  * @author Calvin Che
  * @contributor Luca Liguori
  * @created 2026-10-12
- * @version 1.0.0
+ * @version 1.1.0
  * @license Apache-2.0
  *
  * Copyright 2026 Calvin Che.
@@ -30,6 +30,7 @@ import { MatterbridgeDynamicPlatform, type MatterbridgeEndpoint, type PlatformCo
 import type { AnsiLogger, LogLevel } from 'matterbridge/logger';
 
 import { DaikinAccessory } from './accessory/daikinAccessory.js';
+import type { EndpointNumbers } from './accessory/endpoints.js';
 import {
   type DaikinDeviceConfig,
   type DaikinPlatformConfig,
@@ -132,10 +133,8 @@ export class DaikinPlatform extends MatterbridgeDynamicPlatform implements Setup
     await this.ready;
 
     this.getTerminalUuid();
+    // The Matter node is offline until the platform is configured: the devices are built and registered, not read.
     for (const device of this.devices) await this.startDevice(device);
-    this.startTimers();
-    // The stored addresses may be out of date, and the first search takes three seconds: do not hold the start for it.
-    void this.updateAddresses();
 
     this.log.info(`Platform ${this.config.name} started successfully`);
   }
@@ -145,7 +144,11 @@ export class DaikinPlatform extends MatterbridgeDynamicPlatform implements Setup
     await super.onConfigure();
 
     this.log.info(`Configuring platform ${this.config.name}...`);
+    // The Matter node is online now: the units are read and written to Matter from here on.
+    this.startTimers();
     await this.pollDevices();
+    // The stored addresses may be out of date, and the first search takes three seconds: do not hold the start for it.
+    void this.updateAddresses();
     this.log.info(`Platform ${this.config.name} configured successfully`);
   }
 
@@ -525,11 +528,11 @@ export class DaikinPlatform extends MatterbridgeDynamicPlatform implements Setup
       if (before === undefined || accessory === undefined) {
         await this.startDevice(device);
       } else if (!hasSameExposure(before, device) || device.macAddress === rebuiltMacAddress) {
-        // The name and the clusters of a registered endpoint cannot change, so the endpoints are built again.
-        await this.stopDevice(before, false);
-        await this.startDevice(device);
+        // The clusters of a registered endpoint cannot change, so the endpoints are built again, under their numbers.
+        const numbers = await this.stopDevice(before, false);
+        await this.startDevice(device, { numbers });
       } else if (hasSameConnection(before, device)) {
-        accessory.updateConfig(device);
+        await accessory.updateConfig(device);
       } else {
         await accessory.updateConnection(device, this.createClient(device));
         await accessory.refresh();
@@ -549,10 +552,10 @@ export class DaikinPlatform extends MatterbridgeDynamicPlatform implements Setup
    * A device that cannot start is logged and retried on the next search, never thrown.
    *
    * @param {DaikinDeviceConfig} device The device.
-   * @param {ReportedSensors} [knownSensors] The readings its unit has given. Left out, the stored ones are used.
+   * @param {{ knownSensors?: ReportedSensors; numbers?: EndpointNumbers }} [options] The readings its unit has given, which the stored ones stand in for, and the endpoint numbers of a device built again, which its endpoints keep.
    * @returns {Promise<void>} Resolves when the device runs, or could not be started.
    */
-  private async startDevice(device: DaikinDeviceConfig, knownSensors?: ReportedSensors): Promise<void> {
+  private async startDevice(device: DaikinDeviceConfig, options: { knownSensors?: ReportedSensors; numbers?: EndpointNumbers } = {}): Promise<void> {
     const client = this.createClient(device);
     const registered: MatterbridgeEndpoint[] = [];
     try {
@@ -562,8 +565,16 @@ export class DaikinPlatform extends MatterbridgeDynamicPlatform implements Setup
         await this.capabilityStore.write(device, capabilities);
         this.checkedCapabilities.add(device.macAddress);
       }
-      const reportedSensors = knownSensors ?? (await this.capabilityStore.readSensors(device)) ?? noReportedSensors;
-      const accessory = new DaikinAccessory({ config: device, capabilities, reportedSensors, client, log: this.log, vendorId: this.matterbridge.aggregatorVendorId });
+      const reportedSensors = options.knownSensors ?? (await this.capabilityStore.readSensors(device)) ?? noReportedSensors;
+      const accessory = new DaikinAccessory({
+        config: device,
+        capabilities,
+        reportedSensors,
+        client,
+        log: this.log,
+        vendorId: this.matterbridge.aggregatorVendorId,
+        numbers: options.numbers,
+      });
       for (const endpoint of accessory.endpoints) {
         await this.registerDevice(endpoint);
         registered.push(endpoint);
@@ -572,8 +583,9 @@ export class DaikinPlatform extends MatterbridgeDynamicPlatform implements Setup
       this.accessories.set(device.macAddress, accessory);
       this.startErrors.delete(device.macAddress);
       this.log.info(`"${device.name}" started at ${device.host} with ${accessory.endpoints.length} Matter endpoint(s)`);
-      // Not awaited: a unit that does not answer must not hold up the start of the others.
-      void accessory.refresh();
+      // Not awaited: a unit that does not answer must not hold up the start of the others. Before the platform is
+      // configured the Matter node is offline, and the first poll reads every device once it is.
+      if (this.pollTimer !== undefined) void accessory.refresh();
     } catch (error) {
       const message = getErrorMessage(error);
       if (this.startErrors.get(device.macAddress) !== message) this.log.warn(`"${device.name}" could not be started at ${device.host} and will be retried: ${message}`);
@@ -600,24 +612,35 @@ export class DaikinPlatform extends MatterbridgeDynamicPlatform implements Setup
       if (reported === undefined) continue;
       this.log.notice(`"${device.name}" gave a reading it shows nowhere in Matter yet: it is built again in Matter`);
       await this.capabilityStore.writeSensors(device, reported);
-      await this.stopDevice(device, false);
-      await this.startDevice(device, reported);
+      const numbers = await this.stopDevice(device, false);
+      await this.startDevice(device, { knownSensors: reported, numbers });
     }
   }
 
-  private async stopDevice(device: DaikinDeviceConfig, shouldForget: boolean): Promise<void> {
+  /**
+   * Stop a device and take its Matter endpoints away
+   *
+   * @param {DaikinDeviceConfig} device The device.
+   * @param {boolean} shouldForget Whether to forget what is known about its unit too, for a device that is removed.
+   * @returns {Promise<EndpointNumbers | undefined>} The endpoint numbers the device had, for a device built again, or undefined when it was not running.
+   */
+  private async stopDevice(device: DaikinDeviceConfig, shouldForget: boolean): Promise<EndpointNumbers | undefined> {
     const { name, macAddress } = device;
     const accessory = this.accessories.get(macAddress);
     this.accessories.delete(macAddress);
     this.startErrors.delete(macAddress);
+    let numbers: EndpointNumbers | undefined;
     if (accessory !== undefined) {
+      numbers = accessory.getEndpointNumbers();
       await accessory.dispose();
       for (const endpoint of accessory.endpoints) await this.unregisterDevice(endpoint);
       this.log.info(`"${name}" stopped`);
     }
-    if (!shouldForget) return;
-    this.checkedCapabilities.delete(macAddress);
-    await this.capabilityStore.remove(device);
+    if (shouldForget) {
+      this.checkedCapabilities.delete(macAddress);
+      await this.capabilityStore.remove(device);
+    }
+    return numbers;
   }
 
   /**
@@ -645,8 +668,8 @@ export class DaikinPlatform extends MatterbridgeDynamicPlatform implements Setup
       const fitted = fitToCapabilities(device, capabilities);
       this.devices = this.devices.map((candidate) => (candidate.macAddress === device.macAddress ? fitted : candidate));
       this.storeConfig();
-      await this.stopDevice(device, false);
-      await this.startDevice(fitted);
+      const numbers = await this.stopDevice(device, false);
+      await this.startDevice(fitted, { numbers });
     }
   }
 }
