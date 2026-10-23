@@ -135,8 +135,13 @@ export class DaikinPlatform extends MatterbridgeDynamicPlatform implements Setup
     await this.ready;
 
     this.getTerminalUuid();
-    // The Matter node is offline until the platform is configured: the devices are built and registered, not read.
     for (const device of this.devices) await this.startDevice(device);
+    // The units are read from the start, not from onConfigure: Matterbridge configures the platform 30 seconds after
+    // its Matter node is online, and the devices would show nothing until then. A read that answers before the node is
+    // online waits for it to write to Matter: see DaikinAccessory.
+    this.startTimers();
+    // The stored addresses may be out of date, and the first search takes three seconds: do not hold the start for it.
+    void this.updateAddresses();
 
     this.log.info(`Platform ${this.config.name} started successfully`);
   }
@@ -146,11 +151,7 @@ export class DaikinPlatform extends MatterbridgeDynamicPlatform implements Setup
     await super.onConfigure();
 
     this.log.info(`Configuring platform ${this.config.name}...`);
-    // The Matter node is online now: the units are read and written to Matter from here on.
-    this.startTimers();
     await this.pollDevices();
-    // The stored addresses may be out of date, and the first search takes three seconds: do not hold the start for it.
-    void this.updateAddresses();
     this.log.info(`Platform ${this.config.name} configured successfully`);
   }
 
@@ -582,9 +583,8 @@ export class DaikinPlatform extends MatterbridgeDynamicPlatform implements Setup
       // A device that starts is built from its stored options.
       this.restartRequired.delete(device.macAddress);
       this.log.info(`"${device.name}" started at ${device.host} with ${accessory.endpoints.length} Matter endpoint(s)`);
-      // Not awaited: a unit that does not answer must not hold up the start of the others. Before the platform is
-      // configured the Matter node is offline, and the first poll reads every device once it is.
-      if (this.pollTimer !== undefined) void accessory.refresh();
+      // Not awaited: a unit that does not answer must not hold up the start of the others.
+      void accessory.refresh();
     } catch (error) {
       const message = getErrorMessage(error);
       if (this.startErrors.get(device.macAddress) !== message) this.log.warn(`"${device.name}" could not be started at ${device.host} and will be retried: ${message}`);

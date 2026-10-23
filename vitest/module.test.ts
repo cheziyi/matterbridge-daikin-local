@@ -160,7 +160,7 @@ describe('DaikinPlatform', () => {
     expect(platform.getDevices()).toHaveLength(0);
   });
 
-  test('should generate a terminal uuid and start the stored devices, and read nothing before it is configured', async () => {
+  test('should generate a terminal uuid, start the stored devices and search for their addresses', async () => {
     await platform.onStart('Vitest');
     expect(log.info).toHaveBeenCalledWith(`Starting platform ${pluginName} with reason: Vitest...`);
     expect(log.notice).toHaveBeenCalledWith(expect.stringContaining('Generated the terminal uuid'));
@@ -178,17 +178,17 @@ describe('DaikinPlatform', () => {
       maxStateAgeForSetStateInMs: 20_000,
     });
     expect(unitAt('192.168.1.50').getCapabilities).toHaveBeenCalledTimes(1);
-    // The Matter node is offline until the platform is configured: nothing is read, and the network is not searched yet.
-    expect(unitAt('192.168.1.50').getState).not.toHaveBeenCalled();
-    expect(discover).not.toHaveBeenCalled();
+    // The units are read from the start, since Matterbridge configures the platform 30 seconds after its node is online.
+    await vi.waitFor(() => expect(discover).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(unitAt('192.168.1.50').getState).toHaveBeenCalled());
+    await settle();
   });
 
-  test('should read the state of every device when it is configured, search for their addresses, and read on each poll', async () => {
+  test('should read the state of every device when it is configured and on each poll', async () => {
     await platform.onConfigure();
     expect(log.info).toHaveBeenCalledWith(`Configuring platform ${pluginName}...`);
     expect(unitAt('192.168.1.50').getState).toHaveBeenCalledTimes(1);
     expect(platform.getDeviceBySerialNumber(macOf('Living Room'))?.getAttribute(OnOff, 'onOff')).toBe(true);
-    await vi.waitFor(() => expect(discover).toHaveBeenCalledTimes(1));
 
     timerCallback(20_000)();
     await vi.waitFor(() => expect(unitAt('192.168.1.50').getState).toHaveBeenCalledTimes(2));
@@ -736,8 +736,7 @@ describe('DaikinPlatform', () => {
     // Started from what was stored: the air conditioner, two swing switches and the fan mode switch, and the bedroom.
     expect(again.getDevices()).toHaveLength(5);
     expect(living.getCapabilities).not.toHaveBeenCalled();
-    await again.onConfigure();
-    expect(living.getState).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(living.getState).toHaveBeenCalled());
 
     // A unit is asked once it answers, and asked again later when the question fails.
     await again.updateAddresses();
@@ -854,7 +853,6 @@ describe('DaikinPlatform', () => {
     expect(migrated.getTerminalUuid()).toBe('0d120767302b4603b5ae916260815e4e');
     expect(log.notice).not.toHaveBeenCalled();
     expect(saveConfig).toHaveBeenCalledWith(expect.objectContaining({ terminalUuid: '0d120767302b4603b5ae916260815e4e' }));
-    await migrated.onConfigure();
     await vi.waitFor(() => expect(discover).toHaveBeenCalled());
     await migrated.onShutdown();
   });
@@ -866,7 +864,6 @@ describe('DaikinPlatform', () => {
     await restarted.onStart();
     expect(log.info).toHaveBeenCalledWith(`Starting platform ${pluginName} with reason: no reason provided...`);
     expect(restarted.getTerminalUuid()).toBe(terminalUuid);
-    await restarted.onConfigure();
     // A configuration from before the plugin counted its own changes is taken as it is.
     await restarted.onConfigChanged(createConfig({ terminalUuid, devices: [], unregisterOnShutdown: true }));
     expect(log.warn).not.toHaveBeenCalled();
