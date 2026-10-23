@@ -22,8 +22,8 @@ import {
   TemperatureMeasurement,
   Thermostat,
 } from 'matterbridge/matter/clusters';
-import { log, setupTest } from 'matterbridge/vitest-utils';
-import { addDevice, aggregator, createServerNode, createTestEnvironment, startServerNode, stopServerNode } from 'matterbridge/vitest-utils/matter';
+import { log, setupTest } from 'matterbridge/test-utils/vitest';
+import { addDevice, aggregator, createServerNode, createTestEnvironment, startServerNode, stopServerNode } from 'matterbridge/test-utils/vitest/matter';
 
 import { DaikinAccessory } from '../../src/accessory/daikinAccessory.js';
 import { readFanSpeed } from '../../src/accessory/matterState.js';

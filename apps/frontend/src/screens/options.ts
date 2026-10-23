@@ -84,7 +84,13 @@ function update(draft: Draft, change: Partial<Exposure>): void {
 function choice<T extends string>(group: string, value: T, current: T, title: string, text: string, glyph: string, onpick: (value: T) => void): HTMLElement {
   const id = `${group}-${value}`;
   const input = h('input', { type: 'radio', name: group, id, checked: value === current, onchange: () => onpick(value) });
-  return h('label', { class: 'choice pictured', for: id }, input, h('span', { class: 'glyph', html: glyph }), h('span', {}, h('strong', {}, title), h('span', { class: 'meta' }, text)));
+  return h(
+    'label',
+    { class: 'choice pictured', for: id },
+    input,
+    h('span', { class: 'glyph', html: glyph }),
+    h('span', {}, h('strong', {}, title), h('span', { class: 'meta' }, text)),
+  );
 }
 
 function radio<T extends string>(group: string, value: T, current: T, title: string, text: string, onpick: (value: T) => void): HTMLElement {
@@ -105,7 +111,12 @@ function chips<T extends string>(group: string, label: string, values: readonly 
     { 'class': 'chips', 'role': 'group', 'aria-label': label },
     ...values.map((value) => {
       const id = `${group}-${value}`;
-      const input = h('input', { type: 'checkbox', id, checked: picked.includes(value), onchange: () => onpick(values.filter((other) => (other === value ? input.checked : picked.includes(other)))) });
+      const input = h('input', {
+        type: 'checkbox',
+        id,
+        checked: picked.includes(value),
+        onchange: () => onpick(values.filter((other) => (other === value ? input.checked : picked.includes(other)))),
+      });
       return h('label', { class: 'chip', for: id }, input, labels[value]);
     }),
   );
@@ -133,7 +144,11 @@ function nameSection(draft: Draft): HTMLElement {
     'section',
     {},
     h('h2', {}, h('label', { for: 'device-name' }, 'Name in Matter')),
-    h('p', { class: 'help' }, `${toldText} The name here is what your Matter apps show, up to 32 characters, and no two air conditioners of this plugin share one. A new name of the adapter does not change it.`),
+    h(
+      'p',
+      { class: 'help' },
+      `${toldText} The name here is what your Matter apps show, up to 32 characters, and no two air conditioners of this plugin share one. A new name of the adapter does not change it.`,
+    ),
     h('div', { class: 'inline-form' }, input),
   );
 }
@@ -198,7 +213,8 @@ function fanAutoSection(draft: Draft, controls: AvailableControls, current: FanA
 function fanSection(draft: Draft, controls: AvailableControls): HTMLElement {
   const fanSpeeds = draft.capabilities?.fanSpeeds ?? [];
   const stepCount = controls.fanSteps.length;
-  if (stepCount === 0) return h('section', {}, h('h2', {}, 'Fan speed'), h('p', { class: 'help' }, 'This unit does not let apps set its fan speed, so there is nothing to choose.'));
+  if (stepCount === 0)
+    return h('section', {}, h('h2', {}, 'Fan speed'), h('p', { class: 'help' }, 'This unit does not let apps set its fan speed, so there is nothing to choose.'));
   const isFanHidden = draft.fanControl === 'hidden';
   // Auto is a step only of a fan control that is shown, and the step takes the place of the switch.
   const hasAutoStep = controls.hasFanAuto && !isFanHidden && (draft.fanAutoControl === 'firstStep' || draft.fanAutoControl === 'lastStep');
@@ -218,7 +234,9 @@ function fanSection(draft: Draft, controls: AvailableControls): HTMLElement {
       'div',
       { class: 'choices' },
       choice('fan', 'steps', draft.fanControl, 'Steps', speedList, glyphs.steps, (fanControl) => update(draft, { fanControl })),
-      choice('fan', 'percent', draft.fanControl, 'Percentage', `A slider from 0 to 100, which the plugin rounds to the nearest of ${speedList}`, glyphs.percent, (fanControl) => update(draft, { fanControl })),
+      choice('fan', 'percent', draft.fanControl, 'Percentage', `A slider from 0 to 100, which the plugin rounds to the nearest of ${speedList}`, glyphs.percent, (fanControl) =>
+        update(draft, { fanControl }),
+      ),
       choice('fan', 'hidden', draft.fanControl, 'Not shown in Matter', 'No fan control. Pick below what the plugin does with the fan speed instead.', glyphs.hidden, (fanControl) =>
         update(draft, { fanControl }),
       ),
@@ -253,7 +271,8 @@ function fanSection(draft: Draft, controls: AvailableControls): HTMLElement {
 // The swing is natively the rocking of the fan control, which a unit whose fan speed is not shown has none of.
 function swingSection(draft: Draft, controls: AvailableControls): HTMLElement {
   const swingModes = draft.capabilities?.swingModes ?? [];
-  if (swingModes.length === 0) return h('section', {}, h('h2', {}, 'Swing'), h('p', { class: 'help' }, 'This unit does not let apps move its louvers, so there is nothing to choose.'));
+  if (swingModes.length === 0)
+    return h('section', {}, h('h2', {}, 'Swing'), h('p', { class: 'help' }, 'This unit does not let apps move its louvers, so there is nothing to choose.'));
   const hasVertical = swingModes.includes('vertical');
   const hasHorizontal = swingModes.includes('horizontal');
   const hasRocking = draft.fanControl !== 'hidden' && controls.fanSteps.length > 0;
@@ -328,7 +347,14 @@ function swingAxesField(draft: Draft, isRocking: boolean): HTMLElement {
     h(
       'div',
       { 'class': 'choices', 'role': 'radiogroup', 'aria-labelledby': 'swing-axes-title' },
-      radio('swing-axes', 'both', draft.swingAxes, 'Both axes', isRocking ? 'Up and down, and left and right, each rocking on its own.' : 'A switch for up and down, and one for left and right.', pick),
+      radio(
+        'swing-axes',
+        'both',
+        draft.swingAxes,
+        'Both axes',
+        isRocking ? 'Up and down, and left and right, each rocking on its own.' : 'A switch for up and down, and one for left and right.',
+        pick,
+      ),
       radio('swing-axes', 'vertical', draft.swingAxes, 'Up and down alone', otherAxis, pick),
       radio('swing-axes', 'horizontal', draft.swingAxes, 'Left and right alone', otherAxis, pick),
     ),
@@ -388,7 +414,9 @@ function modeSection(draft: Draft, controls: AvailableControls): Child {
   const extra = extraModes.map((mode) => modeLabels[mode].toLowerCase()).join(' and ');
   const switchOff = hasSelect ? `Off turns the unit off, or from ${extra} puts it back in ${fallback}.` : 'Off turns the unit off.';
   const example = `${modeLabels[modeSwitches.length > 0 ? modeSwitches[0] : switchableModes[0]]} Mode`;
-  const switchPlace = draft.isComposed ? `Each appears as a part of "${draft.name}", tagged with its mode, such as "${example}".` : `Each appears as "${draft.name} ${example}", and so on.`;
+  const switchPlace = draft.isComposed
+    ? `Each appears as a part of "${draft.name}", tagged with its mode, such as "${example}".`
+    : `Each appears as "${draft.name} ${example}", and so on.`;
   // Such as "auto, dry or heat".
   const lackingLabels = lackingModes.map((mode) => modeLabels[mode].toLowerCase());
   const lacking = lackingLabels.length === 1 ? lackingLabels[0] : `${lackingLabels.slice(0, -1).join(', ')} or ${lackingLabels[lackingLabels.length - 1]}`;
@@ -396,13 +424,24 @@ function modeSection(draft: Draft, controls: AvailableControls): Child {
     'section',
     {},
     h('h2', {}, 'Modes'),
-    h('p', { class: 'help' }, 'Every mode of the unit is a mode of the air conditioner in Matter, but some apps, such as Apple Home and Google Home, only offer off, cool, heat and auto.'),
+    h(
+      'p',
+      { class: 'help' },
+      'Every mode of the unit is a mode of the air conditioner in Matter, but some apps, such as Apple Home and Google Home, only offer off, cool, heat and auto.',
+    ),
     h(
       'div',
       { 'class': 'choices', 'role': 'radiogroup', 'aria-label': 'Modes' },
       radio('mode-control', 'native', current, 'Native modes only', 'The modes of the unit are those of the air conditioner, as Matter has them, and nothing more is added.', pick),
       hasSelect
-        ? radio('mode-control', 'select', current, 'A mode select', `${placement(draft, 'Mode', true)}, with Off and every mode of the unit, as the air conditioner has them. Picking a mode turns the unit on in it. ${selectSupport}`, pick)
+        ? radio(
+            'mode-control',
+            'select',
+            current,
+            'A mode select',
+            `${placement(draft, 'Mode', true)}, with Off and every mode of the unit, as the air conditioner has them. Picking a mode turns the unit on in it. ${selectSupport}`,
+            pick,
+          )
         : null,
       radio('mode-control', 'switches', current, 'Switches', `A switch for each mode picked below. On turns the unit on in that mode. ${switchOff}`, pick),
       current === 'switches'
@@ -437,7 +476,11 @@ function specialSection(draft: Draft, controls: AvailableControls): Child {
     'section',
     {},
     h('h2', {}, 'Special modes'),
-    h('p', { class: 'help' }, 'Matter has no control for these, so each can get a switch of its own. A switch only takes effect in the modes this unit offers that special mode in.'),
+    h(
+      'p',
+      { class: 'help' },
+      'Matter has no control for these, so each can get a switch of its own. A switch only takes effect in the modes this unit offers that special mode in.',
+    ),
     h(
       'div',
       { class: 'choices' },
@@ -523,6 +566,11 @@ export function optionsScreen(): Child[] {
     composedSection(draft),
     draft.isNew ? null : h('p', { class: 'help' }, 'Changing any of these rebuilds this air conditioner in Matter. Your Matter app may take a moment to show the change.'),
     notice(),
-    h('div', { class: 'footer' }, button('Cancel', goHome), button(draft.isNew ? `Add ${draft.name}` : 'Save options', () => void saveDraft(draft), 'primary')),
+    h(
+      'div',
+      { class: 'footer' },
+      button('Cancel', goHome),
+      button(draft.isNew ? `Add ${draft.name}` : 'Save options', () => void saveDraft(draft), 'primary'),
+    ),
   ];
 }

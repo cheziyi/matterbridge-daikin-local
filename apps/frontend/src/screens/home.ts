@@ -39,7 +39,9 @@ function describeExposure(device: StoredDevice): string {
   const autoStep = { native: '', switch: '', firstStep: ' with auto first', lastStep: ' with auto last' }[device.fanAutoControl];
   const fan = device.fanControl === 'hidden' ? 'fan speed not shown' : `fan speed as ${device.fanControl === 'steps' ? 'steps' : 'a percentage'}${autoStep}${fanPlace}`;
   const swingAxes = { both: '', vertical: ' up and down', horizontal: ' left and right' }[device.swingAxes];
-  const swing = { native: `swing as native rocking${swingAxes}`, switches: `swing as switches${swingAxes}`, select: 'swing as a mode select', hidden: 'swing not shown' }[device.swingControl];
+  const swing = { native: `swing as native rocking${swingAxes}`, switches: `swing as switches${swingAxes}`, select: 'swing as a mode select', hidden: 'swing not shown' }[
+    device.swingControl
+  ];
   const controls = [hasFan ? fan : '', hasSwing ? swing : ''].filter((text) => text !== '').join(', ');
   const modeSwitches = device.modeControl === 'switches' ? device.modeSwitches.map((mode) => modeNames[mode]) : [];
   // Such as "dry mode as heat".
@@ -47,9 +49,7 @@ function describeExposure(device: StoredDevice): string {
     const replacement = device.modeReplacements[mode];
     return replacement === undefined ? [] : [`${modeNames[mode]} as ${modeNames[replacement].replace(' mode', '')}`];
   });
-  const switches = [...modeSwitches, device.fanAutoControl === 'switch' ? 'auto fan' : '', ...device.specialModeSwitches].filter(
-    (name) => name !== '',
-  );
+  const switches = [...modeSwitches, device.fanAutoControl === 'switch' ? 'auto fan' : '', ...device.specialModeSwitches].filter((name) => name !== '');
   const extra = [switches.length === 0 ? '' : `a switch for ${switches.join(', ')}`, device.modeControl === 'select' ? 'a mode select' : '', replacements.join(' and ')]
     .filter((text) => text !== '')
     .join(' and ');

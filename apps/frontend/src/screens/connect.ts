@@ -84,7 +84,11 @@ function credentialForm(draft: Draft): Child {
   if (status === 'localPasswordRequired' || status === 'localPasswordRejected') return lockCodeForm(draft, status === 'localPasswordRejected');
   if (status === 'registrationRequired' || status === 'registrationRejected') return keyForm(draft, status === 'registrationRejected');
   if (status === 'unreachable') {
-    return h('p', { class: 'notice problem', role: 'alert' }, `${draft.name} did not answer at ${draft.adapter.host}. Check that it has power and is on the network, then try again.`);
+    return h(
+      'p',
+      { class: 'notice problem', role: 'alert' },
+      `${draft.name} did not answer at ${draft.adapter.host}. Check that it has power and is on the network, then try again.`,
+    );
   }
   if (status === 'failed') return h('p', { class: 'notice problem', role: 'alert' }, `${draft.name} answered with an error: ${draft.probe?.message ?? 'unknown'}`);
   return null;

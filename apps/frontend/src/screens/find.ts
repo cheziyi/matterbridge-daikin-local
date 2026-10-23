@@ -55,7 +55,13 @@ function foundRow(adapter: FoundAdapter): HTMLElement {
       'label',
       { for: `found-${adapter.host}` },
       checkbox,
-      h('span', {}, h('strong', {}, adapter.name ?? 'Unnamed adapter'), h('span', { class: 'meta' }, ` ${adapter.host}`), ...notes.map((note) => h('span', { class: 'meta note' }, note))),
+      h(
+        'span',
+        {},
+        h('strong', {}, adapter.name ?? 'Unnamed adapter'),
+        h('span', { class: 'meta' }, ` ${adapter.host}`),
+        ...notes.map((note) => h('span', { class: 'meta note' }, note)),
+      ),
     ),
   );
 }
@@ -82,7 +88,11 @@ export function findScreen(): Child[] {
       'details',
       { class: 'manual', open: !view.isBusy && view.found.length === 0 },
       h('summary', {}, "Can't see your air conditioner?"),
-      h('p', { class: 'help' }, 'Enter the address of its adapter. The plugin reads the name of the adapter there and follows it to a new address like any other, as long as a search can reach it. An adapter on another subnet or VLAN keeps this address.'),
+      h(
+        'p',
+        { class: 'help' },
+        'Enter the address of its adapter. The plugin reads the name of the adapter there and follows it to a new address like any other, as long as a search can reach it. An adapter on another subnet or VLAN keeps this address.',
+      ),
       h('div', { class: 'inline-form' }, h('label', { for: 'host', class: 'visually-hidden' }, 'Adapter address'), host, button('Look it up', lookUpHost)),
     ),
     h(

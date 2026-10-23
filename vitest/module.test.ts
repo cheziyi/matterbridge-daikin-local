@@ -16,8 +16,8 @@ import { createDaikinClient, type DaikinDevice, DaikinError, discoverDevices } f
 import type { MatterbridgeEndpoint, PlatformConfig } from 'matterbridge';
 import { LogLevel } from 'matterbridge/logger';
 import { OnOff, RelativeHumidityMeasurement, TemperatureMeasurement } from 'matterbridge/matter/clusters';
-import { log, setupTest } from 'matterbridge/vitest-utils';
-import { addMatterbridge, createServerNode, createTestEnvironment, getMatterbridge, startServerNode, stopServerNode } from 'matterbridge/vitest-utils/matter';
+import { log, setupTest } from 'matterbridge/test-utils/vitest';
+import { addMatterbridge, createServerNode, createTestEnvironment, getMatterbridge, startServerNode, stopServerNode } from 'matterbridge/test-utils/vitest/matter';
 
 import type { DaikinDeviceConfig } from '../src/config.js';
 import initializePlugin, { DaikinPlatform, type DaikinPlatformConfig, discoveryIntervalInMs } from '../src/module.js';

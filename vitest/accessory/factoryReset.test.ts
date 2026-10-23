@@ -13,8 +13,8 @@
 import type { MatterbridgeEndpoint } from 'matterbridge';
 import type { ActionContext } from 'matterbridge/matter';
 import { OnOff } from 'matterbridge/matter/clusters';
-import { log, setupTest } from 'matterbridge/vitest-utils';
-import { addDevice, aggregator, createServerNode, createTestEnvironment, server, startServerNode, stopServerNode } from 'matterbridge/vitest-utils/matter';
+import { log, setupTest } from 'matterbridge/test-utils/vitest';
+import { addDevice, aggregator, createServerNode, createTestEnvironment, server, startServerNode, stopServerNode } from 'matterbridge/test-utils/vitest/matter';
 
 import { DaikinAccessory } from '../../src/accessory/daikinAccessory.js';
 import { createCapabilities, createDeviceConfig, createFakeClient, type FakeClient } from '../fakeDaikin.js';
