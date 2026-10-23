@@ -89,6 +89,7 @@ await setupTest('DaikinPlatform', false);
 describe('DaikinPlatform', () => {
   const matterbridge = { ...getMatterbridge(), bridgeMode: 'bridge' as const };
   const saveConfig = vi.spyOn(DaikinPlatform.prototype, 'saveConfig').mockImplementation(() => undefined);
+  const restartRequired = vi.spyOn(DaikinPlatform.prototype, 'wssSendRestartRequired').mockImplementation(() => undefined);
   // The callbacks of the platform timers by period, so a test can fire one without waiting for it.
   const timers = new Map<number, () => void>();
   const startInterval = globalThis.setInterval;
@@ -372,21 +373,24 @@ describe('DaikinPlatform', () => {
     expect((await platform.getSetupState()).devices[1]).toMatchObject({ host: '192.168.1.52', hasLocalPassword: false });
   });
 
-  test('should build a device again when the check before a save found that its unit accepts other settings', async () => {
+  test('should note a device for the next restart when the check before a save found that its unit accepts other settings', async () => {
     const device = found({ name: 'Bedroom', host: '192.168.1.52' });
     const stored = { ...bedroom, host: '192.168.1.52' };
     // The same controls and a model code: nothing to build again.
     vi.mocked(probeDevice).mockResolvedValueOnce({ status: 'ready', device, capabilities: createCapabilities({ swingModes: [], model: '0ABB' }) });
     await platform.probe(device);
     await platform.saveDevice(stored);
-    expect(log.info).not.toHaveBeenCalledWith('"Bedroom" stopped');
+    expect(restartRequired).not.toHaveBeenCalled();
+    expect((await platform.getSetupState()).devices[1]).toMatchObject({ needsRestart: false });
 
+    // Other controls: the device keeps its endpoints until Matterbridge restarts, which the setup page says.
     vi.mocked(probeDevice).mockResolvedValueOnce({ status: 'ready', device, capabilities: createCapabilities({ swingModes: [], modes: ['cool', 'heat'] }) });
     await platform.probe(device);
     await platform.saveDevice(stored);
-    expect(log.info).toHaveBeenCalledWith('"Bedroom" stopped');
-    expect(log.info).toHaveBeenCalledWith('"Bedroom" started at 192.168.1.52 with 1 Matter endpoint(s)');
-    expect((await platform.getSetupState()).devices[1]).toMatchObject({ capabilities: expect.objectContaining({ modes: ['cool', 'heat'] }) });
+    expect(log.info).not.toHaveBeenCalledWith('"Bedroom" stopped');
+    expect(log.notice).toHaveBeenCalledWith('"Bedroom" is built again with its new options at the next restart of Matterbridge: until then it keeps its current ones');
+    expect(restartRequired).toHaveBeenCalledTimes(1);
+    expect((await platform.getSetupState()).devices[1]).toMatchObject({ needsRestart: true, capabilities: expect.objectContaining({ modes: ['cool', 'heat'] }) });
 
     vi.mocked(probeDevice).mockResolvedValueOnce({ status: 'ready', device, capabilities: createCapabilities({ swingModes: [] }) });
     await platform.probe(device);
@@ -395,18 +399,21 @@ describe('DaikinPlatform', () => {
     await settle();
   });
 
-  test('should build the endpoints of a device again when its exposure changes, under the same endpoint number', async () => {
+  test('should keep the endpoints of a device whose exposure changes until Matterbridge restarts, and say so', async () => {
     const before = platform.getDeviceBySerialNumber(macOf('Living Room'));
-    expect(before?.maybeNumber).toBeDefined();
     await platform.saveDevice({ ...livingRoom, host: '192.168.1.77', fanControl: 'percent', swingControl: 'hidden' });
-    expect(log.info).toHaveBeenCalledWith('"Living Room" stopped');
-    expect(log.info).toHaveBeenCalledWith('"Living Room" started at 192.168.1.77 with 1 Matter endpoint(s)');
-    expect(platform.getDevices()).toHaveLength(2);
-    // The air conditioner is a new endpoint with the number and the identity of the old one, so the Matter apps keep knowing it.
-    const after = platform.getDeviceBySerialNumber(macOf('Living Room'));
-    expect(after).not.toBe(before);
-    expect(after?.maybeNumber).toBe(before?.maybeNumber);
-    expect(after?.uniqueId).toBe(before?.uniqueId);
+    expect(log.info).not.toHaveBeenCalledWith('"Living Room" stopped');
+    expect(restartRequired).toHaveBeenCalledTimes(1);
+    expect(log.notice).toHaveBeenCalledWith('"Living Room" is built again with its new options at the next restart of Matterbridge: until then it keeps its current ones');
+    // The air conditioner and its two swing switches stay, and the stored options wait for the restart.
+    expect(platform.getDeviceBySerialNumber(macOf('Living Room'))).toBe(before);
+    expect(platform.getDevices()).toHaveLength(4);
+    expect((await platform.getSetupState()).devices[0]).toMatchObject({ fanControl: 'percent', swingControl: 'hidden', needsRestart: true });
+    // A second change is noted once more, without a second notice.
+    vi.mocked(log.notice).mockClear();
+    await platform.saveDevice({ ...livingRoom, host: '192.168.1.77', fanControl: 'hidden', swingControl: 'hidden' });
+    expect(restartRequired).toHaveBeenCalledTimes(2);
+    expect(log.notice).not.toHaveBeenCalled();
     await settle();
   });
 
@@ -417,7 +424,7 @@ describe('DaikinPlatform', () => {
     await platform.saveDevice(createDeviceConfig({ name: 'Study', host: '192.168.1.90' }));
     expect(log.warn).toHaveBeenCalledWith('"Study" could not be started at 192.168.1.90 and will be retried: timed out');
     expect((await platform.getSetupState()).devices[2]).toMatchObject({ name: 'Study', status: 'stopped', error: 'timed out', capabilities: undefined, controls: undefined });
-    expect(platform.getDevices()).toHaveLength(2);
+    expect(platform.getDevices()).toHaveLength(4);
 
     // The same failure is not logged again on each retry.
     vi.mocked(log.warn).mockClear();
@@ -432,8 +439,8 @@ describe('DaikinPlatform', () => {
     unit.getCapabilities.mockResolvedValue(createCapabilities());
     unit.dispose.mockRejectedValueOnce(new Error('close failed'));
     await platform.saveDevice(createDeviceConfig({ name: 'Study', host: '192.168.1.90', fanControl: 'hidden' }));
-    // Living Room, Bedroom, and Study with its two swing switches.
-    expect(platform.getDevices()).toHaveLength(5);
+    // Living Room with its two swing switches, Bedroom, and Study with its two swing switches.
+    expect(platform.getDevices()).toHaveLength(7);
     expect((await platform.getSetupState()).devices[2]).toMatchObject({ capabilities: expect.objectContaining({ modes: expect.arrayContaining(['cool']) }) });
     await settle();
   });
@@ -443,7 +450,7 @@ describe('DaikinPlatform', () => {
     registerDevice.mockImplementationOnce(async (endpoint) => DaikinPlatform.prototype.registerDevice.call(platform, endpoint)).mockRejectedValueOnce('aggregator is full');
     await platform.saveDevice(createDeviceConfig({ name: 'Attic', host: '192.168.1.91' }));
     expect(log.warn).toHaveBeenCalledWith('"Attic" could not be started at 192.168.1.91 and will be retried: aggregator is full');
-    expect(platform.getDevices()).toHaveLength(5);
+    expect(platform.getDevices()).toHaveLength(7);
     registerDevice.mockRestore();
     expect(await platform.removeDevice(macOf('Attic'))).toBe(true);
   });
@@ -452,7 +459,7 @@ describe('DaikinPlatform', () => {
     expect(await platform.removeDevice(macOf('Nobody'))).toBe(false);
     expect(await platform.removeDevice(macOf('Study'))).toBe(true);
     expect(log.info).toHaveBeenCalledWith('"Study" stopped');
-    expect(platform.getDevices()).toHaveLength(2);
+    expect(platform.getDevices()).toHaveLength(4);
     expect(await platform.context?.get(`capabilities:${macOf('Study')}`)).toBeUndefined();
     expect(saveConfig).toHaveBeenCalledWith(expect.objectContaining({ devices: [expect.objectContaining({ name: 'Living Room' }), expect.objectContaining({ name: 'Bedroom' })] }));
   });
@@ -482,7 +489,7 @@ describe('DaikinPlatform', () => {
     await platform.saveDevice(createDeviceConfig({ name: 'Pantry', host: '192.168.1.70', macAddress: 'A4:08:EA:CC:00:70', swingControl: 'hidden' }));
     expect(unitAt('192.168.1.70').getCapabilities).toHaveBeenCalledTimes(1);
     expect((await platform.getSetupState()).devices[2]).toMatchObject({ name: 'Pantry', macAddress: 'A4:08:EA:CC:00:70' });
-    expect(platform.getDevices()).toHaveLength(3);
+    expect(platform.getDevices()).toHaveLength(5);
   });
 
   test('should follow a device by its MAC address to a new address, and keep its name whatever its adapter is named', async () => {
@@ -538,7 +545,7 @@ describe('DaikinPlatform', () => {
     expect(log.info).toHaveBeenCalledWith('"Larder" is now named "Lobby"');
     expect(platform.getDeviceBySerialNumber('A4:08:EA:CC:00:70')?.getAttribute(BridgedDeviceBasicInformation, 'nodeLabel')).toBe('Lobby');
     expect(await platform.removeDevice('A4:08:EA:CC:00:70')).toBe(true);
-    expect(platform.getDevices()).toHaveLength(2);
+    expect(platform.getDevices()).toHaveLength(4);
   });
 
   test('should apply the poll interval saved in the config editor, and leave the devices to the setup page', async () => {
@@ -548,7 +555,7 @@ describe('DaikinPlatform', () => {
     // Every device is connected again, with commands built from a poll of at most 30 seconds ago.
     expect(createClient).toHaveBeenCalledWith(expect.objectContaining({ name: 'Bedroom' }), expect.objectContaining({ maxStateAgeForSetStateInMs: 30_000 }));
     expect(log.info).not.toHaveBeenCalledWith(expect.stringContaining('stopped'));
-    expect(platform.getDevices()).toHaveLength(2);
+    expect(platform.getDevices()).toHaveLength(4);
     expect(saveConfig).not.toHaveBeenCalled();
   });
 
@@ -557,7 +564,7 @@ describe('DaikinPlatform', () => {
     // Every device is connected again, with commands built from a poll of at most 10 seconds ago.
     expect(createClient).toHaveBeenCalledWith(expect.objectContaining({ name: 'Bedroom' }), expect.objectContaining({ maxStateAgeForSetStateInMs: 10_000 }));
     expect(setIntervalSpy).not.toHaveBeenCalled();
-    expect(platform.getDevices()).toHaveLength(2);
+    expect(platform.getDevices()).toHaveLength(4);
 
     // At 0 every command reads the unit first.
     await saveInEditor({ maxStateAgeForCommandInSeconds: 0 });
@@ -582,7 +589,7 @@ describe('DaikinPlatform', () => {
     clock.mockRestore();
     // Kitchen is still there, in Matter and in the configuration, which is stored again with it.
     expect(log.info).not.toHaveBeenCalledWith('"Kitchen" stopped');
-    expect(platform.getDevices()).toHaveLength(5);
+    expect(platform.getDevices()).toHaveLength(7);
     expect(saveConfig).toHaveBeenCalledWith(
       expect.objectContaining({ pollIntervalInSeconds: 45, terminalUuid, devices: expect.arrayContaining([expect.objectContaining({ name: 'Kitchen' })]) }),
     );
@@ -590,7 +597,7 @@ describe('DaikinPlatform', () => {
 
     await saveInEditor({ pollIntervalInSeconds: 60 });
     expect(await platform.removeDevice(macOf('Kitchen'))).toBe(true);
-    expect(platform.getDevices()).toHaveLength(2);
+    expect(platform.getDevices()).toHaveLength(4);
   });
 
   test('should not apply again a device list it stored itself', async () => {
@@ -602,7 +609,7 @@ describe('DaikinPlatform', () => {
     await platform.onConfigChanged(echoed);
     expect(log.info).not.toHaveBeenCalledWith(expect.stringContaining('started'));
     expect(log.info).not.toHaveBeenCalledWith(expect.stringContaining('stopped'));
-    expect(platform.getDevices()).toHaveLength(5);
+    expect(platform.getDevices()).toHaveLength(7);
     expect(await platform.removeDevice(macOf('Kitchen'))).toBe(true);
   });
 
@@ -662,13 +669,19 @@ describe('DaikinPlatform', () => {
     expect(find('Attic')?.getAttribute(RelativeHumidityMeasurement, 'measuredValue')).toBe(5500);
     expect(log.notice).not.toHaveBeenCalledWith(expect.stringContaining('built again'));
 
-    // Later the unit gives its outdoor temperature too: the device is built again, with a sensor for it.
+    // Later the unit gives its outdoor temperature too: the sensor for it comes at the next restart of Matterbridge.
     unit.sensors.outdoorTemperatureInC = 31;
     await platform.pollDevices();
-    expect(log.notice).toHaveBeenCalledWith('"Attic" gave a reading it shows nowhere in Matter yet: it is built again in Matter');
-    expect(platform.getDevices()).toHaveLength(count + 2);
+    expect(log.notice).toHaveBeenCalledWith('"Attic" gave a reading it shows nowhere in Matter yet');
+    expect(restartRequired).toHaveBeenCalledTimes(1);
+    expect(platform.getDevices()).toHaveLength(count + 1);
+    expect(await platform.context?.get(`sensors:${macOf('Attic')}`)).toEqual({ hasHumidity: true, hasOutdoorTemperature: true });
+    expect((await platform.getSetupState()).devices.find((device) => device.name === 'Attic')).toMatchObject({ needsRestart: true });
+    // The reading is noted: the next poll does not report it again.
+    vi.mocked(log.notice).mockClear();
     await platform.pollDevices();
-    expect(find('Attic Outdoor Temperature')?.getAttribute(TemperatureMeasurement, 'measuredValue')).toBe(3100);
+    expect(log.notice).not.toHaveBeenCalled();
+    expect(restartRequired).toHaveBeenCalledTimes(1);
     expect(find('Attic')?.getAttribute(RelativeHumidityMeasurement, 'measuredValue')).toBe(5500);
 
     // A check that reads neither takes nothing away from what the unit is known to give.
@@ -681,24 +694,9 @@ describe('DaikinPlatform', () => {
     await platform.probe(adapter);
     await platform.saveDevice(attic);
     expect(await platform.context?.get(`sensors:${macOf('Attic')}`)).toEqual({ hasHumidity: true, hasOutdoorTemperature: true });
-    expect(platform.getDevices()).toHaveLength(count + 2);
-
-    // A device that cannot be built again is started by the next search, with what was stored about its unit.
-    const shed = createDeviceConfig({ name: 'Shed', host: '192.168.1.98', fanControl: 'hidden', swingControl: 'hidden' });
-    await platform.saveDevice(shed);
-    await settle();
-    expect(platform.getDevices()).toHaveLength(count + 3);
-    unitAt('192.168.1.98').sensors.outdoorTemperatureInC = 12;
-    createClient.mockImplementationOnce(() => {
-      throw new Error('bad host');
-    });
-    await platform.pollDevices();
-    expect(log.error).toHaveBeenCalledWith('A change to the devices failed: bad host');
-    await settle();
-    expect(find('Shed Outdoor Temperature')?.getAttribute(TemperatureMeasurement, 'measuredValue')).toBe(1200);
+    expect(platform.getDevices()).toHaveLength(count + 1);
 
     expect(await platform.removeDevice(macOf('Attic'))).toBe(true);
-    expect(await platform.removeDevice(macOf('Shed'))).toBe(true);
     expect(await platform.context?.get(`sensors:${macOf('Attic')}`)).toBeUndefined();
     expect(platform.getDevices()).toHaveLength(count);
   });
@@ -718,7 +716,7 @@ describe('DaikinPlatform', () => {
     expect(unitAt('192.168.1.77').getState).not.toHaveBeenCalled();
   });
 
-  test('should check after a start what each unit accepts, and build a device again when that changed', async () => {
+  test('should check after a start what each unit accepts, and note a device for the next restart when that changed', async () => {
     await platform.unregisterAllDevices();
     const terminalUuid = platform.getTerminalUuid();
     const devices = [
@@ -749,12 +747,15 @@ describe('DaikinPlatform', () => {
     expect(living.getCapabilities).toHaveBeenCalledTimes(1);
     // The bedroom unit answered from the start, so it was asked twice: the first question failed.
     expect(bed.getCapabilities).toHaveBeenCalledTimes(2);
-    expect(log.notice).toHaveBeenCalledWith('"Living Room" accepts other settings than when it was set up: it is built again in Matter');
+    expect(log.notice).toHaveBeenCalledWith('"Living Room" accepts other settings than when it was set up');
+    expect(log.notice).toHaveBeenCalledWith('"Living Room" is built again with its new options at the next restart of Matterbridge: until then it keeps its current ones');
+    expect(restartRequired).toHaveBeenCalledTimes(1);
     expect(saveConfig).toHaveBeenCalledWith(
       expect.objectContaining({ devices: [expect.objectContaining({ name: 'Living Room', modeControl: 'native', modeSwitches: [] }), expect.anything()] }),
     );
-    // The air conditioner and its one swing switch, and the bedroom.
-    expect(again.getDevices()).toHaveLength(3);
+    // Nothing is built again until the restart: the living room keeps its four endpoints, and the bedroom its one.
+    expect(again.getDevices()).toHaveLength(5);
+    expect((await again.getSetupState()).devices[0]).toMatchObject({ needsRestart: true, modeControl: 'native' });
 
     vi.mocked(log.notice).mockClear();
     await again.pollDevices();
@@ -762,12 +763,20 @@ describe('DaikinPlatform', () => {
     await again.updateAddresses();
     expect(living.getCapabilities).toHaveBeenCalledTimes(1);
     expect(bed.getCapabilities).toHaveBeenCalledTimes(2);
-    expect(log.notice).not.toHaveBeenCalledWith(expect.stringContaining('built again'));
+    expect(log.notice).not.toHaveBeenCalledWith(expect.stringContaining('accepts other settings'));
     expect((await again.getSetupState()).devices[1]).toMatchObject({ name: 'Bedroom', capabilities: expect.objectContaining({ model: '0ABB' }) });
-    expect(again.getDevices()).toHaveLength(3);
-
+    expect(again.getDevices()).toHaveLength(5);
     await again.onShutdown();
     await again.unregisterAllDevices();
+
+    // The next start builds the living room from the stored options: the air conditioner and its one swing switch.
+    const restarted = new DaikinPlatform(matterbridge, log, again.config);
+    addMatterbridge(restarted);
+    await restarted.onStart();
+    expect(restarted.getDevices()).toHaveLength(3);
+    expect((await restarted.getSetupState()).devices[0]).toMatchObject({ needsRestart: false });
+    await restarted.onShutdown();
+    await restarted.unregisterAllDevices();
   });
 
   test('should store again a device it cannot read until a device takes its place', async () => {

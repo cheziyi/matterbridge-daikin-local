@@ -3,7 +3,7 @@
  * @description The home screen: the air conditioners that are set up, and the way to add more.
  * @author Calvin Che
  * @created 2026-10-13
- * @version 1.0.0
+ * @version 1.1.0
  * @license Apache-2.0
  *
  * Copyright 2026 Calvin Che.
@@ -70,6 +70,9 @@ function deviceRow(device: StoredDevice): HTMLElement {
       h('h3', {}, device.name),
       h('p', { class: 'meta' }, h('span', { class: `status ${device.status}` }, statusText), ` at ${device.host}. In Matter: ${describeExposure(device)}.`),
       device.status !== 'online' && device.error ? h('p', { class: 'meta problem-text' }, device.error) : null,
+      device.needsRestart
+        ? h('p', { class: 'meta' }, h('strong', {}, 'Restart Matterbridge'), ' to apply the new options in Matter. Until then it keeps its current controls.')
+        : null,
     ),
     isConfirming
       ? h(

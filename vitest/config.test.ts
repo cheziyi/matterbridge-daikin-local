@@ -19,6 +19,7 @@ import {
   parseDeviceConfig,
   parseDeviceConfigs,
   toDaikinDevice,
+  withExposureOf,
 } from '../src/config.js';
 import { createDeviceConfig, macOf } from './fakeDaikin.js';
 
@@ -232,6 +233,14 @@ describe('config', () => {
       usesHttps: false,
       requiresLocalPassword: true,
     });
+  });
+
+  test('should take the settings that decide the endpoints from another device, and keep the rest', () => {
+    const built = createDeviceConfig({ fanControl: 'steps', swingControl: 'switches', fanSpeedWhenHidden: 'keep' });
+    const stored = createDeviceConfig({ name: 'Lounge', host: '192.168.1.51', fanControl: 'hidden', fanSpeedWhenHidden: 'level1', swingControl: 'hidden', modeControl: 'select' });
+    const kept = withExposureOf(stored, built);
+    expect(hasSameExposure(kept, built)).toBe(true);
+    expect(kept).toMatchObject({ name: 'Lounge', host: '192.168.1.51', fanSpeedWhenHidden: 'level1', fanControl: 'steps', swingControl: 'switches', modeControl: 'native' });
   });
 
   test('should compare the connection and the exposure of two devices', () => {

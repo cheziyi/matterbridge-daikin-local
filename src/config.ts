@@ -506,3 +506,33 @@ export function hasSameExposure(left: DaikinDeviceConfig, right: DaikinDeviceCon
     THERMOSTAT_MODES.every((mode) => left.modeReplacements[mode] === right.modeReplacements[mode])
   );
 }
+
+/**
+ * Take the settings that decide the endpoints of a device from another device
+ *
+ * They are the settings `hasSameExposure` compares. A running device keeps the ones it was built with: a change of
+ * them reaches Matter when the device is built again, at the next start of Matterbridge.
+ *
+ * @param {DaikinDeviceConfig} device The device, whose other settings are kept.
+ * @param {DaikinDeviceConfig} source The device whose endpoint settings are taken.
+ * @returns {DaikinDeviceConfig} The device with the endpoint settings of the source.
+ */
+export function withExposureOf(device: DaikinDeviceConfig, source: DaikinDeviceConfig): DaikinDeviceConfig {
+  const { fanAutoControl, hasSeparateFan, hasOutdoorTemperatureSensor, hasSeparateHumiditySensor, isComposed, specialModeSwitches } = source;
+  const { fanControl, swingControl, swingAxes, modeControl, modeSwitches, modeReplacements } = source;
+  return {
+    ...device,
+    fanAutoControl,
+    hasSeparateFan,
+    hasOutdoorTemperatureSensor,
+    hasSeparateHumiditySensor,
+    isComposed,
+    specialModeSwitches,
+    fanControl,
+    swingControl,
+    swingAxes,
+    modeControl,
+    modeSwitches,
+    modeReplacements,
+  };
+}

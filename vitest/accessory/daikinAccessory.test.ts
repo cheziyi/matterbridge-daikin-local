@@ -141,11 +141,8 @@ describe('DaikinAccessory', () => {
       expect(accessory.endpoint.serialNumber).toBe(macOf('Living Room'));
       expect(accessory.verticalSwitch?.serialNumber).toMatch(new RegExp(`^${macOf('Living Room')}-[A-Z]$`));
       expect(accessory.getStatus()).toEqual({ isReachable: false, lastError: undefined, state: undefined });
-      // The endpoints have no number before they are in a Matter node.
-      expect(accessory.getEndpointNumbers().size).toBe(0);
       await addAccessory(accessory);
       expect(accessory.endpoint.getAttribute(BridgedDeviceBasicInformation, 'nodeLabel')).toBe('Living Room');
-      expect(accessory.getEndpointNumbers()).toEqual(new Map(accessory.endpoints.map((endpoint) => [endpoint.id, endpoint.number])));
       expect(accessory.endpoint.getAttribute(FanControl, 'speedMax')).toBe(6);
       expect(accessory.endpoint.getAttribute(FanControl, 'fanModeSequence')).toBe(FanControl.FanModeSequence.OffLowMedHighAuto);
       expect(accessory.endpoint.getAttribute(Thermostat, 'minHeatSetpointLimit')).toBe(1000);
@@ -210,6 +207,15 @@ describe('DaikinAccessory', () => {
       expect(log.info).not.toHaveBeenCalled();
       await accessory.updateConfig(createDeviceConfig());
       expect(accessory.endpoint.getAttribute(BridgedDeviceBasicInformation, 'nodeLabel')).toBe('Living Room');
+    });
+
+    test('should keep the settings that decide its endpoints when the stored ones change, and take the others', async () => {
+      await accessory.updateConfig(createDeviceConfig({ fanControl: 'hidden', fanSpeedWhenHidden: 'level1', swingControl: 'hidden', swingModeWhenHidden: 'off' }));
+      await writeAsController(accessory.endpoint, 'OnOff', 'onOff', true);
+      await accessory.flushCommands();
+      // The fan control and the switches stay, so no fixed fan speed or swing mode goes with the command.
+      expect(client.setState).toHaveBeenLastCalledWith({ power: true });
+      await accessory.updateConfig(createDeviceConfig());
     });
 
     test('should ignore the changes it makes itself', async () => {
@@ -549,7 +555,7 @@ describe('DaikinAccessory', () => {
       await accessory.updateConfig(createDeviceConfig({ name: 'Study', fanControl: 'hidden', fanSpeedWhenHidden: 'level5' }));
       await writeAsController(accessory.endpoint, 'Thermostat', 'occupiedHeatingSetpoint', 2200);
       await accessory.flushCommands();
-      // The unit has no level5, so only the setpoint is sent.
+      // The fan control stays shown as the device was built, whatever is stored: no fixed fan speed goes with the setpoint.
       expect(client.setState).toHaveBeenLastCalledWith({ targetTemperatureInC: 22 });
       await accessory.dispose();
     });

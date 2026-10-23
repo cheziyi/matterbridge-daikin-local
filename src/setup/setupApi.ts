@@ -3,7 +3,7 @@
  * @description This file contains the REST API the setup page calls through the platform's onFetch: what it sends and takes, and its handler.
  * @author Calvin Che
  * @created 2026-10-12
- * @version 1.0.0
+ * @version 1.1.0
  * @license Apache-2.0
  *
  * Copyright 2026 Calvin Che.
@@ -35,6 +35,8 @@ export type SetupDevice = Omit<DaikinDeviceConfig, 'localPassword'> & {
   /** `online` and `offline` for a running device, `stopped` for one that could not be started yet. */
   status: 'online' | 'offline' | 'stopped';
   error?: string;
+  /** Whether the stored options reach Matter at the next start of Matterbridge: until then the device keeps the ones it was built with. */
+  needsRestart: boolean;
   capabilities?: DaikinCapabilities;
   /** The controls and the switches the device can have in Matter, for a device whose capabilities are known. */
   controls?: AvailableControls;

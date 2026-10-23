@@ -35,9 +35,8 @@ import type { MatterbridgeEndpoint } from 'matterbridge';
 import type { AnsiLogger } from 'matterbridge/logger';
 import { type ActionContext, Node } from 'matterbridge/matter';
 import { BridgedDeviceBasicInformation, FanControl, ModeSelect, OnOff, Thermostat } from 'matterbridge/matter/clusters';
-import type { EndpointNumber } from 'matterbridge/matter/types';
 
-import { type DaikinDeviceConfig, SWITCHED_MODES, type SwitchedMode } from '../config.js';
+import { type DaikinDeviceConfig, SWITCHED_MODES, type SwitchedMode, withExposureOf } from '../config.js';
 import { addReportedSensors, getSwitchableSpecialModes, noReportedSensors, type ReportedSensors } from '../controls.js';
 import { getErrorMessage } from '../errors.js';
 import { modeSelectChoices, type SelectChoices, swingSelectChoices, toModeOptions, toOperatingMode } from '../mapping.js';
@@ -50,7 +49,6 @@ import {
   createOutdoorTemperatureEndpoint,
   createSwitchEndpoint,
   type EndpointIdentity,
-  type EndpointNumbers,
 } from './endpoints.js';
 import { type AccessoryLayout, getAccessoryLayout } from './layout.js';
 import { type AccessoryEndpoints, applySensors, applyState, readFanSpeed } from './matterState.js';
@@ -87,8 +85,6 @@ export interface DaikinAccessoryOptions {
   log: AnsiLogger;
   /** The vendor id of the bridge, used for the bridged device information. */
   vendorId: number;
-  /** The endpoint number each endpoint had before the device was built again, by endpoint id. Each keeps it. */
-  numbers?: EndpointNumbers;
   /** How long to collect the writes of a controller before sending them. Defaults to 300 milliseconds. */
   commandDelayInMs?: number;
 }
@@ -156,6 +152,8 @@ export class DaikinAccessory implements AccessoryEndpoints {
   readonly reportedSensors: ReportedSensors;
 
   private config: DaikinDeviceConfig;
+  /** The readings the unit is known to give: the ones the endpoints were built for, and the ones noted since. */
+  private knownSensors: ReportedSensors;
   private client: DaikinClient;
   private readonly log: AnsiLogger;
   private readonly commandDelayInMs: number;
@@ -196,11 +194,12 @@ export class DaikinAccessory implements AccessoryEndpoints {
     this.config = options.config;
     this.capabilities = options.capabilities;
     this.reportedSensors = options.reportedSensors ?? noReportedSensors;
+    this.knownSensors = this.reportedSensors;
     this.client = options.client;
     this.log = options.log;
     this.commandDelayInMs = options.commandDelayInMs ?? defaultCommandDelayInMs;
     this.name = options.config.name;
-    this.identity = { label: this.name, serial: options.config.macAddress, vendorId: options.vendorId, numbers: options.numbers };
+    this.identity = { label: this.name, serial: options.config.macAddress, vendorId: options.vendorId };
     this.layout = getAccessoryLayout(this.config, this.capabilities, this.reportedSensors);
 
     this.endpoint = this.createAirConditioner();
@@ -261,13 +260,13 @@ export class DaikinAccessory implements AccessoryEndpoints {
    * An outdoor temperature no sensor is asked for is left out: there is nothing to build for it. It counts from the
    * first read after its sensor is asked for.
    *
-   * @returns {ReportedSensors | undefined} Every reading the unit has given, or undefined when the endpoints show them all.
+   * @returns {ReportedSensors | undefined} Every reading the unit has given, or undefined when the endpoints show them all or they were noted already: see `noteReportedSensors`.
    */
   getNewlyReportedSensors(): ReportedSensors | undefined {
     if (this.sensors === undefined) return undefined;
     const sensors = this.config.hasOutdoorTemperatureSensor ? this.sensors : { ...this.sensors, outdoorTemperatureInC: null };
-    const reported = addReportedSensors(this.reportedSensors, sensors);
-    return reported === this.reportedSensors ? undefined : reported;
+    const reported = addReportedSensors(this.knownSensors, sensors);
+    return reported === this.knownSensors ? undefined : reported;
   }
 
   /**
@@ -291,16 +290,13 @@ export class DaikinAccessory implements AccessoryEndpoints {
   }
 
   /**
-   * Tell the endpoint number of each endpoint, by endpoint id, for a device built again whose endpoints keep them
+   * Note the readings the unit is known to give, so that they are not reported as new again
    *
-   * @returns {EndpointNumbers} The numbers of the endpoints that have one: the ones in a Matter node, parts included.
+   * @param {ReportedSensors} reported The readings, which get their place in Matter at the next start of Matterbridge.
+   * @returns {void}
    */
-  getEndpointNumbers(): EndpointNumbers {
-    const numbers = new Map<string, EndpointNumber>();
-    for (const endpoint of [...this.endpoints, ...this.endpoint.getChildEndpoints()]) {
-      if (endpoint.maybeNumber !== undefined) numbers.set(endpoint.id, endpoint.maybeNumber);
-    }
-    return numbers;
+  noteReportedSensors(reported: ReportedSensors): void {
+    this.knownSensors = reported;
   }
 
   /**
@@ -318,17 +314,19 @@ export class DaikinAccessory implements AccessoryEndpoints {
   }
 
   /**
-   * Replace the settings that change no endpoint: the name, and the fixed fan speed and swing mode of a hidden control
+   * Replace the settings that change no endpoint: the name, the connection, and the fixed fan speed and swing mode of
+   * a hidden control
    *
    * A new name is written to the label of each endpoint that is a device of its own in Matter, which is what the Matter
-   * apps show. Nothing else about the device changes, so the apps keep knowing it.
+   * apps show. The settings that decide the endpoints stay as the device was built: a change of them reaches Matter
+   * when the device is built again, at the next start of Matterbridge.
    *
    * @param {DaikinDeviceConfig} config The updated device.
    * @returns {Promise<void>} Resolves when a new name is written to the endpoints.
    */
   async updateConfig(config: DaikinDeviceConfig): Promise<void> {
     const previous = this.name;
-    this.config = config;
+    this.config = withExposureOf(config, this.config);
     if (config.name === previous) return;
     this.name = config.name;
     await applyDeviceLabel(this.endpoints, config.name);
