@@ -21,9 +21,10 @@
  * limitations under the License.
  */
 
-import type { DaikinCapabilities, DaikinControl, DaikinState, FanSpeed, OperatingMode, SpecialMode } from 'daikin-local-control';
+import type { DaikinCapabilities, DaikinControl, DaikinState, FanSpeed, OperatingMode, SpecialMode, VerticalPosition } from 'daikin-local-control';
 
 import { type DaikinDeviceConfig, KEEP_SETTING, type ModeReplacements } from '../config.js';
+import { getSwingModes, type SwingCapabilities, swingsByPosition } from '../controls.js';
 import { clampTemperature, getTemperatureRange, resolveSwingMode, type SwingChange } from '../mapping.js';
 
 /** An axis the louvers swing on. */
@@ -64,9 +65,43 @@ export function addHiddenSettings(control: DaikinControl, config: DaikinDeviceCo
   if (fanControl === 'hidden' && fanSpeedWhenHidden !== KEEP_SETTING && capabilities.fanSpeeds.includes(fanSpeedWhenHidden)) {
     control.fanSpeed = fanSpeedWhenHidden;
   }
-  if (swingControl === 'hidden' && swingModeWhenHidden !== KEEP_SETTING && capabilities.swingModes.includes(swingModeWhenHidden)) {
+  if (swingControl === 'hidden' && swingModeWhenHidden !== KEEP_SETTING && getSwingModes(capabilities).includes(swingModeWhenHidden)) {
     control.swingMode = swingModeWhenHidden;
   }
+}
+
+/** The fixed positions of the vertical louver, which it keeps still at. */
+const fixedVerticalPositions: readonly VerticalPosition[] = ['position1', 'position2', 'position3', 'position4', 'position5'];
+
+/**
+ * Tell whether a position of the vertical louver keeps it still at a fixed place
+ *
+ * @param {VerticalPosition | null} position The position, or null when the unit reports none.
+ * @returns {boolean} True for `position1` to `position5`.
+ */
+export function isFixedVerticalPosition(position: VerticalPosition | null): position is VerticalPosition {
+  return position !== null && fixedVerticalPositions.includes(position);
+}
+
+/**
+ * Send the swing mode of a command as the position of the vertical louver, to a unit that swings only through it
+ *
+ * Edge cases:
+ *  - a unit that takes swing modes keeps the command as it is
+ *  - swing off keeps the louver still at the fixed position it last held, or at the first one the unit takes when it was never seen at one
+ *  - swing off on a unit that takes no fixed position is dropped
+ *
+ * @param {DaikinControl} control The command, which is changed in place.
+ * @param {SwingCapabilities} capabilities What the unit accepts.
+ * @param {VerticalPosition} [lastFixedPosition] The fixed position the louver last held. Defaults to none, when it was never seen at one.
+ * @returns {void}
+ */
+export function moveSwingToPosition(control: DaikinControl, capabilities: SwingCapabilities, lastFixedPosition?: VerticalPosition): void {
+  if (control.swingMode === undefined || !swingsByPosition(capabilities)) return;
+  const isSwinging = control.swingMode !== 'off';
+  delete control.swingMode;
+  const position = isSwinging ? 'swing' : (lastFixedPosition ?? fixedVerticalPositions.find((fixed) => capabilities.verticalPositions.includes(fixed)));
+  if (position !== undefined) control.verticalPosition = position;
 }
 
 /**
@@ -176,7 +211,7 @@ export class PendingCommand {
       if (fanSpeed !== undefined) control.fanSpeed = fanSpeed;
     }
     if (this.swing.vertical !== undefined || this.swing.horizontal !== undefined) {
-      control.swingMode = resolveSwingMode(unit.state?.swingMode ?? 'off', this.swing, unit.capabilities.swingModes);
+      control.swingMode = resolveSwingMode(unit.state?.swingMode ?? 'off', this.swing, getSwingModes(unit.capabilities));
     }
     // Auto off goes back to the speed the fan last ran at, or to a middle speed when it was never seen off auto.
     if (this.fanAuto === true) control.fanSpeed = 'auto';

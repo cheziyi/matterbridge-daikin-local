@@ -41,7 +41,7 @@ type StoredUnit = Pick<DaikinDeviceConfig, 'macAddress'>;
 function isCapabilities(value: unknown): value is DaikinCapabilities {
   if (!isValidObject(value)) return false;
   const candidate = value as Partial<Record<keyof DaikinCapabilities, unknown>>;
-  const hasLists = Array.isArray(candidate.modes) && Array.isArray(candidate.fanSpeeds) && Array.isArray(candidate.swingModes);
+  const hasLists = [candidate.modes, candidate.fanSpeeds, candidate.swingModes, candidate.verticalPositions].every((list) => Array.isArray(list));
   return hasLists && isValidObject(candidate.targetTemperaturesInC) && isValidObject(candidate.specialModes);
 }
 
