@@ -21,13 +21,47 @@
  * limitations under the License.
  */
 
-import { type DaikinCapabilities, type DaikinSensors, type FanSpeed, OPERATING_MODES, type OperatingMode, SPECIAL_MODES, type SpecialMode } from 'daikin-local-control';
+import {
+  type DaikinCapabilities,
+  type DaikinSensors,
+  type FanSpeed,
+  OPERATING_MODES,
+  type OperatingMode,
+  SPECIAL_MODES,
+  type SpecialMode,
+  type SwingMode,
+} from 'daikin-local-control';
 
 import { type DaikinDeviceConfig, KEEP_SETTING, type ModeControlOption, type ModeReplacements, SWITCHED_MODES, type SwitchedMode, THERMOSTAT_MODES } from './config.js';
 import { getFanSteps, getThermostatProfile } from './mapping.js';
 
 /** The part of a unit's capabilities that decides which controls a device can have. */
-export type ExposedCapabilities = Pick<DaikinCapabilities, 'modes' | 'fanSpeeds' | 'swingModes' | 'specialModes'>;
+export type ExposedCapabilities = Pick<DaikinCapabilities, 'modes' | 'fanSpeeds' | 'swingModes' | 'verticalPositions' | 'specialModes'>;
+
+/** The part of a unit's capabilities that says how its louvers swing. */
+export type SwingCapabilities = Pick<DaikinCapabilities, 'swingModes' | 'verticalPositions'>;
+
+/**
+ * Tell whether a unit swings only through the position of its vertical louver, as an Airbase unit does
+ *
+ * Such a unit takes no swing mode: it swings at the vertical position `swing`, and keeps still at a fixed one.
+ *
+ * @param {SwingCapabilities} capabilities What the unit accepts.
+ * @returns {boolean} True when the unit takes no swing mode and takes the vertical position `swing`.
+ */
+export function swingsByPosition(capabilities: SwingCapabilities): boolean {
+  return capabilities.swingModes.length === 0 && capabilities.verticalPositions.includes('swing');
+}
+
+/**
+ * List the swing modes a device can set
+ *
+ * @param {SwingCapabilities} capabilities What the unit accepts.
+ * @returns {SwingMode[]} The swing modes the unit takes, or off and vertical for a unit that swings only through the position of its vertical louver.
+ */
+export function getSwingModes(capabilities: SwingCapabilities): SwingMode[] {
+  return swingsByPosition(capabilities) ? ['off', 'vertical'] : [...capabilities.swingModes];
+}
 
 /**
  * Tell whether a unit can switch between the auto fan speed and a speed of its own
@@ -43,7 +77,7 @@ export function hasFanAuto(capabilities: Pick<DaikinCapabilities, 'fanSpeeds'>):
  * List the special modes a device can turn on and off
  *
  * @param {Pick<DaikinCapabilities, 'specialModes'>} capabilities What the unit accepts.
- * @returns {SpecialMode[]} Those of `powerful`, `econo` and `streamer` the unit takes in at least one of its modes.
+ * @returns {SpecialMode[]} Those of `powerful`, `econo`, `streamer` and `heatPlus` the unit takes in at least one of its modes.
  */
 export function getSwitchableSpecialModes(capabilities: Pick<DaikinCapabilities, 'specialModes'>): SpecialMode[] {
   return SPECIAL_MODES.filter((specialMode) => OPERATING_MODES.some((mode) => capabilities.specialModes[mode].includes(specialMode)));
@@ -73,11 +107,12 @@ export function getModeReplacements(wanted: ModeReplacements, modes: readonly Op
 /**
  * Tell whether a unit swings both up and down and left and right
  *
- * @param {Pick<DaikinCapabilities, 'swingModes'>} capabilities What the unit accepts.
+ * @param {SwingCapabilities} capabilities What the unit accepts.
  * @returns {boolean} True when it swings on each axis, alone or with the other.
  */
-function swingsOnBothAxes(capabilities: Pick<DaikinCapabilities, 'swingModes'>): boolean {
-  const swingsOn = (axis: 'vertical' | 'horizontal'): boolean => capabilities.swingModes.includes(axis) || capabilities.swingModes.includes('both');
+function swingsOnBothAxes(capabilities: SwingCapabilities): boolean {
+  const swingModes = getSwingModes(capabilities);
+  const swingsOn = (axis: 'vertical' | 'horizontal'): boolean => swingModes.includes(axis) || swingModes.includes('both');
   return swingsOn('vertical') && swingsOn('horizontal');
 }
 
@@ -89,6 +124,8 @@ export interface AvailableControls {
   hasFanAuto: boolean;
   /** Whether apps can move the louvers. */
   hasSwing: boolean;
+  /** The swing modes a controller can pick: empty when apps cannot move the louvers. */
+  swingModes: SwingMode[];
   /** Whether the louvers swing both up and down and left and right, so that the rocking can have one axis alone. */
   swingsOnBothAxes: boolean;
   /** The modes of the unit, which can each get a switch. */
@@ -108,10 +145,12 @@ export interface AvailableControls {
  * @returns {AvailableControls} What the device can have.
  */
 export function getAvailableControls(capabilities: ExposedCapabilities): AvailableControls {
+  const swingModes = getSwingModes(capabilities);
   return {
     fanSteps: getFanSteps(capabilities.fanSpeeds),
     hasFanAuto: hasFanAuto(capabilities),
-    hasSwing: capabilities.swingModes.length > 0,
+    hasSwing: swingModes.length > 0,
+    swingModes,
     swingsOnBothAxes: swingsOnBothAxes(capabilities),
     switchableModes: SWITCHED_MODES.filter((mode) => capabilities.modes.includes(mode)),
     lackingModes: THERMOSTAT_MODES.filter((mode) => !capabilities.modes.includes(mode)),
@@ -129,7 +168,7 @@ export function getAvailableControls(capabilities: ExposedCapabilities): Availab
 export function fitToCapabilities(device: DaikinDeviceConfig, capabilities: ExposedCapabilities): DaikinDeviceConfig {
   const fanSpeedWhenHidden = device.fanSpeedWhenHidden !== KEEP_SETTING && capabilities.fanSpeeds.includes(device.fanSpeedWhenHidden) ? device.fanSpeedWhenHidden : KEEP_SETTING;
   const swingModeWhenHidden =
-    device.swingModeWhenHidden !== KEEP_SETTING && capabilities.swingModes.includes(device.swingModeWhenHidden) ? device.swingModeWhenHidden : KEEP_SETTING;
+    device.swingModeWhenHidden !== KEEP_SETTING && getSwingModes(capabilities).includes(device.swingModeWhenHidden) ? device.swingModeWhenHidden : KEEP_SETTING;
   // A fixed fan speed is sent with every command, so a switch for auto would not hold.
   const hasFixedFanSpeed = device.fanControl === 'hidden' && fanSpeedWhenHidden !== KEEP_SETTING;
   const isAutoStep = device.fanAutoControl === 'firstStep' || device.fanAutoControl === 'lastStep';
@@ -201,7 +240,7 @@ export function hasSameControls(left: DaikinCapabilities, right: DaikinCapabilit
   const describe = (capabilities: DaikinCapabilities): string => {
     const ranges = OPERATING_MODES.map((mode) => capabilities.targetTemperaturesInC[mode]).map((range) => (range === null ? null : [range.min, range.max, range.step]));
     const specialModes = OPERATING_MODES.map((mode) => capabilities.specialModes[mode]);
-    return JSON.stringify([capabilities.modes, capabilities.fanSpeeds, capabilities.swingModes, ranges, specialModes]);
+    return JSON.stringify([capabilities.modes, capabilities.fanSpeeds, getSwingModes(capabilities), ranges, specialModes]);
   };
   return describe(left) === describe(right);
 }

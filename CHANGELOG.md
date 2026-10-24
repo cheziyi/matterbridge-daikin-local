@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0] - Dev branch
+
+### Added
+
+- [devices]: Add a switch for Heat Plus, beside Powerful, Econo and Streamer, on a unit that reports it. A unit takes it in heat alone.
+
+### Changed
+
+- [package]: Use daikin-local-control 0.7.0: a search reaches the adapters on each network the machine is on, such as Wi-Fi beside a wired one, instead of those on the network of its default route alone. It adds Heat Plus, and sets the louver of an Airbase unit through its position.
+
+### Fixed
+
+- [airbase]: Swing an Airbase unit up and down, the one axis it swings on. The plugin offered it left and right and 3D swing too, and each swing mode it sent held the louver at a fixed position instead. Stopping the swing holds the louver at the position it last held, or at the first of its five positions when it was never seen at one. A device set up before has its swing controls built again at the next restart of Matterbridge.
+
 ## [0.11.0] - 2026-10-24
 
 ### Changed

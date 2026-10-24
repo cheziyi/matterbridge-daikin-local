@@ -53,6 +53,7 @@ const specialModeTexts: Record<SpecialMode, { title: string; text: string }> = {
   powerful: { title: 'Powerful', text: 'Runs the unit at full power for a while.' },
   econo: { title: 'Econo', text: 'Limits how much power the unit draws.' },
   streamer: { title: 'Streamer', text: 'Runs the air purifying of the unit.' },
+  heatPlus: { title: 'Heat Plus', text: 'The Heat Plus mode of the unit, which it takes in heat alone.' },
 };
 
 // Static drawings, so innerHTML is safe for them. Everything that comes from the network goes through text nodes.
@@ -270,7 +271,7 @@ function fanSection(draft: Draft, controls: AvailableControls): HTMLElement {
 
 // The swing is natively the rocking of the fan control, which a unit whose fan speed is not shown has none of.
 function swingSection(draft: Draft, controls: AvailableControls): HTMLElement {
-  const swingModes = draft.capabilities?.swingModes ?? [];
+  const { swingModes } = controls;
   if (swingModes.length === 0)
     return h('section', {}, h('h2', {}, 'Swing'), h('p', { class: 'help' }, 'This unit does not let apps move its louvers, so there is nothing to choose.'));
   const hasVertical = swingModes.includes('vertical');
@@ -564,7 +565,13 @@ export function optionsScreen(): Child[] {
     specialSection(draft, controls),
     sensorSection(draft),
     composedSection(draft),
-    draft.isNew ? null : h('p', { class: 'help' }, 'A change of any of these applies at the next restart of Matterbridge. A switch or a sensor you add is new in your Matter app, in its default room, and one you remove is gone.'),
+    draft.isNew
+      ? null
+      : h(
+          'p',
+          { class: 'help' },
+          'A change of any of these applies at the next restart of Matterbridge. A switch or a sensor you add is new in your Matter app, in its default room, and one you remove is gone.',
+        ),
     notice(),
     h(
       'div',

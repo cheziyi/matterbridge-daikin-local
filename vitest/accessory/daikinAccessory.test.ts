@@ -9,7 +9,7 @@
  * The tests in this unit are supposed to run sequentially because they depend on the Matter state.
  */
 
-import { DaikinError, type DaikinSensors } from 'daikin-local-control';
+import { type DaikinControl, DaikinError, type DaikinSensors } from 'daikin-local-control';
 import type { MatterbridgeEndpoint } from 'matterbridge';
 import { type ActionContext, CommonNumberTag } from 'matterbridge/matter';
 import {
@@ -27,7 +27,7 @@ import { addDevice, aggregator, createServerNode, createTestEnvironment, startSe
 
 import { DaikinAccessory } from '../../src/accessory/daikinAccessory.js';
 import { readFanSpeed } from '../../src/accessory/matterState.js';
-import { PendingCommand } from '../../src/accessory/pendingCommand.js';
+import { moveSwingToPosition, PendingCommand } from '../../src/accessory/pendingCommand.js';
 import type { SwitchedMode } from '../../src/config.js';
 import { createCapabilities, createDeviceConfig, createFakeClient, type FakeClient, macOf } from '../fakeDaikin.js';
 
@@ -885,26 +885,27 @@ describe('DaikinAccessory', () => {
   });
 
   describe('a unit with switches for its special modes', () => {
-    const specialModes = { auto: [], dehumidify: [], cool: ['powerful', 'econo', 'streamer'], heat: ['powerful', 'streamer'], fan: ['streamer'] } as const;
+    const specialModes = { auto: [], dehumidify: [], cool: ['powerful', 'econo', 'streamer'], heat: ['powerful', 'streamer', 'heatPlus'], fan: ['streamer'] } as const;
     const capabilities = createCapabilities({ specialModes });
-    const config = createDeviceConfig({ name: 'Suite', fanControl: 'hidden', swingControl: 'hidden', specialModeSwitches: ['powerful', 'econo'] });
+    const config = createDeviceConfig({ name: 'Suite', fanControl: 'hidden', swingControl: 'hidden', specialModeSwitches: ['powerful', 'econo', 'heatPlus'] });
     let client: FakeClient;
     let accessory: DaikinAccessory;
 
     test('should create a switch for each special mode that is asked for, on either adapter', async () => {
       client = createFakeClient({ specialModes: ['econo'] }, capabilities);
       accessory = new DaikinAccessory({ config, capabilities, client, log, vendorId });
-      expect(accessory.endpoints).toHaveLength(3);
-      expect([...accessory.specialModeSwitches.keys()]).toEqual(['powerful', 'econo']);
+      expect(accessory.endpoints).toHaveLength(4);
+      expect([...accessory.specialModeSwitches.keys()]).toEqual(['powerful', 'econo', 'heatPlus']);
       expect(labelOf(accessory.specialModeSwitches.get('powerful'))).toBe('Suite Powerful');
       expect(labelOf(accessory.specialModeSwitches.get('econo'))).toBe('Suite Econo');
+      expect(labelOf(accessory.specialModeSwitches.get('heatPlus'))).toBe('Suite Heat Plus');
       await addAccessory(accessory);
       await accessory.refresh();
       expect(accessory.specialModeSwitches.get('powerful')?.getAttribute(OnOff, 'onOff')).toBe(false);
       expect(accessory.specialModeSwitches.get('econo')?.getAttribute(OnOff, 'onOff')).toBe(true);
 
       const dsiot = new DaikinAccessory({ config: { ...config, name: 'Annex', protocol: 'dsiot' }, capabilities, client: createFakeClient({}, capabilities), log, vendorId });
-      expect([...dsiot.specialModeSwitches.keys()]).toEqual(['powerful', 'econo']);
+      expect([...dsiot.specialModeSwitches.keys()]).toEqual(['powerful', 'econo', 'heatPlus']);
     });
 
     test('should turn a special mode on and off, each with a request of its own after the state', async () => {
@@ -1102,6 +1103,72 @@ describe('DaikinAccessory', () => {
       expect(fan.getAttribute(FanControl, 'rockSetting')).toEqual({ rockLeftRight: true, rockUpDown: false, rockRound: false });
       expect(accessory.endpoint.hasClusterServer(FanControl)).toBe(false);
       await accessory.dispose();
+    });
+  });
+
+  describe('a unit that swings through the position of its vertical louver', () => {
+    // An Airbase unit takes no swing mode: it swings at the vertical position swing, and reads as swinging up and down there.
+    const capabilities = createCapabilities({ swingModes: [], verticalPositions: ['position1', 'position2', 'position3', 'position4', 'position5', 'swing'] });
+
+    test('should swing up and down from its switch, and keep still again at the position the louver last held', async () => {
+      const client = createFakeClient({ swingMode: 'off', verticalPosition: 'position3' }, capabilities);
+      const accessory = new DaikinAccessory({ config: createDeviceConfig({ name: 'Louver Den' }), capabilities, client, log, vendorId, commandDelayInMs: 500 });
+      expect(accessory.horizontalSwitch).toBeUndefined();
+      const verticalSwitch = accessory.verticalSwitch;
+      if (verticalSwitch === undefined) throw new Error('The vertical swing switch is missing');
+      await addAccessory(accessory);
+      await accessory.refresh();
+      expect(verticalSwitch.getAttribute(OnOff, 'onOff')).toBe(false);
+
+      await writeAsController(verticalSwitch, 'OnOff', 'onOff', true);
+      await accessory.flushCommands();
+      expect(client.setState).toHaveBeenLastCalledWith({ verticalPosition: 'swing' });
+      client.state.swingMode = 'vertical';
+      await accessory.refresh();
+      expect(verticalSwitch.getAttribute(OnOff, 'onOff')).toBe(true);
+
+      await writeAsController(verticalSwitch, 'OnOff', 'onOff', false);
+      await accessory.flushCommands();
+      expect(client.setState).toHaveBeenLastCalledWith({ verticalPosition: 'position3' });
+      await accessory.dispose();
+    });
+
+    test('should keep still at the first fixed position when the louver was never seen at one, and send a fixed swing with every command', async () => {
+      const client = createFakeClient({ swingMode: 'vertical', verticalPosition: 'swing' }, capabilities);
+      const accessory = new DaikinAccessory({ config: createDeviceConfig({ name: 'Louver Loft', swingControl: 'select' }), capabilities, client, log, vendorId });
+      await addAccessory(accessory);
+      await accessory.refresh();
+      const swingSelect = accessory.swingSelect;
+      if (swingSelect === undefined) throw new Error('The swing select is missing');
+      expect(swingSelect.getAttribute(ModeSelect, 'supportedModes')).toEqual([
+        { label: 'Off', mode: 0, semanticTags: [] },
+        { label: 'Vertical', mode: 1, semanticTags: [] },
+      ]);
+      expect(swingSelect.getAttribute(ModeSelect, 'currentMode')).toBe(1);
+      await writeAsController(swingSelect, 'ModeSelect', 'currentMode', 0);
+      await accessory.flushCommands();
+      expect(client.setState).toHaveBeenLastCalledWith({ verticalPosition: 'position1' });
+      await accessory.dispose();
+
+      const hiddenClient = createFakeClient({}, capabilities);
+      const config = createDeviceConfig({ name: 'Louver Nook', swingControl: 'hidden', swingModeWhenHidden: 'vertical' });
+      const hidden = new DaikinAccessory({ config, capabilities, client: hiddenClient, log, vendorId });
+      await addAccessory(hidden);
+      await hidden.refresh();
+      await writeAsController(hidden.endpoint, 'OnOff', 'onOff', false);
+      await hidden.flushCommands();
+      expect(hiddenClient.setState).toHaveBeenLastCalledWith({ power: false, verticalPosition: 'swing' });
+      await hidden.dispose();
+    });
+
+    test('should leave out swing off on a unit that takes no fixed position', () => {
+      const control: DaikinControl = { power: true, swingMode: 'off' };
+      moveSwingToPosition(control, { swingModes: [], verticalPositions: ['swing'] });
+      expect(control).toEqual({ power: true });
+      // A unit that takes swing modes keeps them.
+      const swinging: DaikinControl = { swingMode: 'vertical' };
+      moveSwingToPosition(swinging, createCapabilities(), 'position2');
+      expect(swinging).toEqual({ swingMode: 'vertical' });
     });
   });
 

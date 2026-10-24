@@ -48,6 +48,8 @@ describe('capabilityStore', () => {
     expect(await store.read(device)).toBeUndefined();
     entries.set(key, { ...createCapabilities(), fanSpeeds: undefined });
     expect(await store.read(device)).toBeUndefined();
+    entries.set(key, { ...createCapabilities(), verticalPositions: undefined });
+    expect(await store.read(device)).toBeUndefined();
     entries.set(key, { ...createCapabilities(), specialModes: undefined });
     expect(await store.read(device)).toBeUndefined();
   });
