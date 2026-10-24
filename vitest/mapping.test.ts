@@ -24,12 +24,12 @@ import {
 import { createCapabilities } from './fakeDaikin.js';
 
 describe('mapping', () => {
-  it('should list the fan steps slowest first, without auto', () => {
+  test('should list the fan steps slowest first, without auto', () => {
     expect(getFanSteps(['level5', 'auto', 'silent', 'level1'])).toEqual(['silent', 'level1', 'level5']);
     expect(getFanSteps(['auto'])).toEqual([]);
   });
 
-  it('should convert every fan step to a percent that converts back to the same step', () => {
+  test('should convert every fan step to a percent that converts back to the same step', () => {
     for (let stepCount = 1; stepCount <= 6; stepCount++) {
       for (let step = 1; step <= stepCount; step++) {
         const percent = fanStepToPercent(stepCount, step);
@@ -42,7 +42,7 @@ describe('mapping', () => {
     expect(fanStepToPercent(6, 1)).toBe(16);
   });
 
-  it('should convert any percent to a step of the unit', () => {
+  test('should convert any percent to a step of the unit', () => {
     expect(percentToFanStep(6, 0)).toBe(1);
     expect(percentToFanStep(6, 1)).toBe(1);
     // The nearest step, the faster one halfway: 17 % is nearest the first sixth, and 25 % halfway to the second.
@@ -53,7 +53,7 @@ describe('mapping', () => {
     expect(percentToFanStep(6, 250)).toBe(6);
   });
 
-  it('should pick the fan mode sequence from the number of steps and auto', () => {
+  test('should pick the fan mode sequence from the number of steps and auto', () => {
     expect(getFanModeSequence(6, true)).toBe(FanControl.FanModeSequence.OffLowMedHighAuto);
     expect(getFanModeSequence(3, false)).toBe(FanControl.FanModeSequence.OffLowMedHigh);
     expect(getFanModeSequence(2, true)).toBe(FanControl.FanModeSequence.OffLowHighAuto);
@@ -62,14 +62,14 @@ describe('mapping', () => {
     expect(getFanModeSequence(1, false)).toBe(FanControl.FanModeSequence.OffHigh);
   });
 
-  it('should pick the thermostat profile from the modes of the unit', () => {
+  test('should pick the thermostat profile from the modes of the unit', () => {
     expect(getThermostatProfile(['auto', 'cool', 'heat'])).toBe('heatCool');
     expect(getThermostatProfile(['cool', 'fan'])).toBe('cool');
     expect(getThermostatProfile(['heat'])).toBe('heat');
     expect(getThermostatProfile(['fan', 'dehumidify'])).toBeUndefined();
   });
 
-  it('should convert the Daikin modes to Matter system modes', () => {
+  test('should convert the Daikin modes to Matter system modes', () => {
     expect(toSystemMode('cool', 'heatCool')).toBe(Thermostat.SystemMode.Cool);
     expect(toSystemMode('heat', 'heatCool')).toBe(Thermostat.SystemMode.Heat);
     expect(toSystemMode('dehumidify', 'cool')).toBe(Thermostat.SystemMode.Dry);
@@ -85,7 +85,7 @@ describe('mapping', () => {
     expect(toSystemMode('cool', 'heatCool', replacements)).toBe(Thermostat.SystemMode.Cool);
   });
 
-  it('should convert Matter system modes to the Daikin modes the unit offers', () => {
+  test('should convert Matter system modes to the Daikin modes the unit offers', () => {
     const modes = ['auto', 'dehumidify', 'cool', 'heat', 'fan'] as const;
     expect(toOperatingMode(Thermostat.SystemMode.Auto, modes)).toBe('auto');
     expect(toOperatingMode(Thermostat.SystemMode.Cool, modes)).toBe('cool');
@@ -106,7 +106,7 @@ describe('mapping', () => {
     expect(toOperatingMode(Thermostat.SystemMode.Sleep, coolOnly, replacements)).toBeUndefined();
   });
 
-  it('should clamp a setpoint to the range and round it to the step', () => {
+  test('should clamp a setpoint to the range and round it to the step', () => {
     const range = { min: 18, max: 32, step: 0.5 };
     expect(clampTemperature(24.2, range)).toBe(24);
     expect(clampTemperature(24.3, range)).toBe(24.5);
@@ -117,25 +117,25 @@ describe('mapping', () => {
     expect(clampTemperature(31.9, { min: 18, max: 31.5, step: 2 })).toBe(31.5);
   });
 
-  it('should encode a temperature as Matter does', () => {
+  test('should encode a temperature as Matter does', () => {
     expect(toMatterTemperature(26.5)).toBe(2650);
     expect(toMatterTemperature(21.999)).toBe(2200);
   });
 
-  it('should fall back to 16 to 32 °C for a mode without a range', () => {
+  test('should fall back to 16 to 32 °C for a mode without a range', () => {
     const capabilities = createCapabilities();
     expect(getTemperatureRange(capabilities, 'cool')).toEqual({ min: 18, max: 32, step: 0.5 });
     expect(getTemperatureRange(capabilities, 'fan')).toEqual({ min: 16, max: 32, step: 1 });
   });
 
-  it('should split a swing mode into its axes', () => {
+  test('should split a swing mode into its axes', () => {
     expect(getSwingAxes('off')).toEqual({ vertical: false, horizontal: false });
     expect(getSwingAxes('vertical')).toEqual({ vertical: true, horizontal: false });
     expect(getSwingAxes('horizontal')).toEqual({ vertical: false, horizontal: true });
     expect(getSwingAxes('both')).toEqual({ vertical: true, horizontal: true });
   });
 
-  it('should work out the swing mode after a switch changes', () => {
+  test('should work out the swing mode after a switch changes', () => {
     const all = ['off', 'vertical', 'horizontal', 'both'] as const;
     expect(resolveSwingMode('off', { vertical: true }, all)).toBe('vertical');
     expect(resolveSwingMode('vertical', { horizontal: true }, all)).toBe('both');
@@ -144,7 +144,7 @@ describe('mapping', () => {
     expect(resolveSwingMode('horizontal', {}, all)).toBe('horizontal');
   });
 
-  it('should swing on the axis just turned on when the unit cannot swing on both', () => {
+  test('should swing on the axis just turned on when the unit cannot swing on both', () => {
     const single = ['off', 'vertical', 'horizontal'] as const;
     expect(resolveSwingMode('vertical', { horizontal: true }, single)).toBe('horizontal');
     expect(resolveSwingMode('horizontal', { vertical: true }, single)).toBe('vertical');
@@ -154,7 +154,7 @@ describe('mapping', () => {
     expect(resolveSwingMode('off', { vertical: true, horizontal: true }, ['off', 'vertical'])).toBe('off');
   });
 
-  it('should keep the name of an extra endpoint within 32 characters by cutting the base name', () => {
+  test('should keep the name of an extra endpoint within 32 characters by cutting the base name', () => {
     expect(composeDeviceName('Living Room', 'Vertical Swing')).toBe('Living Room Vertical Swing');
     const long = composeDeviceName('The Very Large Upstairs Living Room', 'Horizontal Swing');
     expect(long).toBe('The Very Large Horizontal Swing');

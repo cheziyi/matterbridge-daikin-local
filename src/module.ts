@@ -1,13 +1,14 @@
 /**
  * @file src/module.ts
  * @description This file contains the Matterbridge platform for Daikin air conditioners controlled over the local network.
- * @author Luca Liguori
- * @contributor Calvin Che
- * @created 2025-06-15
- * @version 3.0.0
+ * @author Calvin Che
+ * @contributor Luca Liguori
+ * @created 2026-10-12
+ * @version 1.1.0
  * @license Apache-2.0
  *
- * Copyright 2025, 2026, 2027 Luca Liguori.
+ * Copyright 2026 Calvin Che.
+ * Copyright 2025, 2026 Luca Liguori, for the platform scaffolding from the Matterbridge plugin template.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,10 +43,11 @@ import {
   parseDeviceConfigs,
   toDaikinDevice,
 } from './config.js';
-import { addReportedSensors, fitToCapabilities, getAvailableControls, hasSameControls, noReportedSensors, type ReportedSensors } from './controls.js';
+import { addReportedSensors, fitToCapabilities, getAvailableControls, hasSameControls, noReportedSensors } from './controls.js';
 import { getErrorMessage } from './errors.js';
 import { CapabilityStore } from './platform/capabilityStore.js';
 import { getDiscoveredUpdate } from './platform/discovery.js';
+import { EndpointIds } from './platform/endpointIds.js';
 import { parseSetupRevision, SetupRevisions } from './platform/setupRevisions.js';
 import { identifyHost, probeDevice, type ProbeResult, registerWithDevice } from './setup/probe.js';
 import { type DiscoveredDevice, handleSetupRequest, type SetupDevice, type SetupPlatform, type SetupState } from './setup/setupApi.js';
@@ -92,6 +94,8 @@ export class DaikinPlatform extends MatterbridgeDynamicPlatform implements Setup
   private readonly probedSensors = new Map<string, DaikinSensors>();
   /** The devices whose unit was asked what it accepts since the plugin started, by the MAC address of their adapter. */
   private readonly checkedCapabilities = new Set<string>();
+  /** The devices whose stored options reach Matter at the next start of Matterbridge, by the MAC address of their adapter. */
+  private readonly restartRequired = new Set<string>();
   private pollTimer: NodeJS.Timeout | undefined;
   private discoveryTimer: NodeJS.Timeout | undefined;
   private pollIntervalInSeconds: number;
@@ -132,6 +136,9 @@ export class DaikinPlatform extends MatterbridgeDynamicPlatform implements Setup
 
     this.getTerminalUuid();
     for (const device of this.devices) await this.startDevice(device);
+    // The units are read from the start, not from onConfigure: Matterbridge configures the platform 30 seconds after
+    // its Matter node is online, and the devices would show nothing until then. A read that answers before the node is
+    // online waits for it to write to Matter: see DaikinAccessory.
     this.startTimers();
     // The stored addresses may be out of date, and the first search takes three seconds: do not hold the start for it.
     void this.updateAddresses();
@@ -249,6 +256,7 @@ export class DaikinPlatform extends MatterbridgeDynamicPlatform implements Setup
         hasLocalPassword: localPassword !== undefined,
         status: status?.isReachable === true ? 'online' : offlineOrStopped,
         error: status === undefined ? this.startErrors.get(device.macAddress) : status.lastError,
+        needsRestart: this.restartRequired.has(device.macAddress),
         capabilities,
         controls: capabilities === undefined ? undefined : getAvailableControls(capabilities),
       });
@@ -315,7 +323,7 @@ export class DaikinPlatform extends MatterbridgeDynamicPlatform implements Setup
    * Store a device, adding it or replacing the stored device of the same adapter
    *
    * @param {DaikinDeviceConfig} device The device. Without a child lock code, the stored one is kept.
-   * @returns {Promise<void>} Resolves when the device is stored and started, restarted or updated.
+   * @returns {Promise<void>} Resolves when the device is stored and started or updated, or noted for the next start of Matterbridge.
    * @throws {Error} When another stored device already has the name.
    */
   async saveDevice(device: DaikinDeviceConfig): Promise<void> {
@@ -503,7 +511,7 @@ export class DaikinPlatform extends MatterbridgeDynamicPlatform implements Setup
    * Make the running devices match a new device list
    *
    * @param {DaikinDeviceConfig[]} devices The new list.
-   * @param {string} [rebuiltMacAddress] The MAC address of the adapter of a device to build again in Matter even when its configuration is the same.
+   * @param {string} [rebuiltMacAddress] The MAC address of the adapter of a device whose unit accepts other settings than its endpoints show, which takes a new build at the next start of Matterbridge even when its configuration is the same.
    * @returns {Promise<void>} Resolves when every device is started, stopped, restarted or updated.
    */
   private async applyDevices(devices: DaikinDeviceConfig[], rebuiltMacAddress?: string): Promise<void> {
@@ -516,22 +524,23 @@ export class DaikinPlatform extends MatterbridgeDynamicPlatform implements Setup
     this.devices = devices;
     this.storeConfig();
     for (const device of previous) {
-      if (!devices.some((candidate) => candidate.macAddress === device.macAddress)) await this.stopDevice(device, true);
+      if (!devices.some((candidate) => candidate.macAddress === device.macAddress)) await this.stopDevice(device);
     }
     for (const device of devices) {
       const before = previous.find((candidate) => candidate.macAddress === device.macAddress);
       const accessory = this.accessories.get(device.macAddress);
       if (before === undefined || accessory === undefined) {
         await this.startDevice(device);
-      } else if (!hasSameExposure(before, device) || device.macAddress === rebuiltMacAddress) {
-        // The name and the clusters of a registered endpoint cannot change, so the endpoints are built again.
-        await this.stopDevice(before, false);
-        await this.startDevice(device);
-      } else if (hasSameConnection(before, device)) {
-        accessory.updateConfig(device);
       } else {
-        await accessory.updateConnection(device, this.createClient(device));
-        await accessory.refresh();
+        // The endpoints of a registered device cannot change while Matterbridge runs: the device keeps the ones it was
+        // built with, and gets its new ones at the next start.
+        if (!hasSameExposure(before, device) || device.macAddress === rebuiltMacAddress) this.requireRestart(device);
+        if (hasSameConnection(before, device)) {
+          await accessory.updateConfig(device);
+        } else {
+          await accessory.updateConnection(device, this.createClient(device));
+          await accessory.refresh();
+        }
       }
     }
   }
@@ -548,10 +557,9 @@ export class DaikinPlatform extends MatterbridgeDynamicPlatform implements Setup
    * A device that cannot start is logged and retried on the next search, never thrown.
    *
    * @param {DaikinDeviceConfig} device The device.
-   * @param {ReportedSensors} [knownSensors] The readings its unit has given. Left out, the stored ones are used.
    * @returns {Promise<void>} Resolves when the device runs, or could not be started.
    */
-  private async startDevice(device: DaikinDeviceConfig, knownSensors?: ReportedSensors): Promise<void> {
+  private async startDevice(device: DaikinDeviceConfig): Promise<void> {
     const client = this.createClient(device);
     const registered: MatterbridgeEndpoint[] = [];
     try {
@@ -561,15 +569,19 @@ export class DaikinPlatform extends MatterbridgeDynamicPlatform implements Setup
         await this.capabilityStore.write(device, capabilities);
         this.checkedCapabilities.add(device.macAddress);
       }
-      const reportedSensors = knownSensors ?? (await this.capabilityStore.readSensors(device)) ?? noReportedSensors;
-      const accessory = new DaikinAccessory({ config: device, capabilities, reportedSensors, client, log: this.log, vendorId: this.matterbridge.aggregatorVendorId });
+      const reportedSensors = (await this.capabilityStore.readSensors(device)) ?? noReportedSensors;
+      const ids = new EndpointIds(await this.capabilityStore.readEndpointIds(device));
+      const accessory = new DaikinAccessory({ config: device, capabilities, reportedSensors, client, log: this.log, vendorId: this.matterbridge.aggregatorVendorId, ids });
       for (const endpoint of accessory.endpoints) {
         await this.registerDevice(endpoint);
         registered.push(endpoint);
       }
       await accessory.clearReadings();
+      await this.capabilityStore.writeEndpointIds(device, ids.toStore());
       this.accessories.set(device.macAddress, accessory);
       this.startErrors.delete(device.macAddress);
+      // A device that starts is built from its stored options.
+      this.restartRequired.delete(device.macAddress);
       this.log.info(`"${device.name}" started at ${device.host} with ${accessory.endpoints.length} Matter endpoint(s)`);
       // Not awaited: a unit that does not answer must not hold up the start of the others.
       void accessory.refresh();
@@ -587,35 +599,61 @@ export class DaikinPlatform extends MatterbridgeDynamicPlatform implements Setup
   }
 
   /**
-   * Build again in Matter each device whose unit gave a reading it shows nowhere yet
+   * Note each device whose unit gave a reading it shows nowhere yet, which gets its place at the next start of Matterbridge
    *
    * Runs inside the queue of changes.
    *
-   * @returns {Promise<void>} Resolves when every such device has a place for the reading.
+   * @returns {Promise<void>} Resolves when every such reading is stored.
    */
   private async exposeNewSensors(): Promise<void> {
     for (const device of this.devices) {
-      const reported = this.accessories.get(device.macAddress)?.getNewlyReportedSensors();
-      if (reported === undefined) continue;
-      this.log.notice(`"${device.name}" gave a reading it shows nowhere in Matter yet: it is built again in Matter`);
+      const accessory = this.accessories.get(device.macAddress);
+      const reported = accessory?.getNewlyReportedSensors();
+      if (accessory === undefined || reported === undefined) continue;
+      this.log.notice(`"${device.name}" gave a reading it shows nowhere in Matter yet`);
       await this.capabilityStore.writeSensors(device, reported);
-      await this.stopDevice(device, false);
-      await this.startDevice(device, reported);
+      accessory.noteReportedSensors(reported);
+      this.requireRestart(device);
     }
   }
 
-  private async stopDevice(device: DaikinDeviceConfig, shouldForget: boolean): Promise<void> {
+  /**
+   * Note that a device is built again at the next start of Matterbridge, and ask for the restart
+   *
+   * The endpoints of a registered device cannot change while Matterbridge runs. Taking them away and registering them
+   * again makes the Matter apps take the device for a new one, with its room and its automations lost. Across a restart
+   * Matterbridge keeps the endpoint numbers, so the apps keep the device. Until the restart, the device keeps the
+   * endpoints it was built with.
+   *
+   * @param {DaikinDeviceConfig} device The device.
+   * @returns {void}
+   */
+  private requireRestart(device: DaikinDeviceConfig): void {
+    if (!this.restartRequired.has(device.macAddress)) {
+      this.log.notice(`"${device.name}" is built again with its new options at the next restart of Matterbridge: until then it keeps its current ones`);
+    }
+    this.restartRequired.add(device.macAddress);
+    this.wssSendRestartRequired();
+  }
+
+  /**
+   * Stop a removed device, take its Matter endpoints away and forget what is known about its unit
+   *
+   * @param {DaikinDeviceConfig} device The device.
+   * @returns {Promise<void>} Resolves when the device is stopped and forgotten.
+   */
+  private async stopDevice(device: DaikinDeviceConfig): Promise<void> {
     const { name, macAddress } = device;
     const accessory = this.accessories.get(macAddress);
     this.accessories.delete(macAddress);
     this.startErrors.delete(macAddress);
+    this.restartRequired.delete(macAddress);
+    this.checkedCapabilities.delete(macAddress);
     if (accessory !== undefined) {
       await accessory.dispose();
       for (const endpoint of accessory.endpoints) await this.unregisterDevice(endpoint);
       this.log.info(`"${name}" stopped`);
     }
-    if (!shouldForget) return;
-    this.checkedCapabilities.delete(macAddress);
     await this.capabilityStore.remove(device);
   }
 
@@ -623,7 +661,8 @@ export class DaikinPlatform extends MatterbridgeDynamicPlatform implements Setup
    * Ask each unit that was started from stored capabilities what it accepts now, once after each start
    *
    * A unit answers differently after its firmware or this plugin's Daikin library changed. When the difference changes
-   * its controls, the device is built again in Matter and the settings the unit no longer takes are dropped.
+   * its controls, the settings the unit no longer takes are dropped, and the device is built again at the next start
+   * of Matterbridge.
    *
    * @returns {Promise<void>} Resolves when every unit that answers was asked. A unit that does not is asked on the next search.
    */
@@ -640,12 +679,12 @@ export class DaikinPlatform extends MatterbridgeDynamicPlatform implements Setup
       this.checkedCapabilities.add(device.macAddress);
       await this.capabilityStore.write(device, capabilities);
       if (hasSameControls(accessory.capabilities, capabilities)) continue;
-      this.log.notice(`"${device.name}" accepts other settings than when it was set up: it is built again in Matter`);
+      this.log.notice(`"${device.name}" accepts other settings than when it was set up`);
       const fitted = fitToCapabilities(device, capabilities);
       this.devices = this.devices.map((candidate) => (candidate.macAddress === device.macAddress ? fitted : candidate));
       this.storeConfig();
-      await this.stopDevice(device, false);
-      await this.startDevice(fitted);
+      await accessory.updateConfig(fitted);
+      this.requireRestart(fitted);
     }
   }
 }

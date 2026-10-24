@@ -19,11 +19,12 @@ import {
   parseDeviceConfig,
   parseDeviceConfigs,
   toDaikinDevice,
+  withExposureOf,
 } from '../src/config.js';
 import { createDeviceConfig, macOf } from './fakeDaikin.js';
 
 describe('config', () => {
-  it('should accept a host name or an address with an optional port, and nothing else', () => {
+  test('should accept a host name or an address with an optional port, and nothing else', () => {
     expect(isValidHost('192.168.1.50')).toBe(true);
     expect(isValidHost('192.168.1.50:8080')).toBe(true);
     expect(isValidHost('daikin-living.local')).toBe(true);
@@ -34,7 +35,7 @@ describe('config', () => {
     expect(isValidHost(42)).toBe(false);
   });
 
-  it('should normalize a terminal uuid to 32 lower case digits, with or without dashes', () => {
+  test('should normalize a terminal uuid to 32 lower case digits, with or without dashes', () => {
     expect(normalizeTerminalUuid('0D120767-302B-4603-B5AE-916260815E4E')).toBe('0d120767302b4603b5ae916260815e4e');
     expect(normalizeTerminalUuid('0d120767302b4603b5ae916260815e4e')).toBe('0d120767302b4603b5ae916260815e4e');
     expect(normalizeTerminalUuid('not-a-uuid-not-a-uuid-not-a-uuid-xx')).toBeUndefined();
@@ -42,7 +43,7 @@ describe('config', () => {
     expect(normalizeTerminalUuid(undefined)).toBeUndefined();
   });
 
-  it('should normalize a MAC address with or without separators', () => {
+  test('should normalize a MAC address with or without separators', () => {
     expect(normalizeMacAddress('a408eacc91d4')).toBe('A4:08:EA:CC:91:D4');
     expect(normalizeMacAddress('A4:08:EA:CC:91:D4')).toBe('A4:08:EA:CC:91:D4');
     expect(normalizeMacAddress('a4-08-ea-cc-91-d4')).toBe('A4:08:EA:CC:91:D4');
@@ -51,14 +52,14 @@ describe('config', () => {
     expect(normalizeMacAddress(undefined)).toBeUndefined();
   });
 
-  it('should trim a device name and refuse an empty or too long one', () => {
+  test('should trim a device name and refuse an empty or too long one', () => {
     expect(normalizeDeviceName('  Living Room ')).toBe('Living Room');
     expect(normalizeDeviceName('   ')).toBeUndefined();
     expect(normalizeDeviceName('x'.repeat(33))).toBeUndefined();
     expect(normalizeDeviceName(7)).toBeUndefined();
   });
 
-  it('should clamp the poll interval to 2..3600 seconds and default to 5', () => {
+  test('should clamp the poll interval to 2..3600 seconds and default to 5', () => {
     expect(normalizePollInterval(30)).toBe(30);
     expect(normalizePollInterval(1)).toBe(2);
     expect(normalizePollInterval(99999)).toBe(3600);
@@ -66,7 +67,7 @@ describe('config', () => {
     expect(normalizePollInterval(undefined)).toBe(5);
   });
 
-  it('should clamp the state age for a command to 0..3600 seconds and default to 30', () => {
+  test('should clamp the state age for a command to 0..3600 seconds and default to 30', () => {
     expect(normalizeMaxStateAgeForCommand(10)).toBe(10);
     expect(normalizeMaxStateAgeForCommand(0)).toBe(0);
     expect(normalizeMaxStateAgeForCommand(-1)).toBe(0);
@@ -75,7 +76,7 @@ describe('config', () => {
     expect(normalizeMaxStateAgeForCommand(undefined)).toBe(30);
   });
 
-  it('should parse a device stored with only a name, an address, a protocol and a MAC address', () => {
+  test('should parse a device stored with only a name, an address, a protocol and a MAC address', () => {
     const device = createDeviceConfig();
     expect(parseDeviceConfig({ name: 'Living Room', host: '192.168.1.50', protocol: 'classic', macAddress: device.macAddress.toLowerCase() })).toEqual({
       ...device,
@@ -84,7 +85,7 @@ describe('config', () => {
     });
   });
 
-  it('should keep every valid field of a stored device', () => {
+  test('should keep every valid field of a stored device', () => {
     const stored = {
       name: 'Bedroom',
       host: '192.168.1.51',
@@ -117,7 +118,7 @@ describe('config', () => {
     expect(parseDeviceConfig({ ...stored, modeSwitches: ['fan', 'cool', 'dehumidify'] })).toEqual(stored);
   });
 
-  it('should keep the mode replacements that are valid, and report the others', () => {
+  test('should keep the mode replacements that are valid, and report the others', () => {
     const device = createDeviceConfig({ name: 'A', host: 'h', modeReplacements: { dehumidify: 'cool' } });
     const report = vi.fn();
     // A thermostat mode stands for one mode at most: the first to take it keeps it.
@@ -134,7 +135,7 @@ describe('config', () => {
     expect(report).toHaveBeenCalledExactlyOnceWith('"A" has the modeReplacements ["cool"], which is not valid: {} is used instead');
   });
 
-  it('should fall back to the defaults for fields that are not valid, and report each', () => {
+  test('should fall back to the defaults for fields that are not valid, and report each', () => {
     const device = createDeviceConfig({ name: 'A', host: 'h', hasOutdoorTemperatureSensor: false, isComposed: true });
     const stored = {
       name: 'A',
@@ -178,7 +179,7 @@ describe('config', () => {
     expect(report).not.toHaveBeenCalled();
   });
 
-  it('should refuse a device without a valid name, address, protocol or MAC address', () => {
+  test('should refuse a device without a valid name, address, protocol or MAC address', () => {
     const device = createDeviceConfig();
     expect(parseDeviceConfig(undefined)).toBeUndefined();
     expect(parseDeviceConfig('Living Room')).toBeUndefined();
@@ -190,7 +191,7 @@ describe('config', () => {
     expect(parseDeviceConfig({ host: '192.168.1.60' })).toBeUndefined();
   });
 
-  it('should drop the devices that are wrong and report each', () => {
+  test('should drop the devices that are wrong and report each', () => {
     const report = vi.fn();
     const stored = [createDeviceConfig(), { host: '192.168.1.60' }, createDeviceConfig({ host: '192.168.1.99' }), createDeviceConfig({ name: 'Bedroom' })];
     const devices = parseDeviceConfigs(stored, report);
@@ -209,7 +210,7 @@ describe('config', () => {
     expect(parseDeviceConfigs('none')).toEqual([]);
   });
 
-  it('should list the stored devices it cannot read until a device takes their place', () => {
+  test('should list the stored devices it cannot read until a device takes their place', () => {
     const living = createDeviceConfig();
     // A device as a later version might store it, one without the MAC address of its adapter, and no device at all.
     const fromLater = { ...createDeviceConfig({ name: 'Annex' }), protocol: 'later' };
@@ -222,7 +223,7 @@ describe('config', () => {
     expect(getUnreadableDevices('none', [living])).toEqual([]);
   });
 
-  it('should convert a stored device to the device the client takes', () => {
+  test('should convert a stored device to the device the client takes', () => {
     expect(toDaikinDevice(createDeviceConfig({ localPassword: '1234', requiresLocalPassword: true }))).toEqual({
       host: '192.168.1.50',
       protocol: 'classic',
@@ -234,7 +235,15 @@ describe('config', () => {
     });
   });
 
-  it('should compare the connection and the exposure of two devices', () => {
+  test('should take the settings that decide the endpoints from another device, and keep the rest', () => {
+    const built = createDeviceConfig({ fanControl: 'steps', swingControl: 'switches', fanSpeedWhenHidden: 'keep' });
+    const stored = createDeviceConfig({ name: 'Lounge', host: '192.168.1.51', fanControl: 'hidden', fanSpeedWhenHidden: 'level1', swingControl: 'hidden', modeControl: 'select' });
+    const kept = withExposureOf(stored, built);
+    expect(hasSameExposure(kept, built)).toBe(true);
+    expect(kept).toMatchObject({ name: 'Lounge', host: '192.168.1.51', fanSpeedWhenHidden: 'level1', fanControl: 'steps', swingControl: 'switches', modeControl: 'native' });
+  });
+
+  test('should compare the connection and the exposure of two devices', () => {
     const device = createDeviceConfig();
     expect(hasSameConnection(device, createDeviceConfig({ fanControl: 'hidden' }))).toBe(true);
     expect(hasSameConnection(device, createDeviceConfig({ host: '192.168.1.51' }))).toBe(false);
@@ -261,6 +270,7 @@ describe('config', () => {
     expect(hasSameExposure(device, createDeviceConfig({ hasSeparateHumiditySensor: true }))).toBe(false);
     expect(hasSameExposure(device, createDeviceConfig({ isComposed: true }))).toBe(false);
     // A new name is a new name in Matter, so the device is built again.
-    expect(hasSameExposure(device, createDeviceConfig({ name: 'Lounge' }))).toBe(false);
+    // The name is the label of the device in Matter, which changes in place: no part of the exposure.
+    expect(hasSameExposure(device, createDeviceConfig({ name: 'Lounge' }))).toBe(true);
   });
 });

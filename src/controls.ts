@@ -171,6 +171,7 @@ export interface ReportedSensors {
   hasOutdoorTemperature: boolean;
 }
 
+/** The readings of a unit that has given none yet. */
 export const noReportedSensors: ReportedSensors = { hasHumidity: false, hasOutdoorTemperature: false };
 
 /**

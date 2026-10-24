@@ -74,7 +74,7 @@ describe('probe', () => {
   });
 
   describe('probeDevice', () => {
-    it('should report a device that answers as ready, with what its unit accepts and what its sensors read', async () => {
+    test('should report a device that answers as ready, with what its unit accepts and what its sensors read', async () => {
       const client = createClassicClient();
       client.dispose.mockRejectedValueOnce(new Error('close failed'));
       createClient.mockReturnValueOnce(client);
@@ -84,7 +84,7 @@ describe('probe', () => {
       expect(client.dispose).toHaveBeenCalled();
     });
 
-    it('should take the name the adapter tells, over none and over one that was typed for it', async () => {
+    test('should take the name the adapter tells, over none and over one that was typed for it', async () => {
       const told = { ...deviceInfo, name: 'Lounge' };
       const unnamed = createClassicClient();
       unnamed.getDeviceInfo.mockResolvedValueOnce(told);
@@ -105,7 +105,7 @@ describe('probe', () => {
       expect(nameless.getDeviceInfo).toHaveBeenCalledTimes(1);
     });
 
-    it('should not ask an adapter that a search already identified which adapter it is', async () => {
+    test('should not ask an adapter that a search already identified which adapter it is', async () => {
       const client = createClassicClient();
       createClient.mockReturnValueOnce(client);
       const identified = { ...classic, macAddress: '00:11:22:33:44:55' };
@@ -113,7 +113,7 @@ describe('probe', () => {
       expect(client.getDeviceInfo).not.toHaveBeenCalled();
     });
 
-    it('should ask for the child lock code before calling an adapter that requires one', async () => {
+    test('should ask for the child lock code before calling an adapter that requires one', async () => {
       const device = { ...classic, requiresLocalPassword: true };
       expect(await probeDevice(device, credentials)).toEqual({ status: 'localPasswordRequired', device });
       expect(createClient).not.toHaveBeenCalled();
@@ -149,7 +149,7 @@ describe('probe', () => {
   });
 
   describe('registerWithDevice', () => {
-    it('should register the terminal, then check the adapter again', async () => {
+    test('should register the terminal, then check the adapter again', async () => {
       const registering = createClassicClient();
       createClient.mockReturnValueOnce(registering).mockReturnValueOnce(createClassicClient());
       expect(await registerWithDevice(classic, '0123456789012', credentials)).toEqual({ status: 'ready', device: { ...classic, ...deviceInfo }, capabilities, sensors, controls });
@@ -157,7 +157,7 @@ describe('probe', () => {
       expect(registering.dispose).toHaveBeenCalled();
     });
 
-    it('should report a KEY the adapter refused', async () => {
+    test('should report a KEY the adapter refused', async () => {
       const client = createClassicClient();
       client.registerTerminal.mockRejectedValueOnce(new DaikinError('Daikin command failed (ret=PARAM NG)', 502));
       createClient.mockReturnValueOnce(client);
@@ -165,7 +165,7 @@ describe('probe', () => {
       expect(createClient).toHaveBeenCalledTimes(1);
     });
 
-    it('should keep the reason when the adapter is unreachable or rejects the child lock code', async () => {
+    test('should keep the reason when the adapter is unreachable or rejects the child lock code', async () => {
       const unreachable = createClassicClient();
       unreachable.registerTerminal.mockRejectedValueOnce(new DaikinError('timed out', 504));
       createClient.mockReturnValueOnce(unreachable);
@@ -177,7 +177,7 @@ describe('probe', () => {
       expect(await registerWithDevice(classic, 'key', credentials)).toMatchObject({ status: 'localPasswordRejected' });
     });
 
-    it('should refuse to register with an adapter that is not classic', async () => {
+    test('should refuse to register with an adapter that is not classic', async () => {
       const client = createDsiotClient();
       createClient.mockReturnValueOnce(client);
       expect(await registerWithDevice(dsiot, 'key', credentials)).toMatchObject({ status: 'failed', message: 'Only a classic adapter registers terminals' });
@@ -186,7 +186,7 @@ describe('probe', () => {
   });
 
   describe('identifyHost', () => {
-    it('should read the name and the requirements of a classic adapter that answers over HTTP', async () => {
+    test('should read the name and the requirements of a classic adapter that answers over HTTP', async () => {
       const client = createClassicClient();
       createClient.mockReturnValueOnce(client);
       expect(await identifyHost('192.168.1.50', credentials.terminalUuid)).toEqual({
@@ -204,7 +204,7 @@ describe('probe', () => {
       );
     });
 
-    it('should keep a port the user typed and use the port the adapter announces otherwise', async () => {
+    test('should keep a port the user typed and use the port the adapter announces otherwise', async () => {
       const announcing = { ...basicInfo, api_port: '8080' };
       const first = createClassicClient();
       first.command.mockResolvedValueOnce(announcing);
@@ -216,14 +216,14 @@ describe('probe', () => {
       expect((await identifyHost('192.168.1.50:18081', credentials.terminalUuid))?.host).toBe('192.168.1.50:18081');
     });
 
-    it('should take a rejection as a classic adapter that requires registration', async () => {
+    test('should take a rejection as a classic adapter that requires registration', async () => {
       const client = createClassicClient();
       client.command.mockRejectedValueOnce(new DaikinError('Daikin request failed', 403));
       createClient.mockReturnValueOnce(client);
       expect(await identifyHost('192.168.1.50', credentials.terminalUuid)).toEqual({ host: '192.168.1.50', protocol: 'classic', usesHttps: false, requiresRegistration: true });
     });
 
-    it('should try HTTPS when nothing answers over HTTP', async () => {
+    test('should try HTTPS when nothing answers over HTTP', async () => {
       const overHttp = createClassicClient();
       overHttp.command.mockRejectedValueOnce(new DaikinError('refused', 503));
       const overHttps = createClassicClient();
@@ -232,7 +232,7 @@ describe('probe', () => {
       expect(createClient).toHaveBeenLastCalledWith({ host: '192.168.1.50', protocol: 'classic', usesHttps: true }, expect.anything());
     });
 
-    it('should find an Airbase adapter, which answers 404 to the classic question', async () => {
+    test('should find an Airbase adapter, which answers 404 to the classic question', async () => {
       const classicClient = createClassicClient();
       classicClient.command.mockRejectedValueOnce(new DaikinError('not found', 404));
       const airbaseClient = createAirbaseClient();
@@ -246,7 +246,7 @@ describe('probe', () => {
       expect(airbaseClient.dispose).toHaveBeenCalled();
     });
 
-    it('should find a DSIOT adapter, which answers neither the classic nor the Airbase question', async () => {
+    test('should find a DSIOT adapter, which answers neither the classic nor the Airbase question', async () => {
       const classicClient = createClassicClient();
       classicClient.command.mockRejectedValueOnce(new DaikinError('not found', 404));
       const airbaseClient = createAirbaseClient();
@@ -259,7 +259,7 @@ describe('probe', () => {
       expect(dsiotClient.dispose).toHaveBeenCalled();
     });
 
-    it('should find a DSIOT adapter that asks for its child lock code', async () => {
+    test('should find a DSIOT adapter that asks for its child lock code', async () => {
       const classicClient = createClassicClient();
       classicClient.command.mockRejectedValueOnce('odd');
       const dsiotClient = createDsiotClient();
@@ -268,7 +268,7 @@ describe('probe', () => {
       expect(await identifyHost('192.168.1.51', credentials.terminalUuid)).toEqual({ host: '192.168.1.51', protocol: 'dsiot', requiresLocalPassword: true });
     });
 
-    it('should find nothing where no adapter answers', async () => {
+    test('should find nothing where no adapter answers', async () => {
       const overHttp = createClassicClient();
       overHttp.command.mockRejectedValueOnce(new DaikinError('timed out', 504));
       const overHttps = createClassicClient();
@@ -280,7 +280,7 @@ describe('probe', () => {
       expect(createClient).toHaveBeenCalledTimes(3);
     });
 
-    it('should not take a client of another kind for a classic adapter', async () => {
+    test('should not take a client of another kind for a classic adapter', async () => {
       const other = createDsiotClient();
       other.getDeviceInfo.mockRejectedValueOnce(new Error('not a DSIOT adapter'));
       createClient.mockReturnValueOnce(createDsiotClient()).mockReturnValueOnce(other);

@@ -23,13 +23,13 @@ describe('discovery', () => {
     vi.clearAllMocks();
   });
 
-  it('should change nothing for a device whose adapter did not answer or answered as it is stored', () => {
+  test('should change nothing for a device whose adapter did not answer or answered as it is stored', () => {
     expect(getDiscoveredUpdate(livingRoom, [], log)).toBeUndefined();
     expect(getDiscoveredUpdate(bedroom, [adapter], log)).toBeUndefined();
     expect(getDiscoveredUpdate(livingRoom, [adapter], log)).toBeUndefined();
   });
 
-  it('should take the address and the requirements the adapter has now, and keep the name of the device', () => {
+  test('should take the address and the requirements the adapter has now, and keep the name of the device', () => {
     const moved: DaikinDevice = { ...adapter, host: '192.168.1.77', name: ' Lounge ', usesHttps: true, requiresRegistration: true, requiresLocalPassword: true };
     expect(getDiscoveredUpdate(livingRoom, [moved], log)).toEqual({
       ...livingRoom,
@@ -40,17 +40,17 @@ describe('discovery', () => {
     });
   });
 
-  it('should change nothing for a device whose adapter answered under another name alone', () => {
+  test('should change nothing for a device whose adapter answered under another name alone', () => {
     expect(getDiscoveredUpdate(livingRoom, [{ ...adapter, name: 'Bedroom' }], log)).toBeUndefined();
     expect(getDiscoveredUpdate(livingRoom, [{ ...adapter, name: undefined, host: '192.168.1.77' }], log)).toEqual({ ...livingRoom, host: '192.168.1.77' });
   });
 
-  it('should leave a device whose adapter speaks another protocol as it is, with a warning', () => {
+  test('should leave a device whose adapter speaks another protocol as it is, with a warning', () => {
     expect(getDiscoveredUpdate(livingRoom, [{ ...adapter, protocol: 'dsiot', host: '192.168.1.77' }], log)).toBeUndefined();
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('now speaks dsiot instead of classic'));
   });
 
-  it('should follow an Airbase adapter the search reports as classic, and keep its stored requirements', () => {
+  test('should follow an Airbase adapter the search reports as classic, and keep its stored requirements', () => {
     const ducted = createDeviceConfig({ name: 'Ducted', host: '192.168.1.52', protocol: 'airbase' });
     const found: DaikinDevice = { host: '192.168.1.52', protocol: 'airbase', name: 'Ducted', macAddress: ducted.macAddress };
     expect(getDiscoveredUpdate(ducted, [{ ...found, host: '192.168.1.78', usesHttps: true }], log)).toEqual({ ...ducted, host: '192.168.1.78', usesHttps: true });

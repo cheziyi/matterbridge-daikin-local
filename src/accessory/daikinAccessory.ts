@@ -3,7 +3,7 @@
  * @description This file contains the bridge between one Daikin air conditioner and its Matter endpoints.
  * @author Calvin Che
  * @created 2026-10-12
- * @version 1.0.0
+ * @version 1.1.0
  * @license Apache-2.0
  *
  * Copyright 2026 Calvin Che.
@@ -36,11 +36,13 @@ import type { AnsiLogger } from 'matterbridge/logger';
 import { type ActionContext, Node } from 'matterbridge/matter';
 import { BridgedDeviceBasicInformation, FanControl, ModeSelect, OnOff, Thermostat } from 'matterbridge/matter/clusters';
 
-import { type DaikinDeviceConfig, SWITCHED_MODES, type SwitchedMode } from '../config.js';
+import { type DaikinDeviceConfig, SWITCHED_MODES, type SwitchedMode, withExposureOf } from '../config.js';
 import { addReportedSensors, getSwitchableSpecialModes, noReportedSensors, type ReportedSensors } from '../controls.js';
 import { getErrorMessage } from '../errors.js';
 import { modeSelectChoices, type SelectChoices, swingSelectChoices, toModeOptions, toOperatingMode } from '../mapping.js';
+import { EndpointIds } from '../platform/endpointIds.js';
 import {
+  applyDeviceLabel,
   createAirConditionerEndpoint,
   createFanEndpoint,
   createHumidityEndpoint,
@@ -74,6 +76,7 @@ const modeSwitchNames: Readonly<Record<SwitchedMode, { key: string; code: string
 /** What each special mode is called in Matter and in the log: Daikin's own names. */
 const specialModeLabels: Readonly<Record<SpecialMode, string>> = { powerful: 'Powerful', econo: 'Econo', streamer: 'Streamer' };
 
+/** What a device is built from: its stored configuration, what its unit accepts, the readings the unit has given and the client that reaches it. */
 export interface DaikinAccessoryOptions {
   config: DaikinDeviceConfig;
   capabilities: DaikinCapabilities;
@@ -83,6 +86,8 @@ export interface DaikinAccessoryOptions {
   log: AnsiLogger;
   /** The vendor id of the bridge, used for the bridged device information. */
   vendorId: number;
+  /** The endpoint ids of the device, which give an endpoint that comes back after it was taken away a new id. Defaults to the base ids. */
+  ids?: EndpointIds;
   /** How long to collect the writes of a controller before sending them. Defaults to 300 milliseconds. */
   commandDelayInMs?: number;
 }
@@ -127,7 +132,8 @@ function ignore(): void {
  * controllers, and runs the reads and the commands one after the other.
  */
 export class DaikinAccessory implements AccessoryEndpoints {
-  readonly name: string;
+  /** The name the user gave the device, which is its label in Matter. */
+  name: string;
   readonly endpoint: MatterbridgeEndpoint;
   readonly verticalSwitch: MatterbridgeEndpoint | undefined;
   readonly horizontalSwitch: MatterbridgeEndpoint | undefined;
@@ -149,6 +155,8 @@ export class DaikinAccessory implements AccessoryEndpoints {
   readonly reportedSensors: ReportedSensors;
 
   private config: DaikinDeviceConfig;
+  /** The readings the unit is known to give: the ones the endpoints were built for, and the ones noted since. */
+  private knownSensors: ReportedSensors;
   private client: DaikinClient;
   private readonly log: AnsiLogger;
   private readonly commandDelayInMs: number;
@@ -189,11 +197,12 @@ export class DaikinAccessory implements AccessoryEndpoints {
     this.config = options.config;
     this.capabilities = options.capabilities;
     this.reportedSensors = options.reportedSensors ?? noReportedSensors;
+    this.knownSensors = this.reportedSensors;
     this.client = options.client;
     this.log = options.log;
     this.commandDelayInMs = options.commandDelayInMs ?? defaultCommandDelayInMs;
     this.name = options.config.name;
-    this.identity = { name: this.name, serial: options.config.macAddress, vendorId: options.vendorId };
+    this.identity = { label: this.name, serial: options.config.macAddress, vendorId: options.vendorId, ids: options.ids ?? new EndpointIds() };
     this.layout = getAccessoryLayout(this.config, this.capabilities, this.reportedSensors);
 
     this.endpoint = this.createAirConditioner();
@@ -254,13 +263,13 @@ export class DaikinAccessory implements AccessoryEndpoints {
    * An outdoor temperature no sensor is asked for is left out: there is nothing to build for it. It counts from the
    * first read after its sensor is asked for.
    *
-   * @returns {ReportedSensors | undefined} Every reading the unit has given, or undefined when the endpoints show them all.
+   * @returns {ReportedSensors | undefined} Every reading the unit has given, or undefined when the endpoints show them all or they were noted already: see `noteReportedSensors`.
    */
   getNewlyReportedSensors(): ReportedSensors | undefined {
     if (this.sensors === undefined) return undefined;
     const sensors = this.config.hasOutdoorTemperatureSensor ? this.sensors : { ...this.sensors, outdoorTemperatureInC: null };
-    const reported = addReportedSensors(this.reportedSensors, sensors);
-    return reported === this.reportedSensors ? undefined : reported;
+    const reported = addReportedSensors(this.knownSensors, sensors);
+    return reported === this.knownSensors ? undefined : reported;
   }
 
   /**
@@ -284,6 +293,16 @@ export class DaikinAccessory implements AccessoryEndpoints {
   }
 
   /**
+   * Note the readings the unit is known to give, so that they are not reported as new again
+   *
+   * @param {ReportedSensors} reported The readings, which get their place in Matter at the next start of Matterbridge.
+   * @returns {void}
+   */
+  noteReportedSensors(reported: ReportedSensors): void {
+    this.knownSensors = reported;
+  }
+
+  /**
    * Switch to a new client after the address or the credentials of the device changed
    *
    * @param {DaikinDeviceConfig} config The updated device.
@@ -292,19 +311,29 @@ export class DaikinAccessory implements AccessoryEndpoints {
    */
   async updateConnection(config: DaikinDeviceConfig, client: DaikinClient): Promise<void> {
     const previous = this.client;
-    this.config = config;
+    await this.updateConfig(config);
     this.client = client;
     await this.disposeClient(previous);
   }
 
   /**
-   * Replace the settings that change no endpoint: the fixed fan speed and swing mode of a hidden control
+   * Replace the settings that change no endpoint: the name, the connection, and the fixed fan speed and swing mode of
+   * a hidden control
+   *
+   * A new name is written to the label of each endpoint that is a device of its own in Matter, which is what the Matter
+   * apps show. The settings that decide the endpoints stay as the device was built: a change of them reaches Matter
+   * when the device is built again, at the next start of Matterbridge.
    *
    * @param {DaikinDeviceConfig} config The updated device.
-   * @returns {void}
+   * @returns {Promise<void>} Resolves when a new name is written to the endpoints.
    */
-  updateConfig(config: DaikinDeviceConfig): void {
-    this.config = config;
+  async updateConfig(config: DaikinDeviceConfig): Promise<void> {
+    const previous = this.name;
+    this.config = withExposureOf(config, this.config);
+    if (config.name === previous) return;
+    this.name = config.name;
+    await applyDeviceLabel(this.endpoints, config.name);
+    this.log.info(`"${previous}" is now named "${config.name}"`);
   }
 
   /**

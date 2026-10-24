@@ -17,7 +17,7 @@ import {
 import { createCapabilities, createDeviceConfig } from './fakeDaikin.js';
 
 describe('controls', () => {
-  it('should replace a fixed setting the unit does not take by keep', () => {
+  test('should replace a fixed setting the unit does not take by keep', () => {
     const unit = createCapabilities({ modes: ['cool', 'fan'], fanSpeeds: ['auto', 'level1', 'level3'], swingModes: ['off', 'vertical'] });
     const fitting = createDeviceConfig({ fanControl: 'hidden', fanSpeedWhenHidden: 'level3', swingControl: 'hidden', swingModeWhenHidden: 'vertical' });
     expect(fitToCapabilities(fitting, unit)).toEqual(fitting);
@@ -30,7 +30,7 @@ describe('controls', () => {
     expect(fitToCapabilities({ ...switches, modeSwitches: ['dehumidify'] }, unit)).toEqual(createDeviceConfig());
   });
 
-  it('should keep one rocking axis alone only on a unit that swings on both', () => {
+  test('should keep one rocking axis alone only on a unit that swings on both', () => {
     const wanted = createDeviceConfig({ swingControl: 'native', swingAxes: 'horizontal' });
     expect(fitToCapabilities(wanted, createCapabilities())).toEqual(wanted);
     expect(fitToCapabilities(wanted, createCapabilities({ swingModes: ['off', 'both'] }))).toEqual(wanted);
@@ -39,7 +39,7 @@ describe('controls', () => {
     expect(getAvailableControls(createCapabilities({ swingModes: ['off', 'horizontal'] })).swingsOnBothAxes).toBe(false);
   });
 
-  it('should keep the mode select of a unit with a dry or a fan mode', () => {
+  test('should keep the mode select of a unit with a dry or a fan mode', () => {
     const wanted = createDeviceConfig({ modeControl: 'select' });
     expect(fitToCapabilities(wanted, createCapabilities({ modes: ['cool', 'dehumidify'] })).modeControl).toBe('select');
     expect(fitToCapabilities(wanted, createCapabilities({ modes: ['cool', 'fan'] })).modeControl).toBe('select');
@@ -47,12 +47,12 @@ describe('controls', () => {
     expect(fitToCapabilities(wanted, createCapabilities({ modes: ['auto', 'cool', 'heat'] })).modeControl).toBe('native');
   });
 
-  it('should keep a switch for any mode the unit has', () => {
+  test('should keep a switch for any mode the unit has', () => {
     const wanted = createDeviceConfig({ modeControl: 'switches', modeSwitches: ['auto', 'cool', 'heat'] });
     expect(fitToCapabilities(wanted, createCapabilities({ modes: ['cool', 'heat'] })).modeSwitches).toEqual(['cool', 'heat']);
   });
 
-  it('should keep the mode replacements the unit can take, beside any mode control', () => {
+  test('should keep the mode replacements the unit can take, beside any mode control', () => {
     const wanted = createDeviceConfig({ modeReplacements: { dehumidify: 'heat', fan: 'auto' } });
     // Heat gives a unit that only cools the heating, which Auto needs.
     expect(fitToCapabilities(wanted, createCapabilities({ modes: ['cool', 'dehumidify', 'fan'] }))).toEqual(wanted);
@@ -68,14 +68,14 @@ describe('controls', () => {
     expect(fitToCapabilities(withSwitches, createCapabilities({ modes: ['cool', 'dehumidify', 'fan'] }))).toEqual(withSwitches);
   });
 
-  it('should keep the mode switches only while switches are chosen', () => {
+  test('should keep the mode switches only while switches are chosen', () => {
     const select = createDeviceConfig({ modeControl: 'select', modeSwitches: ['dehumidify', 'fan'] });
     expect(fitToCapabilities(select, createCapabilities())).toEqual(createDeviceConfig({ modeControl: 'select' }));
     // Without a dry or a fan mode there is no mode select, and nothing for the switches either.
     expect(fitToCapabilities(select, createCapabilities({ modes: ['auto', 'cool', 'heat'] }))).toEqual(createDeviceConfig());
   });
 
-  it('should keep the switch for the auto fan speed only where it can hold', () => {
+  test('should keep the switch for the auto fan speed only where it can hold', () => {
     const unit = createCapabilities();
     expect(hasFanAuto(unit)).toBe(true);
     expect(hasFanAuto({ fanSpeeds: ['auto'] })).toBe(false);
@@ -88,7 +88,7 @@ describe('controls', () => {
     expect(fitToCapabilities(wanted, createCapabilities({ fanSpeeds: ['level1', 'level2'] })).fanAutoControl).toBe('native');
   });
 
-  it('should keep the auto fan step only on a fan control that is shown', () => {
+  test('should keep the auto fan step only on a fan control that is shown', () => {
     const unit = createCapabilities();
     const wanted = createDeviceConfig({ fanAutoControl: 'firstStep' });
     expect(fitToCapabilities(wanted, unit).fanAutoControl).toBe('firstStep');
@@ -97,7 +97,7 @@ describe('controls', () => {
     expect(fitToCapabilities(wanted, createCapabilities({ fanSpeeds: ['level1', 'level2'] })).fanAutoControl).toBe('native');
   });
 
-  it('should keep a fan of its own for a device that shows a fan speed', () => {
+  test('should keep a fan of its own for a device that shows a fan speed', () => {
     const wanted = createDeviceConfig({ hasSeparateFan: true });
     expect(fitToCapabilities(wanted, createCapabilities()).hasSeparateFan).toBe(true);
     expect(fitToCapabilities({ ...wanted, fanControl: 'percent' }, createCapabilities()).hasSeparateFan).toBe(true);
@@ -106,7 +106,7 @@ describe('controls', () => {
     expect(fitToCapabilities(wanted, createCapabilities({ fanSpeeds: ['auto'] })).hasSeparateFan).toBe(false);
   });
 
-  it('should keep the switches of the special modes a unit takes', () => {
+  test('should keep the switches of the special modes a unit takes', () => {
     const specialModes = { auto: [], dehumidify: [], cool: ['powerful', 'econo'], heat: ['powerful'], fan: [] } as const;
     const unit = createCapabilities({ specialModes });
     expect(getSwitchableSpecialModes(unit)).toEqual(['powerful', 'econo']);
@@ -116,7 +116,7 @@ describe('controls', () => {
     expect(fitToCapabilities({ ...wanted, protocol: 'dsiot' }, unit).specialModeSwitches).toEqual(['powerful']);
   });
 
-  it('should compare two readings of a unit by what its endpoints are built from', () => {
+  test('should compare two readings of a unit by what its endpoints are built from', () => {
     const reading = createCapabilities();
     expect(hasSameControls(reading, createCapabilities({ model: '0ABB', energyMonitoring: true }))).toBe(true);
     expect(hasSameControls(reading, createCapabilities({ modes: ['cool'] }))).toBe(false);
@@ -130,7 +130,7 @@ describe('controls', () => {
     expect(hasSameControls(reading, createCapabilities({ targetTemperaturesInC: { ...rest, auto } }))).toBe(true);
   });
 
-  it('should list the controls and the switches a device can have', () => {
+  test('should list the controls and the switches a device can have', () => {
     const specialModes = { ...createCapabilities().specialModes, cool: ['powerful', 'econo'], heat: ['streamer'] } as const;
     expect(getAvailableControls(createCapabilities({ specialModes }))).toEqual({
       fanSteps: ['silent', 'level1', 'level2', 'level3', 'level4', 'level5'],
@@ -152,7 +152,7 @@ describe('controls', () => {
     });
   });
 
-  it('should count a reading from the first time a unit gives it, and keep counting it', () => {
+  test('should count a reading from the first time a unit gives it, and keep counting it', () => {
     const nothing = { indoorTemperatureInC: 26, outdoorTemperatureInC: null, indoorHumidityInPercent: null };
     // The same object comes back when the unit gave nothing new.
     expect(addReportedSensors(noReportedSensors, nothing)).toBe(noReportedSensors);

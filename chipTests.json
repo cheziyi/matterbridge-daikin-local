@@ -1,17 +1,14 @@
 {
   "config": {
-    "name": "matterbridge-plugin-template",
+    "name": "matterbridge-daikin-local",
     "type": "DynamicPlatform",
-    "whiteList": [],
-    "blackList": [],
+    "pollIntervalInSeconds": 5,
+    "maxStateAgeForCommandInSeconds": 30,
+    "devices": [],
     "debug": false,
     "unregisterOnShutdown": false
   },
-  "resetClusterGlobs": [
-    "root.parts.Matterbridge.parts.thermo1.thermostat.*",
-    "root.parts.Matterbridge.parts.outlet1.onOff.*",
-    "root.parts.Matterbridge.parts.outlet1.scenesManagement.*"
-  ],
+  "resetClusterGlobs": [],
   "yamlTests": [],
   "phytonTests": [
     {

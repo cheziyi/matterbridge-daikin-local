@@ -2,7 +2,23 @@
  * @file apps/frontend/src/screens/connect.ts
  * @description The Connect step: the page checks an adapter and asks for what the adapter wants before it answers.
  * @author Calvin Che
+ * @created 2026-10-13
+ * @version 1.0.0
  * @license Apache-2.0
+ *
+ * Copyright 2026 Calvin Che.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 import { check, goHome, skipDraft } from '../actions.js';
@@ -68,7 +84,11 @@ function credentialForm(draft: Draft): Child {
   if (status === 'localPasswordRequired' || status === 'localPasswordRejected') return lockCodeForm(draft, status === 'localPasswordRejected');
   if (status === 'registrationRequired' || status === 'registrationRejected') return keyForm(draft, status === 'registrationRejected');
   if (status === 'unreachable') {
-    return h('p', { class: 'notice problem', role: 'alert' }, `${draft.name} did not answer at ${draft.adapter.host}. Check that it has power and is on the network, then try again.`);
+    return h(
+      'p',
+      { class: 'notice problem', role: 'alert' },
+      `${draft.name} did not answer at ${draft.adapter.host}. Check that it has power and is on the network, then try again.`,
+    );
   }
   if (status === 'failed') return h('p', { class: 'notice problem', role: 'alert' }, `${draft.name} answered with an error: ${draft.probe?.message ?? 'unknown'}`);
   return null;

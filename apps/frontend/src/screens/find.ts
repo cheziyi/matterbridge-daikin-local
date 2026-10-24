@@ -2,7 +2,23 @@
  * @file apps/frontend/src/screens/find.ts
  * @description The Find step: the adapters a search found or an address led to, and which of them to set up.
  * @author Calvin Che
+ * @created 2026-10-13
+ * @version 1.0.0
  * @license Apache-2.0
+ *
+ * Copyright 2026 Calvin Che.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 import { goHome, lookUp, search, startQueue } from '../actions.js';
@@ -39,7 +55,13 @@ function foundRow(adapter: FoundAdapter): HTMLElement {
       'label',
       { for: `found-${adapter.host}` },
       checkbox,
-      h('span', {}, h('strong', {}, adapter.name ?? 'Unnamed adapter'), h('span', { class: 'meta' }, ` ${adapter.host}`), ...notes.map((note) => h('span', { class: 'meta note' }, note))),
+      h(
+        'span',
+        {},
+        h('strong', {}, adapter.name ?? 'Unnamed adapter'),
+        h('span', { class: 'meta' }, ` ${adapter.host}`),
+        ...notes.map((note) => h('span', { class: 'meta note' }, note)),
+      ),
     ),
   );
 }
@@ -66,7 +88,11 @@ export function findScreen(): Child[] {
       'details',
       { class: 'manual', open: !view.isBusy && view.found.length === 0 },
       h('summary', {}, "Can't see your air conditioner?"),
-      h('p', { class: 'help' }, 'Enter the address of its adapter. The plugin reads the name of the adapter there and follows it to a new address like any other, as long as a search can reach it. An adapter on another subnet or VLAN keeps this address.'),
+      h(
+        'p',
+        { class: 'help' },
+        'Enter the address of its adapter. The plugin reads the name of the adapter there and follows it to a new address like any other, as long as a search can reach it. An adapter on another subnet or VLAN keeps this address.',
+      ),
       h('div', { class: 'inline-form' }, h('label', { for: 'host', class: 'visually-hidden' }, 'Adapter address'), host, button('Look it up', lookUpHost)),
     ),
     h(

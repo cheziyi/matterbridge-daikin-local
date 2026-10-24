@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] - Dev branch
+
+### Changed
+
+- [devices]: **Breaking:** devices stored by an earlier version change their identity in Matter at the first start, and the Matter apps take them for new devices: put them back in their rooms once. The name of a device in Matterbridge is made of the MAC address of its adapter, such as `Daikin A4:08:EA:CC:91:D4`, and the name given in the setup page is the label of the device, which the Matter apps show. Matterbridge derives the identity of a device from its name, so a new name no longer builds the device again: it is written to the label of each endpoint that is a device of its own, and the apps keep the device with its room and its automations.
+- [devices]: A change of how a device appears in Matter, a reading its unit gives for the first time and a unit that accepts other settings than when it was set up no longer build the device again at once. The device keeps its endpoints, and is built again with its new options at the next restart of Matterbridge, which Matterbridge and the setup page ask for. Taking the endpoints of a device away and registering them again while Matterbridge runs made Apple Home take the device for a new one, with its room and its automations lost; across a restart the endpoint numbers are kept.
+- [devices]: An endpoint that is brought back after it was taken away, such as the fan of its own turned off and on again, gets a new endpoint id, and with it a new endpoint number instead of the one it had: Apple Home could not change the settings of a device that came back under its old number. The air conditioner and the endpoints that stay keep theirs.
+
 ## [0.10.0] - 2026-10-20
 
 ### Added
