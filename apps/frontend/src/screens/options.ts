@@ -564,7 +564,7 @@ export function optionsScreen(): Child[] {
     specialSection(draft, controls),
     sensorSection(draft),
     composedSection(draft),
-    draft.isNew ? null : h('p', { class: 'help' }, 'Changing any of these rebuilds this air conditioner in Matter. Your Matter app may take a moment to show the change.'),
+    draft.isNew ? null : h('p', { class: 'help' }, 'A change of any of these applies at the next restart of Matterbridge. A switch or a sensor you add is new in your Matter app, in its default room, and one you remove is gone.'),
     notice(),
     h(
       'div',
