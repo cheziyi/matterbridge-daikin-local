@@ -30,6 +30,7 @@ import {
   type FanSpeed,
   SPECIAL_MODES,
   type SpecialMode,
+  type VerticalPosition,
 } from 'daikin-local-control';
 import type { MatterbridgeEndpoint } from 'matterbridge';
 import type { AnsiLogger } from 'matterbridge/logger';
@@ -53,7 +54,7 @@ import {
 } from './endpoints.js';
 import { type AccessoryLayout, getAccessoryLayout } from './layout.js';
 import { type AccessoryEndpoints, applySensors, applyState, readFanSpeed } from './matterState.js';
-import { addHiddenSettings, PendingCommand, type SetpointKind, type SwingAxis } from './pendingCommand.js';
+import { addHiddenSettings, isFixedVerticalPosition, moveSwingToPosition, PendingCommand, type SetpointKind, type SwingAxis } from './pendingCommand.js';
 
 /** How long, in milliseconds, the writes of a controller are collected before they are sent as one command. */
 export const defaultCommandDelayInMs = 300;
@@ -74,7 +75,7 @@ const modeSwitchNames: Readonly<Record<SwitchedMode, { key: string; code: string
 };
 
 /** What each special mode is called in Matter and in the log: Daikin's own names. */
-const specialModeLabels: Readonly<Record<SpecialMode, string>> = { powerful: 'Powerful', econo: 'Econo', streamer: 'Streamer' };
+const specialModeLabels: Readonly<Record<SpecialMode, string>> = { powerful: 'Powerful', econo: 'Econo', streamer: 'Streamer', heatPlus: 'Heat Plus' };
 
 /** What a device is built from: its stored configuration, what its unit accepts, the readings the unit has given and the client that reaches it. */
 export interface DaikinAccessoryOptions {
@@ -169,6 +170,8 @@ export class DaikinAccessory implements AccessoryEndpoints {
   private sensors: DaikinSensors | undefined;
   /** The speed the fan last ran at when it was not on auto, which turning auto off goes back to. */
   private lastManualFanSpeed: FanSpeed | undefined;
+  /** The fixed position the vertical louver last held, which turning the swing off goes back to on a unit that swings only through it. */
+  private lastFixedVerticalPosition: VerticalPosition | undefined;
   private isReachable = false;
   private lastError: string | undefined;
   private failureCount = 0;
@@ -659,6 +662,7 @@ export class DaikinAccessory implements AccessoryEndpoints {
     const mode = control.mode ?? this.state?.mode;
     if (Object.keys(control).length > 0) {
       addHiddenSettings(control, this.config, this.capabilities);
+      moveSwingToPosition(control, this.capabilities, this.lastFixedVerticalPosition);
       try {
         await this.client.setState(control);
         this.log.info(`"${this.name}" set to ${JSON.stringify(control)}`);
@@ -698,6 +702,7 @@ export class DaikinAccessory implements AccessoryEndpoints {
     this.state = state;
     this.sensors = sensors;
     if (state.fanSpeed !== 'auto') this.lastManualFanSpeed = state.fanSpeed;
+    if (isFixedVerticalPosition(state.verticalPosition)) this.lastFixedVerticalPosition = state.verticalPosition;
     this.failureCount = 0;
     this.lastError = undefined;
     // A controller wrote while the unit was answering: the command about to be sent reads these attributes.

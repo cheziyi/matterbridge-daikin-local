@@ -9,6 +9,7 @@ import {
   fitToCapabilities,
   getAvailableControls,
   getModeReplacements,
+  getSwingModes,
   getSwitchableSpecialModes,
   hasFanAuto,
   hasSameControls,
@@ -131,25 +132,41 @@ describe('controls', () => {
   });
 
   test('should list the controls and the switches a device can have', () => {
-    const specialModes = { ...createCapabilities().specialModes, cool: ['powerful', 'econo'], heat: ['streamer'] } as const;
+    const specialModes = { ...createCapabilities().specialModes, cool: ['powerful', 'econo'], heat: ['streamer', 'heatPlus'] } as const;
     expect(getAvailableControls(createCapabilities({ specialModes }))).toEqual({
       fanSteps: ['silent', 'level1', 'level2', 'level3', 'level4', 'level5'],
       hasFanAuto: true,
       hasSwing: true,
+      swingModes: ['off', 'vertical', 'horizontal', 'both'],
       swingsOnBothAxes: true,
       switchableModes: ['auto', 'cool', 'heat', 'dehumidify', 'fan'],
       lackingModes: [],
-      specialModes: ['powerful', 'econo', 'streamer'],
+      specialModes: ['powerful', 'econo', 'streamer', 'heatPlus'],
     });
     expect(getAvailableControls(createCapabilities({ modes: ['heat'], fanSpeeds: ['auto'], swingModes: [] }))).toEqual({
       fanSteps: [],
       hasFanAuto: false,
       hasSwing: false,
+      swingModes: [],
       swingsOnBothAxes: false,
       switchableModes: ['heat'],
       lackingModes: ['auto', 'cool', 'dehumidify', 'fan'],
       specialModes: [],
     });
+  });
+
+  test('should swing up and down a unit that swings only through the position of its vertical louver', () => {
+    // An Airbase unit takes no swing mode: it swings at the vertical position swing.
+    const airbase = createCapabilities({ swingModes: [], verticalPositions: ['position1', 'position2', 'position3', 'position4', 'position5', 'swing'] });
+    expect(getSwingModes(airbase)).toEqual(['off', 'vertical']);
+    expect(getAvailableControls(airbase)).toMatchObject({ hasSwing: true, swingModes: ['off', 'vertical'], swingsOnBothAxes: false });
+    const fixed = createDeviceConfig({ swingControl: 'hidden', swingModeWhenHidden: 'vertical' });
+    expect(fitToCapabilities(fixed, airbase)).toEqual(fixed);
+    // The same unit read when it was taken to swing on both axes has other controls.
+    expect(hasSameControls(airbase, { ...airbase, swingModes: ['off', 'vertical', 'horizontal', 'both'] })).toBe(false);
+    // A unit that takes swing modes swings through them, whatever positions it takes.
+    expect(getSwingModes(createCapabilities({ swingModes: ['off', 'horizontal'], verticalPositions: ['swing'] }))).toEqual(['off', 'horizontal']);
+    expect(getSwingModes(createCapabilities({ swingModes: [], verticalPositions: ['position1'] }))).toEqual([]);
   });
 
   test('should count a reading from the first time a unit gives it, and keep counting it', () => {

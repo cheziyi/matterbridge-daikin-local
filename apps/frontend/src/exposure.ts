@@ -121,7 +121,16 @@ export function draftFromStored(device: StoredDevice): Draft {
 }
 
 // What a unit the plugin told nothing about can have: no control and no switch.
-export const noControls: AvailableControls = { fanSteps: [], hasFanAuto: false, hasSwing: false, swingsOnBothAxes: false, switchableModes: [], lackingModes: [], specialModes: [] };
+export const noControls: AvailableControls = {
+  fanSteps: [],
+  hasFanAuto: false,
+  hasSwing: false,
+  swingModes: [],
+  swingsOnBothAxes: false,
+  switchableModes: [],
+  lackingModes: [],
+  specialModes: [],
+};
 
 /**
  * Whether a mode of the unit can be shown as a thermostat mode, given what its other modes are shown as, as

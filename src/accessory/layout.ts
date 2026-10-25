@@ -24,7 +24,7 @@
 import type { DaikinCapabilities, FanSpeed, OperatingMode, SwingMode, TemperatureRange } from 'daikin-local-control';
 
 import { type DaikinDeviceConfig, type ModeReplacements, type SwingAxesOption, THERMOSTAT_MODES } from '../config.js';
-import { getModeReplacements, hasFanAuto, type ReportedSensors } from '../controls.js';
+import { getModeReplacements, getSwingModes, hasFanAuto, type ReportedSensors } from '../controls.js';
 import { getFanSteps, getTemperatureRange, getThermostatProfile, type ModeSelectValue, type ThermostatProfile } from '../mapping.js';
 
 /** How the controls of a device are laid out in Matter, worked out once from what its unit accepts and how it is configured. */
@@ -94,14 +94,15 @@ export function getAccessoryLayout(config: DaikinDeviceConfig, capabilities: Dai
   const hasFan = config.fanControl !== 'hidden' && fanSteps.length > 0;
   const hasAutoStep = hasFan && capabilities.fanSpeeds.includes('auto') && (config.fanAutoControl === 'firstStep' || config.fanAutoControl === 'lastStep');
   const hasAutoSwitch = config.fanAutoControl === 'switch' && hasFanAuto(capabilities);
-  const swingsOn = (axis: 'vertical' | 'horizontal'): boolean => capabilities.swingModes.includes(axis) || capabilities.swingModes.includes('both');
+  const swingModes = getSwingModes(capabilities);
+  const swingsOn = (axis: 'vertical' | 'horizontal'): boolean => swingModes.includes(axis) || swingModes.includes('both');
   // The rocking is the native place of the swing, on every fan control. It is never beside the switches or the select:
   // Apple Home is reported to upset it, so they take its place.
   const hasRocking = hasFan && config.swingControl === 'native';
   // Without a fan control, the swing has no rocking, and its switches stand for it.
   const hasSwitches = config.swingControl === 'switches' || (config.swingControl === 'native' && !hasFan);
   // A switch is for an axis the unit swings on alone.
-  const switchable = { vertical: hasSwitches && capabilities.swingModes.includes('vertical'), horizontal: hasSwitches && capabilities.swingModes.includes('horizontal') };
+  const switchable = { vertical: hasSwitches && swingModes.includes('vertical'), horizontal: hasSwitches && swingModes.includes('horizontal') };
   const rockable = { vertical: hasRocking && swingsOn('vertical'), horizontal: hasRocking && swingsOn('horizontal') };
   let fanPositions = fanSteps;
   if (hasAutoStep) fanPositions = config.fanAutoControl === 'firstStep' ? ['auto', ...fanSteps] : [...fanSteps, 'auto'];
@@ -124,7 +125,7 @@ export function getAccessoryLayout(config: DaikinDeviceConfig, capabilities: Dai
     hasHumidity: reportedSensors.hasHumidity,
     hasSeparateHumiditySensor: reportedSensors.hasHumidity && config.hasSeparateHumiditySensor,
     modeSelectModes: config.modeControl === 'select' ? ['off', ...capabilities.modes] : [],
-    swingSelectModes: config.swingControl === 'select' ? capabilities.swingModes : [],
+    swingSelectModes: config.swingControl === 'select' ? swingModes : [],
     hasOutdoorTemperature: reportedSensors.hasOutdoorTemperature && config.hasOutdoorTemperatureSensor,
     isComposed: config.isComposed,
   };
