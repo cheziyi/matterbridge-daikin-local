@@ -21,7 +21,14 @@
  * limitations under the License.
  */
 
-/** Take the colours and the font of the Matterbridge page this one is shown in. */
+/**
+ * Take the colours and the font of the Matterbridge page this one is shown in
+ *
+ * Edge cases:
+ *  - opened on its own or from another origin -> the page keeps its own colours
+ *
+ * @returns {void}
+ */
 export function adoptHostTheme(): void {
   try {
     if (window.parent === window) return;

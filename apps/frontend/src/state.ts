@@ -37,6 +37,7 @@ export interface Draft extends Exposure {
 
 export type ScreenName = 'loading' | 'home' | 'find' | 'connect' | 'options' | 'done';
 
+/** The state of the page: which screen it shows, what the plugin told it, and the run through Connect and Options. */
 export const view = {
   screen: 'loading' as ScreenName,
   setup: undefined as SetupState | undefined,
@@ -54,16 +55,31 @@ export const view = {
   confirmingRemoval: '',
 };
 
+/**
+ * Get the air conditioner the run is on
+ *
+ * @returns {Draft | undefined} The draft, or undefined when no run is on.
+ */
 export function currentDraft(): Draft | undefined {
   return view.queue[0];
 }
 
-/** What a unit is called on the page: its name, or its address until it has one. */
+/**
+ * Get what a unit is called on the page: its name, or its address until it has one
+ *
+ * @param {Draft} draft The unit.
+ * @returns {string} The name or the address.
+ */
 export function draftLabel(draft: Draft): string {
   return draft.name === '' ? draft.adapter.host : draft.name;
 }
 
-/** Whether an adapter is that of a stored device, which is known by its MAC address. */
+/**
+ * Tell whether an adapter is that of a stored device, which is known by its MAC address
+ *
+ * @param {Adapter} adapter The adapter.
+ * @returns {boolean} Whether a stored device has it.
+ */
 export function isStored(adapter: Adapter): boolean {
   return (view.setup?.devices ?? []).some((device) => device.macAddress === adapter.macAddress);
 }

@@ -3,7 +3,7 @@
  * @description This file contains the REST API the setup page calls through the platform's onFetch: what it sends and takes, and its handler.
  * @author Calvin Che
  * @created 2026-10-12
- * @version 1.1.0
+ * @version 1.2.0
  * @license Apache-2.0
  *
  * Copyright 2026 Calvin Che.
@@ -55,7 +55,12 @@ export type DiscoveredDevice = DaikinDevice & {
   needsRegistration: boolean;
 };
 
-/** What each request carries back when it worked, by its method and its path. The setup page reads its replies by it. */
+/**
+ * What each request carries back when it worked, by its method and its path. The setup page reads its replies by it.
+ *
+ * Every request is a GET or a POST: Matterbridge answers a DELETE with 204 and no body, whatever the plugin returns,
+ * which would hide a failure from the page.
+ */
 export interface SetupReplies {
   'GET state': { state: SetupState };
   'POST discover': { devices: DiscoveredDevice[] };
@@ -63,8 +68,8 @@ export interface SetupReplies {
   'POST probe': { result: ProbeResult };
   'POST register': { result: ProbeResult };
   'POST device': { state: SetupState };
-  /** Nothing but that it worked. Matterbridge answers a DELETE with 204 and no body. */
-  'DELETE device': object;
+  /** Nothing but that it worked. */
+  'POST remove-device': object;
 }
 
 /** Every reply says whether the request worked, so the page never has to read an HTTP status. */
@@ -164,6 +169,11 @@ async function handlePost(platform: SetupPlatform, path: string, body: Record<st
     await platform.saveDevice(device);
     return { ok: true, state: await platform.getSetupState() };
   }
+  if (path === 'remove-device') {
+    const macAddress = normalizeMacAddress(body.macAddress);
+    if (macAddress === undefined) return fail('Give the MAC address of the adapter of the device to remove');
+    return (await platform.removeDevice(macAddress)) ? { ok: true } : fail(`No device has the adapter ${macAddress}`);
+  }
   return undefined;
 }
 
@@ -171,7 +181,7 @@ async function handlePost(platform: SetupPlatform, path: string, body: Record<st
  * Serve one request of the setup page
  *
  * Paths: `GET state`, `POST discover`, `POST identify`, `POST probe`, `POST register`, `POST device` and
- * `DELETE device?macAddress=`. A child lock code or a KEY is accepted, never returned.
+ * `POST remove-device`. A child lock code or a KEY is accepted, never returned.
  *
  * Edge cases:
  *  - a path that is not served -> undefined, which Matterbridge answers with 404
@@ -180,19 +190,13 @@ async function handlePost(platform: SetupPlatform, path: string, body: Record<st
  * @param {SetupPlatform} platform The platform.
  * @param {string} method The HTTP method.
  * @param {string} [path] The path after `api/`.
- * @param {Record<string, unknown>} [query] The query string parameters.
  * @param {unknown} [body] The parsed JSON body.
  * @returns {Promise<SetupReply | undefined>} The reply.
  */
-export async function handleSetupRequest(platform: SetupPlatform, method: string, path?: string, query?: Record<string, unknown>, body?: unknown): Promise<SetupReply | undefined> {
+export async function handleSetupRequest(platform: SetupPlatform, method: string, path?: string, body?: unknown): Promise<SetupReply | undefined> {
   try {
     if (method === 'GET' && path === 'state') return { ok: true, state: await platform.getSetupState() };
     if (method === 'POST' && path !== undefined) return await handlePost(platform, path, toRecord(body));
-    if (method === 'DELETE' && path === 'device') {
-      const macAddress = normalizeMacAddress(query?.macAddress);
-      if (macAddress === undefined) return fail('Give the MAC address of the adapter of the device to remove');
-      return (await platform.removeDevice(macAddress)) ? { ok: true } : fail(`No device has the adapter ${macAddress}`);
-    }
     return undefined;
   } catch (error) {
     return fail(getErrorMessage(error));

@@ -29,11 +29,21 @@ export type Screens = Record<ScreenName, () => Child[]>;
 
 let screens: Screens | undefined;
 
-/** Tell the page what each screen draws. */
+/**
+ * Tell the page what each screen draws
+ *
+ * @param {Screens} all What each screen draws, by its name.
+ * @returns {void}
+ */
 export function setScreens(all: Screens): void {
   screens = all;
 }
 
+/**
+ * Draw the current screen again, keeping what is being typed and where, when the same form redraws around it
+ *
+ * @returns {void}
+ */
 export function render(): void {
   const root = document.getElementById('app');
   if (root === null || screens === undefined) return;

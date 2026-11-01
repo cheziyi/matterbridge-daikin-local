@@ -27,6 +27,7 @@ import type { Draft } from './state.js';
 
 export type PresetName = 'apple' | 'google' | 'matter';
 
+/** The presets the Options step offers, each with its title and what it does. */
 export const presets: Record<PresetName, { title: string; text: string }> = {
   apple: {
     title: 'Apple Home',
@@ -43,9 +44,14 @@ export const presets: Record<PresetName, { title: string; text: string }> = {
 };
 
 /**
- * The choices a preset makes for a unit: never a switch or a control the unit has no use for. The Apple Home and the
- * Google Home presets make the switches, a fan of its own and a humidity sensor of its own devices of their own, and
- * the Full Matter support preset makes them parts of the air conditioner.
+ * Get the choices a preset makes for a unit: never a switch or a control the unit has no use for
+ *
+ * The Apple Home and the Google Home presets make the switches, a fan of its own and a humidity sensor of its own
+ * devices of their own, and the Full Matter support preset makes them parts of the air conditioner.
+ *
+ * @param {PresetName} name The preset.
+ * @param {AvailableControls} controls What the unit can do.
+ * @returns {Exposure} The choices.
  */
 export function presetExposure(name: PresetName, controls: AvailableControls): Exposure {
   const isMatter = name === 'matter';
@@ -85,7 +91,14 @@ export function presetExposure(name: PresetName, controls: AvailableControls): E
   };
 }
 
-/** Whether the choices in a draft are exactly those of a preset, leaving aside what the unit has no use for. */
+/**
+ * Tell whether the choices in a draft are exactly those of a preset, leaving aside what the unit has no use for
+ *
+ * @param {Draft} draft The draft.
+ * @param {PresetName} name The preset.
+ * @param {AvailableControls} controls What the unit can do.
+ * @returns {boolean} Whether the choices are those of the preset.
+ */
 export function matchesPreset(draft: Draft, name: PresetName, controls: AvailableControls): boolean {
   const chosen = pickExposure(draft);
   if (controls.fanSteps.length === 0) Object.assign(chosen, { fanControl: 'hidden', fanSpeedWhenHidden: 'keep' });

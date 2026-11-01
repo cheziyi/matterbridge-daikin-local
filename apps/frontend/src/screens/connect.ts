@@ -78,7 +78,12 @@ function keyForm(draft: Draft, isRejected: boolean): HTMLElement {
   );
 }
 
-/** What the adapter wants before the page can go on, or why the page cannot: nothing while the check has no answer. */
+/**
+ * Create the form for what the adapter wants before the page can go on, or the notice of why the page cannot
+ *
+ * @param {Draft} draft The unit being connected.
+ * @returns {Child} The form or the notice, or nothing while the check has no answer.
+ */
 function credentialForm(draft: Draft): Child {
   const status = draft.probe?.status;
   if (status === 'localPasswordRequired' || status === 'localPasswordRejected') return lockCodeForm(draft, status === 'localPasswordRejected');
@@ -94,6 +99,11 @@ function credentialForm(draft: Draft): Child {
   return null;
 }
 
+/**
+ * Draw the Connect step: the check of the adapter of the current unit, and what it asks for
+ *
+ * @returns {Child[]} The contents of the screen.
+ */
 export function connectScreen(): Child[] {
   const draft = currentDraft();
   if (draft === undefined) return [notice()];

@@ -26,6 +26,11 @@ import { button } from '../components.js';
 import { type Child, h } from '../dom.js';
 import { view } from '../state.js';
 
+/**
+ * Draw the Done step: which air conditioners the run set up, and what to do next
+ *
+ * @returns {Child[]} The contents of the screen.
+ */
 export function doneScreen(): Child[] {
   const names = view.saved;
   const needsRestart = (view.setup?.devices ?? []).some((device) => names.includes(device.name) && device.needsRestart);
