@@ -98,6 +98,11 @@ function deviceRow(device: StoredDevice): HTMLElement {
   );
 }
 
+/**
+ * Draw the home screen: the stored air conditioners, each with how it is doing and how it appears in Matter
+ *
+ * @returns {Child[]} The contents of the screen.
+ */
 export function homeScreen(): Child[] {
   const devices = view.setup?.devices ?? [];
   return [

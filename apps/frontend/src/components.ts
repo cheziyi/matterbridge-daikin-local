@@ -24,10 +24,24 @@
 import { type Child, h } from './dom.js';
 import { currentDraft, type Draft, draftLabel, type ScreenName, view } from './state.js';
 
+/**
+ * Create a button, disabled while the page is busy
+ *
+ * @param {string} label What the button says.
+ * @param {() => void} onclick What a click does.
+ * @param {'primary' | 'quiet' | 'danger'} [kind] How the button looks: `quiet` unless given.
+ * @param {boolean} [disabled] Whether the button is disabled besides.
+ * @returns {HTMLButtonElement} The button.
+ */
 export function button(label: string, onclick: () => void, kind: 'primary' | 'quiet' | 'danger' = 'quiet', disabled = false): HTMLButtonElement {
   return h('button', { type: 'button', class: `button ${kind}`, onclick, disabled: disabled || view.isBusy }, label);
 }
 
+/**
+ * Create the notice of the page: what it is busy with, else the problem, else the note for the user
+ *
+ * @returns {Child} The notice, or nothing when there is none.
+ */
 export function notice(): Child {
   if (view.isBusy) return h('p', { class: 'notice working', role: 'status' }, h('span', { class: 'spinner' }), view.busyText);
   if (view.error !== '') return h('p', { class: 'notice problem', role: 'alert' }, view.error);
@@ -36,8 +50,10 @@ export function notice(): Child {
 }
 
 /**
- * The units of this run, with the one the page is on marked: shown when a run sets up more than one, so that it is
- * plain which unit the Connect and Options steps are about.
+ * Create the strip of the units of this run, with the one the page is on marked: shown when a run sets up more than
+ * one, so that it is plain which unit the Connect and Options steps are about
+ *
+ * @returns {Child} The strip, or nothing for a run of one unit or of a stored one.
  */
 export function unitStrip(): Child {
   const current = currentDraft();
@@ -60,11 +76,22 @@ export function unitStrip(): Child {
   );
 }
 
-/** The heading of a step that is about one unit: the unit first, then what the step does with it. */
+/**
+ * Create the heading of a step that is about one unit: the unit first, then what the step does with it
+ *
+ * @param {Draft} draft The unit.
+ * @param {string} text What the step does with it.
+ * @returns {HTMLElement} The heading.
+ */
 export function unitHeader(draft: Draft, text: string): HTMLElement {
   return h('header', { class: 'unit-header' }, h('h1', {}, draftLabel(draft)), h('p', { class: 'meta' }, text));
 }
 
+/**
+ * Create the list of the steps of adding air conditioners, with the current one marked
+ *
+ * @returns {Child} The list, or nothing for a run that is about stored units alone.
+ */
 export function steps(): Child {
   if (view.queue.length > 0 && !view.queue.some((draft) => draft.isNew)) return null;
   const names = ['Find', 'Connect', 'Options'];

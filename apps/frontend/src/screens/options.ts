@@ -549,6 +549,11 @@ function composedSection(draft: Draft): HTMLElement {
   );
 }
 
+/**
+ * Draw the Options step: the name of the current unit and how it appears in Matter
+ *
+ * @returns {Child[]} The contents of the screen.
+ */
 export function optionsScreen(): Child[] {
   const draft = currentDraft();
   if (draft === undefined) return [notice()];

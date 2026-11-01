@@ -47,11 +47,14 @@ export type Route = keyof SetupReplies;
 export type Reply<R extends Route> = ({ ok: true } & SetupReplies[R]) | Extract<SetupReply, { ok: false }>;
 
 /**
- * Call the plugin.
+ * Call the plugin
  *
- * @param route The method and the path, such as `POST probe`.
- * @param body The JSON body.
- * @returns The reply, with `ok: false` and the reason when the call did not work.
+ * Every request is a GET or a POST, so that every reply has a body that says whether it worked: Matterbridge answers
+ * a DELETE with 204 and no body, whatever the plugin returns.
+ *
+ * @param {R} route The method and the path, such as `POST probe`.
+ * @param {unknown} [body] The JSON body.
+ * @returns {Promise<Reply<R>>} The reply, with `ok: false` and the reason when the call did not work.
  */
 export async function api<R extends Route>(route: R, body?: unknown): Promise<Reply<R>> {
   try {

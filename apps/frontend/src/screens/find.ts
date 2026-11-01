@@ -66,6 +66,11 @@ function foundRow(adapter: FoundAdapter): HTMLElement {
   );
 }
 
+/**
+ * Draw the Find step: the adapters found on the network, and a field to add one by its address
+ *
+ * @returns {Child[]} The contents of the screen.
+ */
 export function findScreen(): Child[] {
   const chosen = view.found.filter((adapter) => view.selected.has(adapter.host) && !adapter.isConfigured);
   const host = h('input', { type: 'text', id: 'host', placeholder: '192.168.1.50', spellcheck: false, autocomplete: 'off' });
