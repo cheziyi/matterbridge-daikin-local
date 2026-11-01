@@ -3,7 +3,7 @@
  * @description What the plugin's API sends and takes, and the call to it: see src/setup/setupApi.ts in the plugin.
  * @author Calvin Che
  * @created 2026-10-13
- * @version 1.0.0
+ * @version 1.1.0
  * @license Apache-2.0
  *
  * Copyright 2026 Calvin Che.
@@ -51,10 +51,9 @@ export type Reply<R extends Route> = ({ ok: true } & SetupReplies[R]) | Extract<
  *
  * @param route The method and the path, such as `POST probe`.
  * @param body The JSON body.
- * @param query The query string, without its `?`.
  * @returns The reply, with `ok: false` and the reason when the call did not work.
  */
-export async function api<R extends Route>(route: R, body?: unknown, query?: string): Promise<Reply<R>> {
+export async function api<R extends Route>(route: R, body?: unknown): Promise<Reply<R>> {
   try {
     const [method, path] = route.split(' ');
     const init: RequestInit = { method };
@@ -62,8 +61,7 @@ export async function api<R extends Route>(route: R, body?: unknown, query?: str
       init.headers = { 'Content-Type': 'application/json' };
       init.body = JSON.stringify(body);
     }
-    const response = await fetch(new URL(`api/${path}${query === undefined ? '' : `?${query}`}`, document.baseURI), init);
-    if (response.status === 204) return { ok: true } as Reply<R>;
+    const response = await fetch(new URL(`api/${path}`, document.baseURI), init);
     if (response.status === 503) return { ok: false, error: 'The plugin is not running. Start it in Matterbridge, then reload this page.' };
     const reply = (await response.json()) as Reply<R> | { error?: string };
     if ('ok' in reply) return reply;

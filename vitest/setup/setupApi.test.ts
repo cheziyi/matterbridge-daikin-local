@@ -51,7 +51,7 @@ describe('setupApi', () => {
     expect(await handleSetupRequest(platform, 'GET', 'nothing')).toBeUndefined();
     expect(await handleSetupRequest(platform, 'GET')).toBeUndefined();
     expect(await handleSetupRequest(platform, 'POST')).toBeUndefined();
-    expect(await handleSetupRequest(platform, 'POST', 'nothing', {}, {})).toBeUndefined();
+    expect(await handleSetupRequest(platform, 'POST', 'nothing')).toBeUndefined();
     expect(await handleSetupRequest(platform, 'PUT', 'state')).toBeUndefined();
     expect(await handleSetupRequest(platform, 'DELETE', 'state')).toBeUndefined();
   });
@@ -64,53 +64,67 @@ describe('setupApi', () => {
   });
 
   test('should look up an adapter by its address', async () => {
-    expect(await handleSetupRequest(platform, 'POST', 'identify', {}, { host: '192.168.1.50' })).toEqual({ ok: true, device: adapter });
+    expect(await handleSetupRequest(platform, 'POST', 'identify', { host: '192.168.1.50' })).toEqual({ ok: true, device: adapter });
     platform.identify.mockResolvedValueOnce(undefined as unknown as typeof adapter);
-    expect(await handleSetupRequest(platform, 'POST', 'identify', {}, { host: '192.168.1.99' })).toEqual({ ok: false, error: 'No Daikin adapter answered at 192.168.1.99' });
-    expect(await handleSetupRequest(platform, 'POST', 'identify', {}, { host: 'http://192.168.1.50/' })).toMatchObject({ ok: false });
+    expect(await handleSetupRequest(platform, 'POST', 'identify', { host: '192.168.1.99' })).toEqual({ ok: false, error: 'No Daikin adapter answered at 192.168.1.99' });
+    expect(await handleSetupRequest(platform, 'POST', 'identify', { host: 'http://192.168.1.50/' })).toMatchObject({ ok: false });
     expect(platform.identify).toHaveBeenCalledTimes(2);
   });
 
   test('should check an adapter, with or without a child lock code', async () => {
-    expect(await handleSetupRequest(platform, 'POST', 'probe', {}, { device: adapter, localPassword: '1234' })).toEqual({ ok: true, result: ready });
+    expect(await handleSetupRequest(platform, 'POST', 'probe', { device: adapter, localPassword: '1234' })).toEqual({ ok: true, result: ready });
     expect(platform.probe).toHaveBeenLastCalledWith(parsedAdapter, '1234');
-    await handleSetupRequest(platform, 'POST', 'probe', {}, { device: adapter, localPassword: '' });
+    await handleSetupRequest(platform, 'POST', 'probe', { device: adapter, localPassword: '' });
     expect(platform.probe).toHaveBeenLastCalledWith(parsedAdapter, undefined);
-    expect(await handleSetupRequest(platform, 'POST', 'probe', {}, { device: { host: '' } })).toEqual({ ok: false, error: 'The device has no valid address or protocol' });
+    expect(await handleSetupRequest(platform, 'POST', 'probe', { device: { host: '' } })).toEqual({ ok: false, error: 'The device has no valid address or protocol' });
   });
 
   test('should register with the KEY and ask for one when it is missing', async () => {
-    expect(await handleSetupRequest(platform, 'POST', 'register', {}, { device: adapter, key: '0123456789012' })).toEqual({ ok: true, result: ready });
+    expect(await handleSetupRequest(platform, 'POST', 'register', { device: adapter, key: '0123456789012' })).toEqual({ ok: true, result: ready });
     expect(platform.register).toHaveBeenCalledWith(parsedAdapter, '0123456789012', undefined);
-    expect(await handleSetupRequest(platform, 'POST', 'register', {}, { device: adapter })).toEqual({ ok: false, error: 'Enter the KEY printed on the adapter' });
+    expect(await handleSetupRequest(platform, 'POST', 'register', { device: adapter })).toEqual({ ok: false, error: 'Enter the KEY printed on the adapter' });
   });
 
   test('should store a device and refuse one that is not valid', async () => {
     const device = createDeviceConfig({ requiresLocalPassword: true, localPassword: '1234' });
-    expect(await handleSetupRequest(platform, 'POST', 'device', {}, { device })).toEqual({ ok: true, state });
+    expect(await handleSetupRequest(platform, 'POST', 'device', { device })).toEqual({ ok: true, state });
     expect(platform.saveDevice).toHaveBeenCalledWith(device);
     // An adapter that did not say which one it is cannot be stored from the page.
-    expect(await handleSetupRequest(platform, 'POST', 'device', {}, { device: { host: '192.168.1.50', name: 'Den', protocol: 'classic' } })).toMatchObject({
+    expect(await handleSetupRequest(platform, 'POST', 'device', { device: { host: '192.168.1.50', name: 'Den', protocol: 'classic' } })).toMatchObject({
       ok: false,
       error: expect.stringContaining('MAC address'),
     });
-    expect(await handleSetupRequest(platform, 'POST', 'device', {}, 'text')).toMatchObject({ ok: false });
+    expect(await handleSetupRequest(platform, 'POST', 'device', 'text')).toMatchObject({ ok: false });
     expect(platform.saveDevice).toHaveBeenCalledTimes(1);
   });
 
   test('should remove a device by the MAC address of its adapter', async () => {
-    expect(await handleSetupRequest(platform, 'DELETE', 'device', { macAddress: 'a408eacc91d4' })).toEqual({ ok: true });
+    expect(await handleSetupRequest(platform, 'POST', 'remove-device', { macAddress: 'a408eacc91d4' })).toEqual({ ok: true });
     expect(platform.removeDevice).toHaveBeenCalledWith('A4:08:EA:CC:91:D4');
     platform.removeDevice.mockResolvedValueOnce(false);
-    expect(await handleSetupRequest(platform, 'DELETE', 'device', { macAddress: 'A4:08:EA:CC:91:D5' })).toEqual({
+    expect(await handleSetupRequest(platform, 'POST', 'remove-device', { macAddress: 'A4:08:EA:CC:91:D5' })).toEqual({
       ok: false,
       error: 'No device has the adapter A4:08:EA:CC:91:D5',
     });
-    expect(await handleSetupRequest(platform, 'DELETE', 'device', { macAddress: 'Living Room' })).toEqual({
+    expect(await handleSetupRequest(platform, 'POST', 'remove-device', { macAddress: 'Living Room' })).toEqual({
       ok: false,
       error: 'Give the MAC address of the adapter of the device to remove',
     });
-    expect(await handleSetupRequest(platform, 'DELETE', 'device')).toEqual({ ok: false, error: 'Give the MAC address of the adapter of the device to remove' });
+    expect(await handleSetupRequest(platform, 'POST', 'remove-device')).toEqual({ ok: false, error: 'Give the MAC address of the adapter of the device to remove' });
+  });
+
+  test('should not remove a device through a DELETE, which Matterbridge answers with 204 whatever the plugin returns', async () => {
+    expect(await handleSetupRequest(platform, 'DELETE', 'device', { macAddress: 'A4:08:EA:CC:91:D4' })).toBeUndefined();
+    expect(await handleSetupRequest(platform, 'DELETE', 'remove-device', { macAddress: 'A4:08:EA:CC:91:D4' })).toBeUndefined();
+    expect(platform.removeDevice).not.toHaveBeenCalled();
+  });
+
+  test('should answer a removal that fails with the reason, which a DELETE could not carry', async () => {
+    platform.removeDevice.mockRejectedValueOnce(new Error('EACCES: permission denied, open config.json'));
+    expect(await handleSetupRequest(platform, 'POST', 'remove-device', { macAddress: 'A4:08:EA:CC:91:D4' })).toEqual({
+      ok: false,
+      error: 'EACCES: permission denied, open config.json',
+    });
   });
 
   test('should answer with the reason when a request fails', async () => {

@@ -3,7 +3,7 @@
  * @description What the setup page does: each action calls the plugin, changes the state of the page and redraws it.
  * @author Calvin Che
  * @created 2026-10-13
- * @version 1.1.0
+ * @version 1.2.0
  * @license Apache-2.0
  *
  * Copyright 2026 Calvin Che.
@@ -210,7 +210,7 @@ export const reloadNote = "Matterbridge's own list of devices shows the change o
 export const restartNote = 'Restart Matterbridge to apply the new options in Matter: until then the air conditioner keeps its current controls.';
 
 export async function removeDevice(device: StoredDevice): Promise<void> {
-  const reply = await busy(`Removing ${device.name}…`, async () => api('DELETE device', undefined, `macAddress=${encodeURIComponent(device.macAddress)}`));
+  const reply = await busy(`Removing ${device.name}…`, async () => api('POST remove-device', { macAddress: device.macAddress }));
   view.confirmingRemoval = '';
   if (reply.ok) view.info = `${device.name} is removed. ${reloadNote}`;
   else view.error = reply.error;

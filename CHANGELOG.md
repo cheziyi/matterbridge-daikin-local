@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- [setup]: Show the reason when an air conditioner could not be removed. The setup page removed one through a DELETE request, which Matterbridge answers with 204 and no body whatever the plugin returns, so a removal that failed showed as a success. It is now a POST to `remove-device`, whose reply the page reads like every other.
+
 ## [0.12.0] - 2026-10-25
 
 ### Added
