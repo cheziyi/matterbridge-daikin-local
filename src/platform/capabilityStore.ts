@@ -22,8 +22,8 @@
  */
 
 import type { DaikinCapabilities } from 'daikin-local-control';
+import type { NodeStorage } from 'matterbridge/storage';
 import { isValidBoolean, isValidObject } from 'matterbridge/utils';
-import type { NodeStorage } from 'node-persist-manager';
 
 import type { DaikinDeviceConfig } from '../config.js';
 import type { ReportedSensors } from '../controls.js';

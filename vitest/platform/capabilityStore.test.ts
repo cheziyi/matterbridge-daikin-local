@@ -6,7 +6,7 @@
 
 /* oxlint-disable unicorn/no-useless-undefined */
 
-import type { NodeStorage } from 'node-persist-manager';
+import type { NodeStorage } from 'matterbridge/storage';
 
 import { CapabilityStore } from '../../src/platform/capabilityStore.js';
 import { createCapabilities, createDeviceConfig, macOf } from '../fakeDaikin.js';
